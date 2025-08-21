@@ -16,8 +16,8 @@ import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.examples.HelperFunctions.Time;
 import com.binance.api.examples.HelperFunctions.round;
+import com.binance.api.examples.Indicator.Update;
 import com.binance.api.examples.SQL_Database.ATHSQL;
-import com.binance.api.examples.xSaveReset.Update;
 
 public class CheckOrderStatus {
 

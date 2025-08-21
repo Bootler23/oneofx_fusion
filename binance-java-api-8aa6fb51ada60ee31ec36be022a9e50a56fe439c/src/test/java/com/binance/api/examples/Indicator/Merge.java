@@ -1,4 +1,4 @@
-package com.binance.api.examples.xSaveReset;
+package com.binance.api.examples.Indicator;
 
 import java.sql.Connection;
 import java.sql.DriverManager;

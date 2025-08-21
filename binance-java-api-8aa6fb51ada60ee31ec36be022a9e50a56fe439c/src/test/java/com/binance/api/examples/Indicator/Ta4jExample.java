@@ -1,4 +1,4 @@
-package com.binance.api.examples.xSaveReset;
+package com.binance.api.examples.Indicator;
 
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.market.Candlestick;

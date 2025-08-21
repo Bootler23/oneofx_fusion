@@ -1,4 +1,4 @@
-package com.binance.api.examples.xSaveReset;
+package com.binance.api.examples.Indicator;
 
 public class OrderDetails {
     private String buyOrderId;
