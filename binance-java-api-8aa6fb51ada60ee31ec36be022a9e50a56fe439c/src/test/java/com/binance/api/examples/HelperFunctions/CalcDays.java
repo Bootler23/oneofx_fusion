@@ -1,0 +1,24 @@
+package com.binance.api.examples.HelperFunctions;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+
+public class CalcDays {
+
+    public static long fromDate(String startDatum) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+        LocalDate start = LocalDate.parse(startDatum, formatter);
+        LocalDate heute = LocalDate.now();
+
+        return ChronoUnit.DAYS.between(start, heute);
+    }  
+    
+    public static int getDayFromStart(String startDate){
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+        LocalDate start = LocalDate.parse(startDate, formatter);
+        LocalDate heute = LocalDate.now();
+
+        return (int) ChronoUnit.DAYS.between(start, heute);
+    }
+}
