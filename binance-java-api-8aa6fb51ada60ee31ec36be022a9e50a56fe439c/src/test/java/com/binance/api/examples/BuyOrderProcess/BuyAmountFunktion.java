@@ -67,9 +67,7 @@ public class BuyAmountFunktion {
 
             freeBalance = (freeBalance - (rest_Postion * 5.5));
 
-            getBuyAmount = (freeBalance / 23);
-
-            // getBuyAmount = ((freeBalance - (count_PositionToBottom * 5.5)) / 23);
+            getBuyAmount = (freeBalance / 23);        
 
             Loop1 = false;
         }
