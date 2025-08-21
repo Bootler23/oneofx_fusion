@@ -1,4 +1,4 @@
-package com.binance.api.examples.xSaveReset;
+package com.binance.api.examples.Indicator;
 // package com.binance.api.examples;
 
 // import com.binance.api.client.BinanceApiClientFactory;
