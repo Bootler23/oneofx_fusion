@@ -124,6 +124,7 @@ public class LTC_EUR_Live {
                         WPDSQL.getGewinnAfterTax(HIST, WPD, SET);                     
 
                         count = 0;
+                        
                         FirstRound = false;
 
                         Asset.getBNB_Balance("BNBEUR", "BNB", client);                       
