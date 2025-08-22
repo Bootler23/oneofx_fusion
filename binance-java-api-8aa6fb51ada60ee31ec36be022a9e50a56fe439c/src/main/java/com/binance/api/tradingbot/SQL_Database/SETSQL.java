@@ -57,19 +57,19 @@ public class SETSQL {
         }
     }
 
-    public static void checkForNewBuyAmount(String currencyPair, double newBuyAmount, double LivePrice) {
-        double currentBuyAmount = get_newBuyAmount();
-        if (newBuyAmount > currentBuyAmount) {
-            EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
-            try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                    Statement query = con.createStatement()) {
-                String SQL = "UPDATE SETTING SET newBuyAmount = " + round.three(newBuyAmount);
-                query.executeUpdate(SQL);
-            } catch (SQLException err) {
-                System.out.println(err.getMessage());
-            }
-        }
-    }
+    // public static void checkForNewBuyAmount(String currencyPair, double newBuyAmount, double LivePrice) {
+    //     double currentBuyAmount = get_newBuyAmount();
+    //     if (newBuyAmount > currentBuyAmount) {
+    //         EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
+    //         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+    //                 Statement query = con.createStatement()) {
+    //             String SQL = "UPDATE SETTING SET newBuyAmount = " + round.three(newBuyAmount);
+    //             query.executeUpdate(SQL);
+    //         } catch (SQLException err) {
+    //             System.out.println(err.getMessage());
+    //         }
+    //     }
+    // }
 
     public static int getcountPart() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());

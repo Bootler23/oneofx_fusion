@@ -42,8 +42,8 @@ public class ATHSQL {
         }
     }
 
-    public static double getLPP(final String ATH, String currencyPair) {
-        try (Connection con = DriverManager.getConnection(ATH);
+    public static double getLPP(String currencyPair) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT LPP FROM ATH WHERE `Währung` = '" + currencyPair + "'")) {
             return round.two(rs.getDouble("LPP"));
@@ -53,11 +53,11 @@ public class ATHSQL {
         }
     }
 
-    public static void updateLPP(final String ATH, String currencyPair) {
-        try (Connection con = DriverManager.getConnection(ATH);
+    public static void updateLPP(String currencyPair) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
                 Statement statement = con.createStatement()) {
 
-            String updateSQL = "UPDATE ATH SET LPP = " + CalcNewLPP(ATH, currencyPair) + " WHERE `Währung` = '"
+            String updateSQL = "UPDATE ATH SET LPP = " + CalcNewLPP(currencyPair) + " WHERE `Währung` = '"
                     + currencyPair + "'";
             statement.executeUpdate(updateSQL);
 
@@ -66,15 +66,15 @@ public class ATHSQL {
         }
     }
 
-    public static double CalcNewLPP(final String ATH, String currencyPair) {
-        double LastPossiblePrice = getLPP(ATH, currencyPair);
+    public static double CalcNewLPP(String currencyPair) {
+        double LastPossiblePrice = getLPP(currencyPair);
 
         double AllTimeHighMinus80Percent = (ATHSQL.getAllTimeHigh(currencyPair) / 100) * 20;
 
         if (AllTimeHighMinus80Percent > LastPossiblePrice) {
-            LastPossiblePrice += 0.01;
+            LastPossiblePrice += 0.01;           
         } else {
-            LastPossiblePrice -= 0.01;
+            LastPossiblePrice -= 0.01;          
         }
         return round.three(LastPossiblePrice);
     }

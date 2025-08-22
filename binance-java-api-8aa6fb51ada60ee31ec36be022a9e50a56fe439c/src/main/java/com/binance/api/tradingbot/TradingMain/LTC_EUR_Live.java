@@ -80,9 +80,7 @@ public class LTC_EUR_Live {
                 final String SET = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/SETTING.db";
                 final String ATH = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ATH_LTCEUR.db";
                 final String POS = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR.db";
-                final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";
-                // final String EXPO =
-                // "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ExpoTag.db";
+                final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";              
                 final String WPD = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/WPD.db";
 
                 List<Long> OrderIdList = new ArrayList<Long>();
@@ -106,7 +104,7 @@ public class LTC_EUR_Live {
 
                     BuyAmountFunktion.getBuyAmount(currency, EURO, client, LivePrice, false);
 
-                    ATHSQL.updateLPP(ATH, currency);
+                    ATHSQL.updateLPP(currency);
 
                     if (count == 41 || FirstRound) {
 
@@ -139,7 +137,7 @@ public class LTC_EUR_Live {
 
                     // Check
                     POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
-                    CheckOrderStatus.OrderStatus(currency, grid, client, POS, HIST, OrderIdList, ATH, SET,
+                    CheckOrderStatus.OrderStatus(currency, grid, client, POS, HIST, OrderIdList, SET,
                             LivePrice);
 
                     // // Sell                  
