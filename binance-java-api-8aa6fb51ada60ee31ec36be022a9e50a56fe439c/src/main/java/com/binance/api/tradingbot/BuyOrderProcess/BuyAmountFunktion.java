@@ -68,9 +68,7 @@ public class BuyAmountFunktion {
 
             freeBalance = (freeBalance - (rest_Postion * 5.5));
 
-            getBuyAmount = (freeBalance / 23);   
-            
-            //SETSQL.checkForNewBuyAmount(currencyPair, getBuyAmount, LivePrice.get(0));
+            getBuyAmount = (freeBalance / count_PositionTo20Percent);
 
             Loop1 = false;
         }

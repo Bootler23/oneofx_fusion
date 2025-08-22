@@ -24,7 +24,7 @@ public class SellOrderProcess {
     public static void setSellOrder(String CurrencyPair, double p, BinanceApiRestClient client, final String POS,
             final String HIST, final String SET, List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
-                  int count = 1;
+        int count = 1;
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
@@ -33,16 +33,15 @@ public class SellOrderProcess {
             String Quantity_String = parts[2];
             String BuyPrice_String = parts[4];
             double BuyPrice_Double = round.two(Double.valueOf(BuyPrice_String));
-          
-            
+
             double sellTarget = (BuyPrice_Double / 100) * (100 + p);
-          
-            // if (BuyPrice_Double * 0.87 > LivePrice.get(0)){
+
+            // if (BuyPrice_Double * 0.93 > LivePrice.get(0)) {
             //     System.out.println(count + " " + BuyPrice_Double);
             //     count++;
             // }
 
-            if (LivePrice.get(0) >= sellTarget) {
+            if ((LivePrice.get(0) >= sellTarget) || (BuyPrice_Double * 0.93 > LivePrice.get(0))) {
 
                 empty.Line();
                 System.out.println("es soll " + CurrencyPair + " verkauft werden");
@@ -55,7 +54,7 @@ public class SellOrderProcess {
                     update_HIST_AfterMarketSell(HIST, BuyOrderId, Time.getCurrentTime_HHmmss(),
                             Time.getCurrentDate(), newOrderResponse);
                     delete_POS_AfterMarketSell(POS, BuyOrderId);
-                    
+
                     System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId);
 
                 } catch (BinanceApiException ex) {
@@ -66,7 +65,7 @@ public class SellOrderProcess {
                     sleep.for_10_seconds();
                     break;
                 }
-            } 
+            }
         }
     }
 
@@ -110,7 +109,7 @@ public class SellOrderProcess {
                 Statement stmt = con.createStatement()) {
 
             String UpdateSQL = "UPDATE POS SET Status = 2 WHERE BuyOrderId = '" + BuyOrderId + "';";
-            stmt.executeUpdate(UpdateSQL); 
+            stmt.executeUpdate(UpdateSQL);
 
         } catch (SQLException err) {
             System.out.println("Fehler beim Aktualisieren: " + err.getMessage());
