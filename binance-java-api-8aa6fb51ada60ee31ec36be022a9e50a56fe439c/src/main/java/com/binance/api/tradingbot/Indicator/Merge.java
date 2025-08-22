@@ -28,7 +28,7 @@ public class Merge {
             List<String> BuyAmountRecord = new ArrayList<String>();
             
             // Hole einen Datensatz mit dem Status 1 und dem größten OrderPrice
-            POSSQL.getDataRecordsPOS_FirstEntryWithHighestOrderPrice(POS, BuyAmountRecord);
+            POSSQL.getDataRecordsPOS_FirstEntryWithHighestOrderPrice(BuyAmountRecord);
 
             if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01)) { // Prüft, ob ein Datensatz vorhanden ist
                 String record = BuyAmountRecord.get(0); // Ersten Eintrag holen

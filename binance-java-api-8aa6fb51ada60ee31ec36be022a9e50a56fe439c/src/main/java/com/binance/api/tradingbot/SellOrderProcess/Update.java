@@ -12,11 +12,12 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.Trade;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class Update {
 
-    public static void getSellTradeInformation(BinanceApiRestClient client, List<String> dataRecords, final String POS, final String HIST) {
+    public static void getSellTradeInformation(BinanceApiRestClient client, List<String> dataRecords) {
 
         for (String dataRecord : dataRecords) {
 
@@ -62,7 +63,7 @@ public class Update {
                 }
 
                 try {
-                    Connection conUpdateHIST = DriverManager.getConnection(HIST);
+                    Connection conUpdateHIST = DriverManager.getConnection(dbUrl.getHIST());
                     Statement updateHIST = conUpdateHIST.createStatement();
 
                     String SQL = "UPDATE HIST SET SellPrice = " + SellPriceFromExchange +
@@ -90,8 +91,7 @@ public class Update {
         }
     }
 
-    public static void getBuyTradeInformation(BinanceApiRestClient client, List<String> dataRecords, final String POS,
-            final String HIST) {
+    public static void getBuyTradeInformation(BinanceApiRestClient client, List<String> dataRecords) {
 
         for (String dataRecord : dataRecords) {
 
@@ -123,7 +123,7 @@ public class Update {
                 Fee = round.five(Fee * Ticker.getAssetPrice("BNBEUR", client));
                 BuyPriceFromExchange = round.five(BuyAmount / Quantity);
 
-                try (Connection con_update = DriverManager.getConnection(POS);
+                try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                         Statement update = con_update.createStatement()) {
 
                     String SQL_update = "UPDATE POS SET "
@@ -140,7 +140,7 @@ public class Update {
                     System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
                 }              
 
-                try (Connection con_insert_HIST = DriverManager.getConnection(HIST);
+                try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
                         Statement insert_HIST = con_insert_HIST.createStatement()) {
 
                   String SQL = "UPDATE HIST SET BuyPrice = " + BuyPriceFromExchange +

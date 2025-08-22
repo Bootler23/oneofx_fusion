@@ -7,14 +7,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-import com.binance.api.tradingbot.Database.dbUrlUrl;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class ATHSQL {
 
-    public static double getAllTimeHigh(String CurrencyPair, final String ATH) {
-        ensureCurrencyPairExists(dbUrlUrl.getATHDB(), CurrencyPair);
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getATHDB());
+    public static double getAllTimeHigh(String CurrencyPair) {
+        ensureCurrencyPairExists(dbUrl.getATH(), CurrencyPair);
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT ATH FROM ATH WHERE `Währung` = '" + CurrencyPair + "'")) {
             return rs.next() ? round.two(rs.getDouble("ATH")) : 0.0;
@@ -25,8 +25,8 @@ public class ATHSQL {
     }
 
     public static void CheckForNewAllTimeHigh(String CurrencyPair, List<Double> LivePrice) {
-        if (LivePrice.get(0) > getAllTimeHigh(CurrencyPair, dbUrlUrl.getATHDB())) {
-            setAllTimeHigh(CurrencyPair, dbUrlUrl.getATHDB(), LivePrice.get(0));
+        if (LivePrice.get(0) > getAllTimeHigh(CurrencyPair)) {
+            setAllTimeHigh(CurrencyPair, dbUrl.getATH(), LivePrice.get(0));
             System.out.println("New ATH small function");
         }
     }
@@ -42,8 +42,7 @@ public class ATHSQL {
         }
     }
 
-    public static double 
-    getLPP(final String ATH, String currencyPair) {
+    public static double getLPP(final String ATH, String currencyPair) {
         try (Connection con = DriverManager.getConnection(ATH);
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT LPP FROM ATH WHERE `Währung` = '" + currencyPair + "'")) {
@@ -58,7 +57,8 @@ public class ATHSQL {
         try (Connection con = DriverManager.getConnection(ATH);
                 Statement statement = con.createStatement()) {
 
-            String updateSQL = "UPDATE ATH SET LPP = " + CalcNewLPP(ATH, currencyPair) + " WHERE `Währung` = '" + currencyPair + "'";
+            String updateSQL = "UPDATE ATH SET LPP = " + CalcNewLPP(ATH, currencyPair) + " WHERE `Währung` = '"
+                    + currencyPair + "'";
             statement.executeUpdate(updateSQL);
 
         } catch (SQLException err) {
@@ -69,10 +69,10 @@ public class ATHSQL {
     public static double CalcNewLPP(final String ATH, String currencyPair) {
         double LastPossiblePrice = getLPP(ATH, currencyPair);
 
-        double AllTimeHighMinus80Percent = (ATHSQL.getAllTimeHigh(currencyPair, ATH) / 100) * 20;
-     
+        double AllTimeHighMinus80Percent = (ATHSQL.getAllTimeHigh(currencyPair) / 100) * 20;
+
         if (AllTimeHighMinus80Percent > LastPossiblePrice) {
-            LastPossiblePrice += 0.01; 
+            LastPossiblePrice += 0.01;
         } else {
             LastPossiblePrice -= 0.01;
         }

@@ -3,7 +3,6 @@ package com.binance.api.tradingbot.HelperFunctions;
 import java.time.LocalDateTime;
 
 import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
-import com.binance.api.tradingbot.Settings.set;
 
 public class HourlySchedulerExample {
 
@@ -29,7 +28,7 @@ public class HourlySchedulerExample {
         try {
             System.out.println("=== Führe stündliche Überprüfungen durch ===");
 
-            double value = (BuyAmountFunktion.getBuyAmount(currencyPair, null, set.getGridforCurrency(currencyPair), null, "ATH", "POS", "SET", null, true));
+            double value = (BuyAmountFunktion.getBuyAmount(currencyPair, null, null, null, true));
             if (value <= 6.0) {         
                 System.out.println("=== 10 € werden freigegeben ===");
             }

@@ -98,24 +98,25 @@ public class LTC_EUR_Live {
                     grid = set.getGridforCurrency(currency);
 
                     sleep.for_1_second();
+                    //sleep.for_05_second();
 
                     Ticker.get_CurrencyPair_Price(currency, client, LivePrice);                  
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
-                    BuyAmountFunktion.getBuyAmount(currency, EURO, grid, client, ATH, POS, SET, LivePrice, false);
+                    BuyAmountFunktion.getBuyAmount(currency, EURO, client, LivePrice, false);
 
                     ATHSQL.updateLPP(ATH, currency);
 
                     if (count == 41 || FirstRound) {
 
-                        HISTSQL.get_SellTrade_Records_WhereStatusZero(HIST, getDataRecords);                    
-                        Update.getSellTradeInformation(client, getDataRecords, POS, HIST);                            
+                        HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
+                        Update.getSellTradeInformation(client, getDataRecords);                            
                        
                         POSSQL.get_BuyTrade_Records_WhereStatusFive(POS, getDataRecords);   
-                        Update.getBuyTradeInformation(client, getDataRecords, POS, HIST);   
+                        Update.getBuyTradeInformation(client, getDataRecords);   
                         
-                        SETSQL.CompareBalanceInSQLWithBinanceBalance(SET, EURO, client);
+                        SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, client);
 
                         // Wieviel ist mein Portfolio im Minus
                         WPDSQL.getGewinnAfterTax(HIST, WPD, SET);                     
@@ -134,16 +135,15 @@ public class LTC_EUR_Live {
                     count++;
 
                     // Buy
-                    BuyOrderPocess.setBuyOrder(currency, EURO, grid, client, ATH, POS, SET, HIST,
-                            LivePrice);
+                    BuyOrderPocess.setBuyOrder(currency, EURO, client, POS, SET, HIST, LivePrice);
 
                     // Check
-                    POSSQL.get_BuyOrderId_WhereStatusZero(POS, OrderIdList, currency);
+                    POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
                     CheckOrderStatus.OrderStatus(currency, grid, client, POS, HIST, OrderIdList, ATH, SET,
                             LivePrice);
 
                     // // Sell                  
-                    POSSQL.getDataRecords_WhereStatusOne(currency, POS, getDataRecords);  
+                    POSSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);  
                     SellOrderProcess.setSellOrder(currency, percent, client, POS, HIST, SET,
                             getDataRecords, LivePrice);
                 }
