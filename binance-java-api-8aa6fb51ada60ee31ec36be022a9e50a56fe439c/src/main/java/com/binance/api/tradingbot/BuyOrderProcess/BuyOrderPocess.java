@@ -25,23 +25,24 @@ import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
+import com.binance.api.tradingbot.Settings.set;
 
 public class BuyOrderPocess {
 
-    public static void setBuyOrder(String CurrencyPair, String EURO, int Grid, BinanceApiRestClient client,
-            final String ATH, final String POS, final String SET, final String HIST, List<Double> LivePrice) {
+    public static void setBuyOrder(String CurrencyPair, String EURO, BinanceApiRestClient client, final String POS, final String SET, final String HIST, List<Double> LivePrice) {
 
         double BuyAmaunt;
-        double Ath = ATHSQL.getAllTimeHigh(CurrencyPair, ATH);
-        double unten = POSSQL.getLastPrice(CurrencyPair, POS, LivePrice);
+        double Ath = ATHSQL.getAllTimeHigh(CurrencyPair);
+        double unten = POSSQL.getLastPrice(CurrencyPair, LivePrice);
         double BuyPrice;
         int Count = 0;
         boolean BuyOrderCalc = true;
         double TickerPrice = LivePrice.get(0);
+        int grid = set.getGridforCurrency(CurrencyPair);
 
         while (BuyOrderCalc) {
 
-            Ath = Ath - ((Ath / 100) / Grid);
+            Ath = Ath - ((Ath / 100) / grid);
             BuyPrice = round.two(Ath);
 
             if (TickerPrice >= BuyPrice) {
@@ -59,8 +60,7 @@ public class BuyOrderPocess {
 
                 sleep.for_05_second();
 
-                BuyAmaunt = BuyAmountFunktion.getBuyAmount(CurrencyPair, EURO, Grid, client, ATH, POS, SET,
-                        LivePrice, true);
+                BuyAmaunt = BuyAmountFunktion.getBuyAmount(CurrencyPair, EURO, client, LivePrice, true);
 
                 BuyAmaunt = checkBuyAmount(EURO, client, POS, SET, BuyAmaunt);
 
@@ -104,13 +104,13 @@ public class BuyOrderPocess {
     private static double checkBuyAmount(String EURO, BinanceApiRestClient client, final String POS, final String SET,
             double BuyAmaunt) {
 
-        double sqlBalance = SETSQL.getBalance_SQL(SET);
+        double sqlBalance = SETSQL.getBalance_SQL();
         double ExcangeBalance = Asset.getFreeCalced_Balance(EURO, client);
 
         if (sqlBalance != ExcangeBalance) {
             System.out.println(
                     "Balance stimmt nicht überein.------------------ Preis wird zugewiesen ---------------------------------");
-            BuyAmaunt = round.two(POSSQL.getAverageBuyAmount(POS));
+            BuyAmaunt = round.two(POSSQL.getAverageBuyAmount());
         }
         return BuyAmaunt;
     }

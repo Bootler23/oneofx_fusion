@@ -226,7 +226,7 @@ public class CheckOrderStatus {
             final String ATH, List<Double> LivePrice, Long BuyOrderId, Double orderPrice) {
 
         try {
-            double CancelPrice = ATHSQL.getAllTimeHigh(currencyPair, ATH);
+            double CancelPrice = ATHSQL.getAllTimeHigh(currencyPair);
             double LiveKurs = LivePrice.get(0);
             int i = 0;
 
@@ -276,7 +276,7 @@ public class CheckOrderStatus {
             Order order) {
 
         try {
-            double CancelPrice = ATHSQL.getAllTimeHigh(currencyPair, ATH);
+            double CancelPrice = ATHSQL.getAllTimeHigh(currencyPair);
             double LiveKurs = LivePrice.get(0);
             int i = 0;
 

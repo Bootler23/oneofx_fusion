@@ -8,13 +8,13 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
+import com.binance.api.tradingbot.Database.dbUrlUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
-import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class HISTSQL {
 
-    public static void get_SellTrade_Records_WhereStatusZero(final String HIST, List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(HIST);
+    public static void get_SellTrade_Records_WhereStatusZero(List<String> GetDataRecord) {
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getHIST());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT SellOrderId, Quantity, Währung, BuyPrice FROM HIST WHERE Status = 0")) {
@@ -35,8 +35,8 @@ public class HISTSQL {
         }
     }
 
-    public static void get_BuyTrade_Records_WhereStatusZero(final String HIST, List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(HIST);
+    public static void get_BuyTrade_Records_WhereStatusZero(List<String> GetDataRecord) {
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getHIST());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT BuyOrderId, Quantity, Währung, BuyPrice FROM HIST WHERE Status = 0")) {
@@ -57,8 +57,8 @@ public class HISTSQL {
         }
     }
 
-    public static void getDataRecords_WhereStatusOne(final String HIST, List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(HIST);
+    public static void getDataRecords_WhereStatusOne(List<String> GetDataRecord) {
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getHIST());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT BuyOrderId, ProfitSplit FROM HIST WHERE Status = 1")) {
 
@@ -97,9 +97,9 @@ public class HISTSQL {
         }
     }
 
-    public static double getTaxe(final String HIST) {
+    public static double getTaxe() {
         double tax = 0.0;
-        try (Connection con = DriverManager.getConnection(HIST);
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getHIST());
                 Statement stmt = con.createStatement()) {
 
             String query = "SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM HIST";
@@ -136,8 +136,8 @@ public class HISTSQL {
         return 0.0;
     }
 
-    public static void transferHISTToWPD(final String HIST, final String WPD, final String SET, final String SellDate) {
-        try (Connection conHIST = DriverManager.getConnection(HIST);
+    public static void transferHISTToWPD(final String WPD, final String SET, final String SellDate) {
+        try (Connection conHIST = DriverManager.getConnection(dbUrlUrl.getHIST());
                 Statement stmtHIST = conHIST.createStatement();
                 Connection conWPD = DriverManager.getConnection(WPD)) {
 

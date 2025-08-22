@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import com.binance.api.tradingbot.Database.dbUrlUrl;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class Update {
@@ -78,8 +79,8 @@ public class Update {
     // }
 
     public static void NewCounterPosition(final String SET) {
-        int count = SETSQL.getCount(SET);
+        int count = SETSQL.getCount();
         count++;
-        SETSQL.updateCount(SET, count);
+        SETSQL.updateCount(count);
     }
 }

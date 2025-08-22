@@ -8,15 +8,16 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
+import com.binance.api.tradingbot.Database.dbUrlUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class POSSQL {
 
-    public static double getLastPrice(String currencyPair, final String POS, List<Double> LivePrice) {
+    public static double getLastPrice(String currencyPair, List<Double> LivePrice) {
         double PriceMin = Double.MAX_VALUE;
         boolean foundPriceInDB = false;
 
-        try (Connection con = DriverManager.getConnection(POS);
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
                 Statement query = con.createStatement()) {
             String SQL = "SELECT OrderPrice FROM POS WHERE Status IN (0, 1) AND Währung = '" + currencyPair + "'";
 
@@ -39,10 +40,10 @@ public class POSSQL {
         return PriceMin;
     }
 
-    public static void get_BuyOrderId_WhereStatusZero(final String POS, List<Long> orderIdList, String currencyPair) {
+    public static void get_BuyOrderId_WhereStatusZero(List<Long> orderIdList, String currencyPair) {
         try {
             orderIdList.clear();
-            try (Connection con = DriverManager.getConnection(POS);
+            try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
                     Statement query = con.createStatement()) {
 
                 String SQL = "SELECT BuyOrderId FROM POS WHERE Status = 0 AND Währung = '" + currencyPair + "'";
@@ -77,8 +78,8 @@ public class POSSQL {
         }
     }
 
-    public static double getSumBuyAmount(final String POS) {
-        try (Connection con = DriverManager.getConnection(POS);
+    public static double getSumBuyAmount() {
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
                 Statement statement = con.createStatement()) {
 
             String SQL = "SELECT SUM(BuyAmount) AS SumBuyAmount FROM POS";
@@ -113,8 +114,8 @@ public class POSSQL {
         return 0.0;
     }
 
-    public static int getCountPOS(final String POS, String currencyPair) {
-        try (Connection con = DriverManager.getConnection(POS);
+    public static int getCountPOS(String currencyPair) {
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
                 Statement statement = con.createStatement()) {
 
             String SQL = "SELECT COUNT(*) AS RecordCount FROM POS WHERE Status IN (0, 1) AND Währung = '" + currencyPair + "'";
@@ -131,10 +132,10 @@ public class POSSQL {
         return 0;
     }
 
-    public static Double getAverageBuyAmount(final String POS) {
+    public static Double getAverageBuyAmount() {
         Double averageBuyAmount = null;
 
-        try (Connection con = DriverManager.getConnection(POS);
+        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
                 Statement query = con.createStatement()) {
 
             String SQL = "SELECT AVG(BuyAmount) AS AverageBuyAmount FROM POS";
@@ -150,10 +151,10 @@ public class POSSQL {
         return averageBuyAmount;
     }
 
-    public static void getDataRecords_WhereStatusOne(String CurrencyPair, final String POS, List<String> dataRecords) {
+    public static void getDataRecords_WhereStatusOne(String CurrencyPair, List<String> dataRecords) {
         try {
             dataRecords.clear();
-            try (Connection con = DriverManager.getConnection(POS);
+            try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
                  PreparedStatement pstmt = con.prepareStatement(
                      "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                      "FROM POS WHERE Status IN (1, 7) AND Währung = ?")) {
@@ -182,10 +183,10 @@ public class POSSQL {
         }
     }   
 
-    public static void getDataRecordsPOS_FirstEntryWithHighestOrderPrice(final String POS, List<String> dataRecords) {
+    public static void getDataRecordsPOS_FirstEntryWithHighestOrderPrice(List<String> dataRecords) {
         try {
             dataRecords.clear();
-            Connection con = DriverManager.getConnection(POS);
+            Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
             Statement query = con.createStatement();
 
             String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS "
@@ -219,10 +220,10 @@ public class POSSQL {
         }
     }
 
-    public static void getPositionWithMaxBuyAmount(final String POS, List<String> dataRecords) {
+    public static void getPositionWithMaxBuyAmount(List<String> dataRecords) {
         try {
             dataRecords.clear();
-            Connection con = DriverManager.getConnection(POS);
+            Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
             Statement query = con.createStatement();
 
             String SQL = "SELECT BuyOrderId, Qty, Währung FROM POS "

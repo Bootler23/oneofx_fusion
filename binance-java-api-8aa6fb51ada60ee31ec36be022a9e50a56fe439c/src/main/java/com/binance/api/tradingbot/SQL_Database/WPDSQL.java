@@ -10,7 +10,6 @@ import java.util.Calendar;
 import java.util.List;
 
 import com.binance.api.tradingbot.HelperFunctions.CalcDays;
-import com.binance.api.tradingbot.RiskRewardRatio.RRR;
 
 public class WPDSQL {
 
@@ -35,7 +34,7 @@ public class WPDSQL {
                 String currentDate = sdf.format(cal.getTime());
 
                 if (!HISTSQL.getDate(WPD, currentDate)) {
-                    HISTSQL.transferHISTToWPD(HIST, WPD, SET, currentDate);
+                    HISTSQL.transferHISTToWPD(WPD, SET, currentDate);
                 }
                 // zähle einen Tag nach oben und gehe durch alle Datum´s
                 cal.add(Calendar.DAY_OF_YEAR, 1);
@@ -46,7 +45,7 @@ public class WPDSQL {
     }
 
     public static double SellPerDayAVG(final String SET) {
-        double sellPerDayAVG = (SETSQL.getCount(SET) / CalcDays.fromDate("01.01.2025"));
+        double sellPerDayAVG = (SETSQL.getCount() / CalcDays.fromDate("01.01.2025"));
         return sellPerDayAVG;
     }
 
