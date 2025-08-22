@@ -8,7 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-import com.binance.api.tradingbot.Database.dbUrlUrl;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class POSSQL {
@@ -17,7 +17,7 @@ public class POSSQL {
         double PriceMin = Double.MAX_VALUE;
         boolean foundPriceInDB = false;
 
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement query = con.createStatement()) {
             String SQL = "SELECT OrderPrice FROM POS WHERE Status IN (0, 1) AND Währung = '" + currencyPair + "'";
 
@@ -43,7 +43,7 @@ public class POSSQL {
     public static void get_BuyOrderId_WhereStatusZero(List<Long> orderIdList, String currencyPair) {
         try {
             orderIdList.clear();
-            try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+            try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                     Statement query = con.createStatement()) {
 
                 String SQL = "SELECT BuyOrderId FROM POS WHERE Status = 0 AND Währung = '" + currencyPair + "'";
@@ -79,7 +79,7 @@ public class POSSQL {
     }
 
     public static double getSumBuyAmount() {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement statement = con.createStatement()) {
 
             String SQL = "SELECT SUM(BuyAmount) AS SumBuyAmount FROM POS";
@@ -115,7 +115,7 @@ public class POSSQL {
     }
 
     public static int getCountPOS(String currencyPair) {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement statement = con.createStatement()) {
 
             String SQL = "SELECT COUNT(*) AS RecordCount FROM POS WHERE Status IN (0, 1) AND Währung = '" + currencyPair + "'";
@@ -135,7 +135,7 @@ public class POSSQL {
     public static Double getAverageBuyAmount() {
         Double averageBuyAmount = null;
 
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement query = con.createStatement()) {
 
             String SQL = "SELECT AVG(BuyAmount) AS AverageBuyAmount FROM POS";
@@ -154,7 +154,7 @@ public class POSSQL {
     public static void getDataRecords_WhereStatusOne(String CurrencyPair, List<String> dataRecords) {
         try {
             dataRecords.clear();
-            try (Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+            try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                  PreparedStatement pstmt = con.prepareStatement(
                      "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                      "FROM POS WHERE Status IN (1, 7) AND Währung = ?")) {
@@ -186,7 +186,7 @@ public class POSSQL {
     public static void getDataRecordsPOS_FirstEntryWithHighestOrderPrice(List<String> dataRecords) {
         try {
             dataRecords.clear();
-            Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+            Connection con = DriverManager.getConnection(dbUrl.getPOS());
             Statement query = con.createStatement();
 
             String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS "
@@ -223,7 +223,7 @@ public class POSSQL {
     public static void getPositionWithMaxBuyAmount(List<String> dataRecords) {
         try {
             dataRecords.clear();
-            Connection con = DriverManager.getConnection(dbUrlUrl.getPOS());
+            Connection con = DriverManager.getConnection(dbUrl.getPOS());
             Statement query = con.createStatement();
 
             String SQL = "SELECT BuyOrderId, Qty, Währung FROM POS "

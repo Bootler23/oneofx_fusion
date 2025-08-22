@@ -7,14 +7,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-import com.binance.api.tradingbot.Database.dbUrlUrl;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class ATHSQL {
 
     public static double getAllTimeHigh(String CurrencyPair) {
-        ensureCurrencyPairExists(dbUrlUrl.getATH(), CurrencyPair);
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getATH());
+        ensureCurrencyPairExists(dbUrl.getATH(), CurrencyPair);
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT ATH FROM ATH WHERE `Währung` = '" + CurrencyPair + "'")) {
             return rs.next() ? round.two(rs.getDouble("ATH")) : 0.0;
@@ -26,7 +26,7 @@ public class ATHSQL {
 
     public static void CheckForNewAllTimeHigh(String CurrencyPair, List<Double> LivePrice) {
         if (LivePrice.get(0) > getAllTimeHigh(CurrencyPair)) {
-            setAllTimeHigh(CurrencyPair, dbUrlUrl.getATH(), LivePrice.get(0));
+            setAllTimeHigh(CurrencyPair, dbUrl.getATH(), LivePrice.get(0));
             System.out.println("New ATH small function");
         }
     }

@@ -1,6 +1,6 @@
 package com.binance.api.tradingbot.Database;
 
-public class dbUrlUrl {
+public class dbUrl {
 
     public static String getSET() {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/SETTING.db";

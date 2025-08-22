@@ -11,7 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-import com.binance.api.tradingbot.Database.dbUrlUrl;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class Update {

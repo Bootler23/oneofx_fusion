@@ -8,7 +8,7 @@ import java.sql.Statement;
 
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.exception.BinanceApiException;
-import com.binance.api.tradingbot.Database.dbUrlUrl;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
@@ -36,7 +36,7 @@ public class SETSQL {
     }
 
     public static double getBalance_SQL() {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT Balance FROM SETTING")) {
             return round.two(rs.getDouble("Balance"));
@@ -47,7 +47,7 @@ public class SETSQL {
     }
 
     public static double get_newBuyAmount() {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT newBuyAmount FROM SETTING")) {
             return round.three(rs.getDouble("newBuyAmount"));
@@ -61,7 +61,7 @@ public class SETSQL {
         double currentBuyAmount = get_newBuyAmount();
         if (newBuyAmount > currentBuyAmount) {
             EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
-            try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+            try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                     Statement query = con.createStatement()) {
                 String SQL = "UPDATE SETTING SET newBuyAmount = " + round.three(newBuyAmount);
                 query.executeUpdate(SQL);
@@ -72,7 +72,7 @@ public class SETSQL {
     }
 
     public static int getcountPart() {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT countPart FROM SETTING")) {
             return rs.getInt("countPart");
@@ -83,7 +83,7 @@ public class SETSQL {
     }
 
     public static int setcountPart(int newValue) {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement()) {
             String SQL = "UPDATE SETTING SET countPart = " + newValue;
             query.executeUpdate(SQL);
@@ -95,7 +95,7 @@ public class SETSQL {
     }
 
     public static double setBalance(double newValue) {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement()) {
             String SQL = "UPDATE SETTING SET Balance = " + newValue;
             query.executeUpdate(SQL);
@@ -107,7 +107,7 @@ public class SETSQL {
     }  
 
     public static double getBuyAmount() {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT BuyAmount FROM SETTING")) {
             return round.two(rs.getDouble("BuyAmount"));
@@ -118,7 +118,7 @@ public class SETSQL {
     }
 
     public static double setBuyAmount(double newValue) {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement()) {
             String SQL = "UPDATE SETTING SET BuyAmount = " + round.two(newValue);
             query.executeUpdate(SQL);
@@ -130,7 +130,7 @@ public class SETSQL {
     }
 
     public static int getCount() {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT Count FROM SETTING")) {
             return rs.getInt("Count");
@@ -141,7 +141,7 @@ public class SETSQL {
     }
 
     public static void updateCount(int newCountValue) {
-        try (Connection con = DriverManager.getConnection(dbUrlUrl.getSET());
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement statement = con.createStatement()) {
 
             String updateSQL = "UPDATE SETTING SET Count = " + newCountValue;

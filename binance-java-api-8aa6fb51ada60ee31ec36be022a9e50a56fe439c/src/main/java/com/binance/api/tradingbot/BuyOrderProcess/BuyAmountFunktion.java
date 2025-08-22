@@ -2,7 +2,7 @@ package com.binance.api.tradingbot.BuyOrderProcess;
 
 import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.tradingbot.Database.dbUrlUrl;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
@@ -31,7 +31,7 @@ public class BuyAmountFunktion {
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
         double unten = POSSQL.getLastPrice(currencyPair, LivePrice);
 
-        double LPP = ATHSQL.getLPP(dbUrlUrl.getATH(), currencyPair);
+        double LPP = ATHSQL.getLPP(dbUrl.getATH(), currencyPair);
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
