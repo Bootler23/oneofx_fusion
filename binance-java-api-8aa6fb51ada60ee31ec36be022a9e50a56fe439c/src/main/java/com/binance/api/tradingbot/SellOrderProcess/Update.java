@@ -145,7 +145,7 @@ public class Update {
 
                   String SQL = "UPDATE HIST SET BuyPrice = " + BuyPriceFromExchange +
                             ", Quantity = " + Quantity +
-                            ", BuyAmount = " + BuyAmount +
+                            ", BuyAmount = " + round.five(BuyAmount) +
                             ", BuyFee = " + Fee +                          
                             " WHERE BuyOrderId = " + OrderId + ";";
 
