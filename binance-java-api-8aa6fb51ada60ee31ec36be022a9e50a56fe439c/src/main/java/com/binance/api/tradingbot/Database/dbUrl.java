@@ -21,4 +21,8 @@ public class dbUrl {
     public static String getWPD() {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/WPD.db";
     }
+
+    public static String getExpo() {
+        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ExpoTag.db";
+    }
 }

@@ -31,7 +31,7 @@ public class BuyAmountFunktion {
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
         double unten = POSSQL.getLastPrice(currencyPair, LivePrice);
 
-        double LPP = ATHSQL.getLPP(dbUrl.getATH(), currencyPair);
+        double LPP = ATHSQL.getLPP(currencyPair);
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
@@ -68,10 +68,9 @@ public class BuyAmountFunktion {
 
             freeBalance = (freeBalance - (rest_Postion * 5.5));
 
-            getBuyAmount = (freeBalance / 23);    
+            getBuyAmount = (freeBalance / 23);   
             
-            SETSQL.checkForNewBuyAmount(currencyPair, getBuyAmount, LivePrice.get(0));
-
+            //SETSQL.checkForNewBuyAmount(currencyPair, getBuyAmount, LivePrice.get(0));
 
             Loop1 = false;
         }

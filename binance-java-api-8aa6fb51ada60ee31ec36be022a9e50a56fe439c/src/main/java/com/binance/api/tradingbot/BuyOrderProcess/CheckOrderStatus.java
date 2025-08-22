@@ -14,6 +14,7 @@ import com.binance.api.client.domain.account.Order;
 import com.binance.api.client.domain.account.request.CancelOrderRequest;
 import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.exception.BinanceApiException;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.Indicator.Update;
@@ -22,8 +23,10 @@ import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 public class CheckOrderStatus {
 
     public static void OrderStatus(String currency, int Grid, BinanceApiRestClient client, final String POS,
-            final String HIST, List<Long> BuyOrderIdList, final String ATH,
+            final String HIST, List<Long> BuyOrderIdList,
             final String SET, List<Double> LivePrice) {
+
+        final String ATH = dbUrl.getATH();
 
         for (Long buyOrderId : BuyOrderIdList) {
 

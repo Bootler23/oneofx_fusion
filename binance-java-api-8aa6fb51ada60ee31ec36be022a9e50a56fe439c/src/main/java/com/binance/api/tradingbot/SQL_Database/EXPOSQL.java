@@ -5,15 +5,14 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class EXPOSQL {
 
-    public final static String Url = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ExpoTag.db";
-
        public static void insertnewBuyAmountEntry(String currencyPair, double buyAmount, double LivePrice) {        
-        try (Connection con = DriverManager.getConnection(Url);
+        try (Connection con = DriverManager.getConnection(dbUrl.getExpo());
              Statement query = con.createStatement()) {
             
             String SQL = "INSERT INTO EXPO(Währung, BuyAmount, Kurs, Date, Time) VALUES ('" + currencyPair + "', " + round.three(buyAmount) + ", " + LivePrice + ", '" 
@@ -21,7 +20,7 @@ public class EXPOSQL {
                     + Time.getCurrentTime_HHmmss() + "')";                    
             query.executeUpdate(SQL);
 
-            System.out.println("Update BuyAmount");
+            System.out.println("Update BuyAmount hier");
             
         } catch (SQLException err) {
             System.out.println(err.getMessage());
