@@ -18,6 +18,7 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.TimeInForce;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
@@ -29,7 +30,7 @@ import com.binance.api.tradingbot.Settings.set;
 
 public class BuyOrderPocess {
 
-    public static void setBuyOrder(String CurrencyPair, String EURO, BinanceApiRestClient client, final String POS, final String SET, final String HIST, List<Double> LivePrice) {
+    public static void setBuyOrder(String CurrencyPair, String EURO, BinanceApiRestClient client, List<Double> LivePrice) {
 
         double BuyAmaunt;
         double Ath = ATHSQL.getAllTimeHigh(CurrencyPair);
@@ -62,7 +63,7 @@ public class BuyOrderPocess {
 
                 BuyAmaunt = BuyAmountFunktion.getBuyAmount(CurrencyPair, EURO, client, LivePrice, true);
 
-                BuyAmaunt = checkBuyAmount(EURO, client, POS, SET, BuyAmaunt);
+                BuyAmaunt = checkBuyAmount(EURO, client, BuyAmaunt);
 
                 String Quantity = getQty(CurrencyPair, LivePrice, BuyAmaunt);
                 String buyprice = String.valueOf(BuyPrice);
@@ -71,7 +72,7 @@ public class BuyOrderPocess {
                     NewOrderResponse newOrderResponse = client
                             .newOrder(limitBuy(CurrencyPair, TimeInForce.GTC, Quantity, buyprice));
 
-                    try (Connection con = DriverManager.getConnection(POS)) {
+                    try (Connection con = DriverManager.getConnection(dbUrl.getPOS())) {
                         String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung) VALUES (?, ?, ?, ?)";
                         try (PreparedStatement pstmt = con.prepareStatement(SQL)) {
                             pstmt.setLong(1, newOrderResponse.getOrderId());
@@ -101,8 +102,7 @@ public class BuyOrderPocess {
         }
     }
 
-    private static double checkBuyAmount(String EURO, BinanceApiRestClient client, final String POS, final String SET,
-            double BuyAmaunt) {
+    private static double checkBuyAmount(String EURO, BinanceApiRestClient client, double BuyAmaunt) {
 
         double sqlBalance = SETSQL.getBalance_SQL();
         double ExcangeBalance = Asset.getFreeCalced_Balance(EURO, client);

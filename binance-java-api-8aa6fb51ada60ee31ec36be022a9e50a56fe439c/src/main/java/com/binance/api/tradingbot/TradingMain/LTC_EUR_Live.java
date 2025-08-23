@@ -77,11 +77,6 @@ public class LTC_EUR_Live {
                 BinanceApiClientFactory factory = BinanceApiClientFactory.newInstance(key, secret);
                 BinanceApiRestClient client = factory.newRestClient();
 
-                final String SET = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/SETTING.db";
-                final String POS = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR.db";
-                final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";              
-                final String WPD = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/WPD.db";
-
                 List<Long> OrderIdList = new ArrayList<Long>();
                 List<String> getDataRecords = new ArrayList<String>();
                 List<Double> LivePrice = new ArrayList<Double>();  
@@ -109,13 +104,13 @@ public class LTC_EUR_Live {
                         HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
                         Update.getSellTradeInformation(client, getDataRecords);                            
                        
-                        POSSQL.get_BuyTrade_Records_WhereStatusFive(POS, getDataRecords);   
+                        POSSQL.get_BuyTrade_Records_WhereStatusFive(getDataRecords);   
                         Update.getBuyTradeInformation(client, getDataRecords);   
                         
                         SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, client);
 
                         // Wieviel ist mein Portfolio im Minus
-                        WPDSQL.getGewinnAfterTax(HIST, WPD, SET);                     
+                        WPDSQL.getGewinnAfterTax();                     
 
                         count = 0;
                         
@@ -125,24 +120,22 @@ public class LTC_EUR_Live {
                     }                  
 
                     // verkaufe die die am weitestem im Minus ist
-                    Market.SellOneTimePerDay(client, POS, HIST);  
+                    Market.SellOneTimePerDay(client);  
                     HourlySchedulerExample.executeHourly(currency);
                     SellAsset.Three_TimesPerDay(client); 
 
                     count++;
 
                     // Buy
-                    BuyOrderPocess.setBuyOrder(currency, EURO, client, POS, SET, HIST, LivePrice);
+                    BuyOrderPocess.setBuyOrder(currency, EURO, client, LivePrice);
 
                     // Check
                     POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
-                    CheckOrderStatus.OrderStatus(currency, grid, client, POS, HIST, OrderIdList, SET,
-                            LivePrice);
+                    CheckOrderStatus.OrderStatus(currency, client, OrderIdList, LivePrice);
 
                     // // Sell                  
                     POSSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);  
-                    SellOrderProcess.setSellOrder(currency, percent, client, POS, HIST, SET,
-                            getDataRecords, LivePrice);
+                    SellOrderProcess.setSellOrder(currency, percent, client, getDataRecords, LivePrice);
                 }
 
             } catch (IndexOutOfBoundsException e) {

@@ -13,6 +13,7 @@ import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
@@ -21,8 +22,7 @@ import com.binance.api.tradingbot.SQL_Database.POSSQL;
 
 public class SellOrderProcess {
 
-    public static void setSellOrder(String CurrencyPair, double p, BinanceApiRestClient client, final String POS,
-            final String HIST, final String SET, List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
+    public static void setSellOrder(String CurrencyPair, double p, BinanceApiRestClient client, List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
         int count = 1;
 
@@ -50,10 +50,10 @@ public class SellOrderProcess {
                 try {
                     NewOrderResponse newOrderResponse = getNewSellOrderResponse(CurrencyPair, client, Quantity_String);
 
-                    update_POS_AfterMarketSell(POS, BuyOrderId);
-                    update_HIST_AfterMarketSell(HIST, BuyOrderId, Time.getCurrentTime_HHmmss(),
+                    update_POS_AfterMarketSell(BuyOrderId);
+                    update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(),
                             Time.getCurrentDate(), newOrderResponse);
-                    delete_POS_AfterMarketSell(POS, BuyOrderId);
+                    delete_POS_AfterMarketSell(BuyOrderId);
 
                     System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId);
 
@@ -69,8 +69,8 @@ public class SellOrderProcess {
         }
     }
 
-    private static void delete_POS_AfterMarketSell(final String POS, String BuyOrderId) {
-        try (Connection con = DriverManager.getConnection(POS);
+    private static void delete_POS_AfterMarketSell(String BuyOrderId) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 PreparedStatement pstmt = con.prepareStatement(
                         "DELETE FROM POS WHERE BuyOrderId = ?")) {
 
@@ -83,10 +83,10 @@ public class SellOrderProcess {
         }
     }
 
-    private static void update_HIST_AfterMarketSell(final String HIST, String BuyOrderId, String SellTime,
+    private static void update_HIST_AfterMarketSell(String BuyOrderId, String SellTime,
             String SellDate, NewOrderResponse newOrderResponse) {
 
-        try (Connection con = DriverManager.getConnection(HIST);
+        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
                 PreparedStatement pstmt = con.prepareStatement(
                         "UPDATE HIST SET Status = ?, SellOrderId = ?, SellTime = ?, SellDate = ? WHERE BuyOrderId = ?")) {
 
@@ -104,8 +104,8 @@ public class SellOrderProcess {
         }
     }
 
-    private static void update_POS_AfterMarketSell(final String POS, String BuyOrderId) {
-        try (Connection con = DriverManager.getConnection(POS);
+    private static void update_POS_AfterMarketSell(String BuyOrderId) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement stmt = con.createStatement()) {
 
             String UpdateSQL = "UPDATE POS SET Status = 2 WHERE BuyOrderId = '" + BuyOrderId + "';";
@@ -123,7 +123,7 @@ public class SellOrderProcess {
         return newOrderResponse;
     }
 
-    public static void handleSellProcess(final String POS, final String HIST, BinanceApiRestClient client) {
+    public static void handleSellProcess(BinanceApiRestClient client) {
 
         List<String> BuyAmountRecord = new ArrayList<String>();
 
@@ -140,10 +140,10 @@ public class SellOrderProcess {
         try {
             NewOrderResponse newOrderResponse = getNewSellOrderResponse(CurrencyPair, client, Quantity_String);
 
-            update_POS_AfterMarketSell(POS, BuyOrderId);
-            update_HIST_AfterMarketSell(HIST, BuyOrderId, Time.getCurrentTime_HHmmss(),
+            update_POS_AfterMarketSell(BuyOrderId);
+            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(),
                     Time.getCurrentDate(), newOrderResponse);
-            delete_POS_AfterMarketSell(POS, BuyOrderId);
+            delete_POS_AfterMarketSell(BuyOrderId);
 
         } catch (BinanceApiException dex) {
             System.err.println("Fehler beim Verkauf: Keine Menge für den Verkauf verfügbar!");
