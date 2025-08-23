@@ -2,8 +2,6 @@ package com.binance.api.tradingbot.BuyOrderProcess;
 
 import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.tradingbot.Database.dbUrl;
-import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -66,7 +64,7 @@ public class BuyAmountFunktion {
 
             rest_Postion = count_PositionToBottom - count_PositionTo20Percent;
 
-            freeBalance = (freeBalance - (rest_Postion * 5.5));
+            //freeBalance = (freeBalance - (rest_Postion * 5.5));
 
             getBuyAmount = (freeBalance / count_PositionTo20Percent);
 

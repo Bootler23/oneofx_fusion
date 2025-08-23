@@ -78,7 +78,6 @@ public class LTC_EUR_Live {
                 BinanceApiRestClient client = factory.newRestClient();
 
                 final String SET = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/SETTING.db";
-                final String ATH = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ATH_LTCEUR.db";
                 final String POS = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR.db";
                 final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";              
                 final String WPD = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/WPD.db";
@@ -96,8 +95,7 @@ public class LTC_EUR_Live {
                     grid = set.getGridforCurrency(currency);
 
                     sleep.for_1_second();
-                    //sleep.for_05_second();
-
+                  
                     Ticker.get_CurrencyPair_Price(currency, client, LivePrice);                  
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
@@ -125,6 +123,7 @@ public class LTC_EUR_Live {
                         Asset.getBNB_Balance("BNBEUR", "BNB", client);                       
                     }                  
 
+                    // verkaufe die die am weitestem im Minus ist
                     Market.SellOneTimePerDay(client, POS, HIST);  
                     HourlySchedulerExample.executeHourly(currency);
                     SellAsset.Three_TimesPerDay(client); 
