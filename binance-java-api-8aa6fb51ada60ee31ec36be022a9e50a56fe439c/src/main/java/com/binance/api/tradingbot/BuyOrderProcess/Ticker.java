@@ -37,21 +37,6 @@ public class Ticker {
         return 0.0;
     }
 
-    // public static void get_CurrencyPair_Price(String currencyPair,
-    // BinanceApiRestClient client,
-    // List<Double> LiveTicker) {
-    // try {
-    // LiveTicker.clear();
-    // LiveTicker.add(getAssetPrice_WithRetry(currencyPair, client));
-    // System.out.print(".");
-
-    // } catch (BinanceApiException e) {
-    // System.out.println("Fehler beim Abrufen Live_TickerPrice des
-    // Binance-API-Service: " + e.getMessage());
-    // System.out.println(Time.getCurrent_DateTimeWith_HHmmss());
-    // }
-    // }
-
     public static void get_CurrencyPair_Price(String currencyPair, BinanceApiRestClient client,
             List<Double> LiveTicker) {
         int maxRetries = 10;

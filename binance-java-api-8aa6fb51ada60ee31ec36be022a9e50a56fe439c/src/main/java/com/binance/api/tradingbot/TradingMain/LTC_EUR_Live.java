@@ -120,9 +120,8 @@ public class LTC_EUR_Live {
                     }                  
 
                     // verkaufe die die am weitestem im Minus ist
-                    Market.SellOneTimePerDay(client);  
-                    HourlySchedulerExample.executeHourly(currency);
-                    SellAsset.Three_TimesPerDay(client); 
+                    HourlySchedulerExample.executeHourly(currency);                    
+                    SellAsset.Three_TimesPerDay(client);
 
                     count++;
 

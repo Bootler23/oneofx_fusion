@@ -12,13 +12,5 @@ public class CalcDays {
         LocalDate heute = LocalDate.now();
 
         return ChronoUnit.DAYS.between(start, heute);
-    }  
-    
-    public static int getDayFromStart(String startDate){
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
-        LocalDate start = LocalDate.parse(startDate, formatter);
-        LocalDate heute = LocalDate.now();
-
-        return (int) ChronoUnit.DAYS.between(start, heute);
     }
 }
