@@ -60,8 +60,8 @@ public class POSSQL {
     }
 
     
-    public static void get_BuyTrade_Records_WhereStatusFive(final String HIST, List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(HIST);
+    public static void get_BuyTrade_Records_WhereStatusFive(List<String> GetDataRecord) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT BuyOrderId, Währung FROM POS WHERE Status = 5")) {
 

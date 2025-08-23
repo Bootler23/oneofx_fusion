@@ -80,10 +80,10 @@ public class HISTSQL {
         }
     }
 
-    public static boolean getDate(final String WPD, String date) {
+    public static boolean getDate(String date) {
         String query = "  SELECT 1 FROM WPD WHERE \"Date\" = ?"; // LIMIT 1 = Performance-Optimierung
 
-        try (Connection con = DriverManager.getConnection(WPD);
+        try (Connection con = DriverManager.getConnection(dbUrl.getWPD());
                 PreparedStatement stmt = con.prepareStatement(query)) {
 
             stmt.setString(1, date);
@@ -136,10 +136,10 @@ public class HISTSQL {
         return 0.0;
     }
 
-    public static void transferHISTToWPD(final String WPD, final String SET, final String SellDate) {
+    public static void transferHISTToWPD(final String SellDate) {
         try (Connection conHIST = DriverManager.getConnection(dbUrl.getHIST());
                 Statement stmtHIST = conHIST.createStatement();
-                Connection conWPD = DriverManager.getConnection(WPD)) {
+                Connection conWPD = DriverManager.getConnection(dbUrl.getWPD())) {
 
             String selectSQL = "SELECT "
                     + "ROUND(SUM(GewinnAfterTax), 4) AS TotalGewinnAfterTax, "
@@ -168,7 +168,7 @@ public class HISTSQL {
                         insertStmt.setInt(6, rs.getInt("TotalRows"));
                         insertStmt.setString(7, SellDate);
                         insertStmt.setInt(8, 0); // Status explizit als Integer setzen
-                        insertStmt.setDouble(9, WPDSQL.SellPerDayAVG(SET));
+                        insertStmt.setDouble(9, WPDSQL.SellPerDayAVG());
                         insertStmt.setDouble(10,com.binance.api.tradingbot.RiskRewardRatio.RRR.calculateRiskRewardRatio(rs.getDouble("TotalGewinnAfterTax"), rs.getDouble("LossAfterTax")));
                                 
 

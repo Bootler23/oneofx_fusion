@@ -78,7 +78,7 @@ public class Update {
     //     }
     // }
 
-    public static void NewCounterPosition(final String SET) {
+    public static void NewCounterPosition() {
         int count = SETSQL.getCount();
         count++;
         SETSQL.updateCount(count);

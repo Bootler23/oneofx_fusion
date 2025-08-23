@@ -18,7 +18,7 @@ public class WPDSQL {
     // Wenn ja, dann ak
     // OrigPrice wird nicht mehr gebraucht
 
-    public static void getGewinnAfterTax(final String HIST, final String WPD, final String SET) {
+    public static void getGewinnAfterTax() {
         String startDate = "01.01.2024";
         SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
 
@@ -33,8 +33,8 @@ public class WPDSQL {
             while (cal.before(today) || cal.equals(today)) {
                 String currentDate = sdf.format(cal.getTime());
 
-                if (!HISTSQL.getDate(WPD, currentDate)) {
-                    HISTSQL.transferHISTToWPD(WPD, SET, currentDate);
+                if (!HISTSQL.getDate(currentDate)) {
+                    HISTSQL.transferHISTToWPD(currentDate);
                 }
                 // zähle einen Tag nach oben und gehe durch alle Datum´s
                 cal.add(Calendar.DAY_OF_YEAR, 1);
@@ -44,7 +44,7 @@ public class WPDSQL {
         }
     }
 
-    public static double SellPerDayAVG(final String SET) {
+    public static double SellPerDayAVG() {
         double sellPerDayAVG = (SETSQL.getCount() / CalcDays.fromDate("01.01.2025"));
         return sellPerDayAVG;
     }
