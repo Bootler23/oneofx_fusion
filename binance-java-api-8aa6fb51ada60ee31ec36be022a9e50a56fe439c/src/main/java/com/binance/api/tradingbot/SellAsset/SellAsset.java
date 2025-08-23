@@ -15,7 +15,7 @@ public class SellAsset {
     private static int ProcessedHour = -1;
     private static double GlobalBuyAmount = 10.0;
 
-    public static void Three_TimesPerDay(BinanceApiRestClient client) {
+    public static void Three_TimesPerDay(String currency, BinanceApiRestClient client) {
         LocalDateTime now = LocalDateTime.now();
         int currentHour = now.getHour();
         int currentMinute = now.getMinute();
@@ -26,7 +26,7 @@ public class SellAsset {
 
             System.out.println("Handel wird durchgeführt. Aktuelle Zeit: " + now);
 
-            SellOrderProcess.handleSellProcess(client);
+            SellOrderProcess.handleSellProcess(currency, client);
 
             Sell_Asset_with_Qty_0_0_Double_Amount(client, "XRPEUR");
 

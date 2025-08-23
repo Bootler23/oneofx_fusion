@@ -18,7 +18,8 @@ import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
-import com.binance.api.tradingbot.Settings.BinanceConfig;
+import com.binance.api.tradingbot.Settings.bnb;
+import com.binance.api.tradingbot.Settings.bnb;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -64,8 +65,8 @@ public class LTC_EUR_Live {
 
                 // WPD einfacher gestalten -> Logik überarbeiten
                
-                // Binance API Client erstellen
-                BinanceApiRestClient client = BinanceConfig.createRestClient();
+                // Binance API Client erstellen - jetzt als Singleton
+                // BinanceApiRestClient client = BinanceConfig.getClient();
 
                 List<Long> OrderIdList = new ArrayList<Long>();
                 List<String> getDataRecords = new ArrayList<String>();
@@ -78,24 +79,24 @@ public class LTC_EUR_Live {
                     currency = currencies[state];                  
 
                     sleep.for_1_second();
-                  
-                    Ticker.get_CurrencyPair_Price(currency, client, LivePrice);                  
+
+                    Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
-                    BuyAmountFunktion.getBuyAmount(currency, EURO, client, LivePrice, false);
-                    
+                    BuyAmountFunktion.getBuyAmount(currency, EURO, bnb.getClient(), LivePrice, false);
+
                     ATHSQL.updateLPP(currency);
 
                     if (count == 41 || FirstRound) {
 
                         HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
-                        Update.getSellTradeInformation(client, getDataRecords);                            
-                       
+                        Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                           
+
                         POSSQL.get_BuyTrade_Records_WhereStatusFive(getDataRecords);   
-                        Update.getBuyTradeInformation(client, getDataRecords);   
-                        
-                        SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, client);
+                        Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);   
+
+                        SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, bnb.getClient());
 
                         // Wieviel ist mein Portfolio im Minus
                         WPDSQL.getGewinnAfterTax();                     
@@ -104,25 +105,25 @@ public class LTC_EUR_Live {
                         
                         FirstRound = false;
 
-                        Asset.getBNB_Balance("BNBEUR", "BNB", client);                       
+                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
                     }                  
 
                     // verkaufe die die am weitestem im Minus ist
-                    HourlySchedulerExample.executeHourly(currency, client);                    
-                    SellAsset.Three_TimesPerDay(client);
+                    HourlySchedulerExample.executeHourly(currency, bnb.getClient());
+                    SellAsset.Three_TimesPerDay(currency, bnb.getClient());
 
                     count++;
 
                     // Buy
-                    BuyOrderPocess.setBuyOrder(currency, EURO, client, LivePrice);
+                    BuyOrderPocess.setBuyOrder(currency, EURO, bnb.getClient(), LivePrice);
 
                     // Check
                     POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
-                    CheckOrderStatus.OrderStatus(currency, client, OrderIdList, LivePrice);
+                    CheckOrderStatus.OrderStatus(currency, bnb.getClient(), OrderIdList, LivePrice);
 
                     // // Sell                  
-                    POSSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);  
-                    SellOrderProcess.setSellOrder(currency, percent, client, getDataRecords, LivePrice);
+                    POSSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
+                    SellOrderProcess.setSellOrder(currency, percent, bnb.getClient(), getDataRecords, LivePrice);
                 }
 
             } catch (IndexOutOfBoundsException e) {

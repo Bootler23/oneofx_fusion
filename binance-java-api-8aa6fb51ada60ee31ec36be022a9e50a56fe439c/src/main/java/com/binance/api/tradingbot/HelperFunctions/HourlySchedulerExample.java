@@ -37,6 +37,8 @@ public class HourlySchedulerExample {
             double value = (BuyAmountFunktion.getBuyAmount(currencyPair, "EUR", client, LivePrice, true));
             if (value <= 6.0) {
                 System.out.println("=== 10 € werden freigegeben ===");
+            } else {
+                System.out.println("=== 10 € werden nicht freigegeben ===");
             }
 
         } catch (Exception e) {

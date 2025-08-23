@@ -8,6 +8,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
+import com.binance.api.client.BinanceApiRestClient;
+import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
@@ -59,7 +61,6 @@ public class POSSQL {
         }
     }
 
-    
     public static void get_BuyTrade_Records_WhereStatusFive(List<String> GetDataRecord) {
         try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement query = con.createStatement();
@@ -67,7 +68,7 @@ public class POSSQL {
 
             GetDataRecord.clear();
             while (rs.next()) {
-                String sellOrderId = rs.getString("BuyOrderId");              
+                String sellOrderId = rs.getString("BuyOrderId");
                 String Währung = rs.getString("Währung");
 
                 String dataRecord = sellOrderId + ", " + Währung;
@@ -118,7 +119,8 @@ public class POSSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 Statement statement = con.createStatement()) {
 
-            String SQL = "SELECT COUNT(*) AS RecordCount FROM POS WHERE Status IN (0, 1) AND Währung = '" + currencyPair + "'";
+            String SQL = "SELECT COUNT(*) AS RecordCount FROM POS WHERE Status IN (0, 1) AND Währung = '" + currencyPair
+                    + "'";
             ResultSet rs = statement.executeQuery(SQL);
 
             if (rs.next()) {
@@ -155,9 +157,9 @@ public class POSSQL {
         try {
             dataRecords.clear();
             try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
-                 PreparedStatement pstmt = con.prepareStatement(
-                     "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
-                     "FROM POS WHERE Status IN (1, 7) AND Währung = ?")) {
+                    PreparedStatement pstmt = con.prepareStatement(
+                            "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                                    "FROM POS WHERE Status IN (1, 7) AND Währung = ?")) {
 
                 pstmt.setString(1, CurrencyPair);
                 ResultSet rs = pstmt.executeQuery();
@@ -167,7 +169,7 @@ public class POSSQL {
                     String OrderPrice = rs.getString("OrderPrice"); // 1
                     String Quantity = rs.getString("Qty"); // 2
                     String BuyAmount = rs.getString("BuyAmount"); // 3
-                    String BuyPrice = rs.getString("BuyPrice"); // 4              
+                    String BuyPrice = rs.getString("BuyPrice"); // 4
                     String BuyDate = rs.getString("BuyDate"); // 7
                     String BuyTime = rs.getString("BuyTime"); // 8
 
@@ -181,7 +183,7 @@ public class POSSQL {
             System.err.println("Fehler beim Abrufen der Verkaufs-Records: " + err.getMessage());
             err.printStackTrace();
         }
-    }   
+    }
 
     public static void getDataRecordsPOS_FirstEntryWithHighestOrderPrice(List<String> dataRecords) {
         try {
@@ -203,7 +205,7 @@ public class POSSQL {
                 String OrderPrice = rs.getString("OrderPrice"); // 1
                 String Quantity = rs.getString("Qty"); // 2
                 String BuyAmount = rs.getString("BuyAmount"); // 3
-                String BuyPrice = rs.getString("BuyPrice"); // 4              
+                String BuyPrice = rs.getString("BuyPrice"); // 4
                 String BuyDate = rs.getString("BuyDate"); // 7
                 String BuyTime = rs.getString("BuyTime"); // 8
 
@@ -220,17 +222,20 @@ public class POSSQL {
         }
     }
 
-    public static void getPositionWithMaxBuyAmount(List<String> dataRecords) {
+    public static void getPositionWithMaxBuyAmount(List<String> dataRecords, String currencyPair,
+            BinanceApiRestClient client) {
+
+        double BuyPrice = Ticker.getAssetPrice(currencyPair, client);
         try {
             dataRecords.clear();
             Connection con = DriverManager.getConnection(dbUrl.getPOS());
             Statement query = con.createStatement();
 
-            String SQL = "SELECT BuyOrderId, Qty, Währung FROM POS "
+            String SQL = "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM POS "
                     +
                     "WHERE Status = 1 " +
                     "AND BuyAmount >= 10 " +
-                    "ORDER BY BuyAmount DESC " +
+                    "ORDER BY (BuyPrice - " + BuyPrice + ") DESC " +
                     "LIMIT 1";
 
             ResultSet rs = query.executeQuery(SQL);
@@ -240,7 +245,7 @@ public class POSSQL {
                 String Quantity = rs.getString("Qty"); // 1
                 String currency = rs.getString("Währung"); // 2
 
-              String dataRecord = BuyOrderId + ", " + Quantity + ", " + currency;
+                String dataRecord = BuyOrderId + ", " + Quantity + ", " + currency;
 
                 dataRecords.add(dataRecord);
             }

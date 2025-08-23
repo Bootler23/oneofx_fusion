@@ -9,7 +9,7 @@ public class Market {
 
     private static int ProcessedDay = -1;
 
-    public static void SellOneTimePerDay(BinanceApiRestClient client) {
+    public static void SellOneTimePerDay(BinanceApiRestClient client, String currencyPair) {
         LocalDateTime now = LocalDateTime.now();
         int currentHour = now.getHour();
         int currentMinute = now.getMinute();
@@ -17,7 +17,7 @@ public class Market {
 
         if (currentMinute == 0 && currentHour == 22 && currentDay != ProcessedDay) {
 
-          SellOrderProcess.handleSellProcess(client);
+          SellOrderProcess.handleSellProcess(currencyPair, client);
 
             ProcessedDay = currentDay;
             System.out.println("Handel abgeschlossen um: " + now);
