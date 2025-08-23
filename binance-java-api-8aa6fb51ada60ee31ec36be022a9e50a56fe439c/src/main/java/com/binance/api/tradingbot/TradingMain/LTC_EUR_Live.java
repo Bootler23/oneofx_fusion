@@ -1,6 +1,5 @@
 package com.binance.api.tradingbot.TradingMain;
 
-import com.binance.api.client.BinanceApiClientFactory;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyOrderPocess;
@@ -10,7 +9,6 @@ import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.HourlySchedulerExample;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
-import com.binance.api.tradingbot.MarketSell_OneTime.Market;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -20,6 +18,7 @@ import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
+import com.binance.api.tradingbot.Settings.BinanceConfig;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -35,8 +34,7 @@ public class LTC_EUR_Live {
                 int state = 0;
 
                 String EURO = "EUR";
-
-                int grid;
+             
                 int count = 0;
                 boolean FirstRound = true;
                 boolean StartStop = true;
@@ -65,17 +63,9 @@ public class LTC_EUR_Live {
                 // DatenBankelogik ???
 
                 // WPD einfacher gestalten -> Logik überarbeiten
-
-                // ----------------------------------------------------------------------------------------------------------------------
-
-                // -> Set New Key 01/2024
-                String key = "3p2AemKbKyaKUocMgQuMY442UaAgScPriHcSsS57fvt5y1iP5LLCV2jqQVovQBNv";
-
-                // -> Set New Secret 01/2024
-                String secret = "HZXnE4kFzRHPHO8Dr7B9v4HkLocCCG3UmuRIhxZaHlm3i24mA3Fei9kCv3Kq1zGI";
-
-                BinanceApiClientFactory factory = BinanceApiClientFactory.newInstance(key, secret);
-                BinanceApiRestClient client = factory.newRestClient();
+               
+                // Binance API Client erstellen
+                BinanceApiRestClient client = BinanceConfig.createRestClient();
 
                 List<Long> OrderIdList = new ArrayList<Long>();
                 List<String> getDataRecords = new ArrayList<String>();
@@ -85,9 +75,7 @@ public class LTC_EUR_Live {
                 while (StartStop) {
 
                     state = set.Currency(currencies, state);
-                    currency = currencies[state];
-
-                    grid = set.getGridforCurrency(currency);
+                    currency = currencies[state];                  
 
                     sleep.for_1_second();
                   
@@ -120,7 +108,7 @@ public class LTC_EUR_Live {
                     }                  
 
                     // verkaufe die die am weitestem im Minus ist
-                    HourlySchedulerExample.executeHourly(currency);                    
+                    HourlySchedulerExample.executeHourly(currency, client);                    
                     SellAsset.Three_TimesPerDay(client);
 
                     count++;
