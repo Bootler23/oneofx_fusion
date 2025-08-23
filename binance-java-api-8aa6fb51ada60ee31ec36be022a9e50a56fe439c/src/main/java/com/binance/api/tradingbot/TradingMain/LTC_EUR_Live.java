@@ -101,6 +101,7 @@ public class LTC_EUR_Live {
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
                     BuyAmountFunktion.getBuyAmount(currency, EURO, client, LivePrice, false);
+                    
                     ATHSQL.updateLPP(currency);
 
                     if (count == 41 || FirstRound) {

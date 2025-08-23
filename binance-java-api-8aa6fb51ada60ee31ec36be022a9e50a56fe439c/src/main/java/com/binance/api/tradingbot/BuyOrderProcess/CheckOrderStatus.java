@@ -55,6 +55,12 @@ public class CheckOrderStatus {
                     BUY_FILLED(currency, ATH, POS, HIST, SET, client, buyOrderId, order);
                 }
 
+                if (((order.getSide().compareTo(OrderSide.BUY) == 0)
+                        && (order.getStatus().compareTo(OrderStatus.CANCELED) == 0))) {
+
+                            System.out.println("Gecancelte Order gefunden: " + buyOrderId);
+                }
+
                 CancelOrderFromOutside(POS, order);
 
             } catch (BinanceApiException e) {
@@ -164,81 +170,7 @@ public class CheckOrderStatus {
         } catch (SQLException err) {
             System.out.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
         }
-    }
-
-    // private static void PARTIALLY_FILLED(String currencyPair, final String POS,
-    // final String HIST, Long BuyOrderId,
-    // Order order, BinanceApiRestClient client) {
-
-    // // ----------------- 10 Sekunden nach Kauf -----------------
-
-    // Long currentTime = Long.valueOf(Time.getCurrentTimeInMilliseconds());
-    // Long buyTime = order.getTime();
-
-    // if (currentTime >= buyTime + 10000) { // nach 10 Sekunden die Position
-    // schließen
-    // System.out.println("10 Sekunden vergangen, Position schließen! " +
-    // currentTime + " - " + buyTime);
-
-    // int Status;
-    // double BuyPrice = getBuyPrice(order);
-    // String BuyDate = Time.getCurrentDate();
-    // String BuyTime = Time.getCurrentTime_HHmmss();
-    // double Quantity = round.Quantity((Double.valueOf(order.getExecutedQty())),
-    // currencyPair);
-    // double partially_BuyAmount = round.five(BuyPrice * Quantity);
-
-    // if (partially_BuyAmount >= 6.0) {
-    // Status = 1;
-    // } else {
-    // Status = 3;
-    // }
-
-    // try (Connection con_update = DriverManager.getConnection(POS);
-    // Statement update = con_update.createStatement()) {
-
-    // String SQL_update = "UPDATE POS SET "
-    // + "BuyPrice = " + BuyPrice + ", "
-    // + "Qty = " + Quantity + ", "
-    // + "Währung = '" + currencyPair + "', "
-    // + "BuyAmount = " + partially_BuyAmount + ", "
-    // + "Status = " + Status + ", "
-    // + "BuyTime = '" + BuyTime + "', "
-    // + "BuyDate = '" + BuyDate + "' "
-    // + "WHERE BuyOrderId = " + BuyOrderId;
-
-    // update.executeUpdate(SQL_update);
-
-    // System.out.println("BUY FILLED - Vollzogen: " + BuyPrice);
-
-    // } catch (SQLException err) {
-    // System.out.println("Fehler beim Aktualisieren der Daten: " +
-    // err.getMessage());
-    // }
-
-    // try (Connection con_insert_HIST = DriverManager.getConnection(HIST);
-    // Statement insert_HIST = con_insert_HIST.createStatement()) {
-
-    // String SQL = "INSERT INTO HIST (Währung, BuyOrderId, BuyPrice, Quantity,
-    // BuyAmount, BuyDate, BuyTime) VALUES ('"
-    // + currencyPair + "', "
-    // + BuyOrderId + ", "
-    // + BuyPrice + ", "
-    // + Quantity + ", "
-    // + partially_BuyAmount + ", '"
-    // + BuyDate + "', '"
-    // + BuyTime + "')";
-
-    // insert_HIST.execute(SQL);
-    // client.cancelOrder(new CancelOrderRequest(currencyPair, BuyOrderId));
-    // System.out.println("Part in Hist Saved");
-
-    // } catch (SQLException err) {
-    // System.out.println("Fehler beim Einfügen in die HIST-Tabelle: " +
-    // err.getMessage());
-    // }
-    // }
-    // }
+    }   
 
     private static double getBuyPrice(Order order) {
         double BuyPrice = round.five(Double.valueOf(order.getPrice()));
@@ -381,8 +313,4 @@ public class CheckOrderStatus {
             e.printStackTrace();
         }
     }
-
-    // suche bei Binance alle gecancelten orders
-        // gibt es davon noch welche in meiner Datenbank?
-            // dann lösche die aus meiner Datenbank
 }
