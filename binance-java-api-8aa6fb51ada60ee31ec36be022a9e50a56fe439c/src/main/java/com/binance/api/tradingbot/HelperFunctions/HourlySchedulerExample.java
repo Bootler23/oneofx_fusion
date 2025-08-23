@@ -16,9 +16,9 @@ public class HourlySchedulerExample {
         if (currentMinute == 0 && currentHour != ProcessedHour) {
             
             System.out.println("Stündliche Aufgabe wird ausgeführt. Aktuelle Zeit: " + now);
-            
+
             checkBuyAmount(currencyPair);
-            
+
             ProcessedHour = currentHour;
             System.out.println("Stündliche Aufgabe abgeschlossen um: " + now);
         }
@@ -29,7 +29,7 @@ public class HourlySchedulerExample {
             System.out.println("=== Führe stündliche Überprüfungen durch ===");
 
             double value = (BuyAmountFunktion.getBuyAmount(currencyPair, null, null, null, true));
-            if (value <= 6.0) {         
+            if (value <= 6.0) {
                 System.out.println("=== 10 € werden freigegeben ===");
             }
  

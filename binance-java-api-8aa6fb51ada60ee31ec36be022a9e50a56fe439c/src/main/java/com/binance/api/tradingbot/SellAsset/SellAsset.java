@@ -6,6 +6,7 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 
 import static com.binance.api.client.domain.account.NewOrder.marketSell;
 
@@ -24,6 +25,8 @@ public class SellAsset {
                 && currentHour != ProcessedHour) {
 
             System.out.println("Handel wird durchgeführt. Aktuelle Zeit: " + now);
+
+            SellOrderProcess.handleSellProcess(client);
 
             Sell_Asset_with_Qty_0_0_Double_Amount(client, "XRPEUR");
 
