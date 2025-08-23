@@ -23,9 +23,7 @@ import com.binance.api.tradingbot.SQL_Database.POSSQL;
 public class SellOrderProcess {
 
     public static void setSellOrder(String CurrencyPair, double p, BinanceApiRestClient client, List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
-
-        int count = 1;
-
+      
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
 
@@ -34,12 +32,7 @@ public class SellOrderProcess {
             String BuyPrice_String = parts[4];
             double BuyPrice_Double = round.two(Double.valueOf(BuyPrice_String));
 
-            double sellTarget = (BuyPrice_Double / 100) * (100 + p);
-
-            // if (BuyPrice_Double * 0.93 > LivePrice.get(0)) {
-            //     System.out.println(count + " " + BuyPrice_Double);
-            //     count++;
-            // }
+            double sellTarget = (BuyPrice_Double / 100) * (100 + p);           
 
             if ((LivePrice.get(0) >= sellTarget) || (BuyPrice_Double * 0.93 > LivePrice.get(0))) {
 
@@ -123,12 +116,12 @@ public class SellOrderProcess {
         return newOrderResponse;
     }
 
-    public static void handleSellProcess(BinanceApiRestClient client) {
+    public static void handleSellProcess(String currency, BinanceApiRestClient client) {
 
         List<String> BuyAmountRecord = new ArrayList<String>();
 
         // nicht die größte Position sondern die, die am weitesten im Minus ist
-        POSSQL.getPositionWithMaxBuyAmount(BuyAmountRecord);
+        POSSQL.getPositionWithMaxBuyAmount(BuyAmountRecord, currency, client);
 
         String record = BuyAmountRecord.get(0);
         String[] recordParts = record.split(", ");
