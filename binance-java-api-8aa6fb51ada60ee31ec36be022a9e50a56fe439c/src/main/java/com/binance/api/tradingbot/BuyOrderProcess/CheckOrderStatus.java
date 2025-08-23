@@ -30,6 +30,8 @@ public class CheckOrderStatus {
 
         for (Long buyOrderId : BuyOrderIdList) {
 
+
+            // Fehler es wir bei binance gelöscht aber nicht in meiner Datenbank ?????
             try {
                 Order order = client.getOrderStatus(new OrderStatusRequest(currency, buyOrderId));
                 Double orderPrice = round.two(Double.parseDouble(order.getPrice()));
@@ -56,6 +58,15 @@ public class CheckOrderStatus {
                 CancelOrderFromOutside(POS, order);
 
             } catch (BinanceApiException e) {
+                // Prüfe ob es sich um einen Jackson Deserialisierung Fehler handelt
+                if (e.getMessage().contains("InvalidFormatException") || 
+                    e.getMessage().contains("EXPIRED_IN_MATCH") ||
+                    e.getMessage().contains("not one of declared Enum instance names")) {
+                    System.out.println("Jackson Deserialisierung Fehler (unbekannter OrderStatus): " + e.getMessage());
+                    System.out.println("Überspringe Order " + buyOrderId + " - wahrscheinlich neuer OrderStatus von Binance: EXPIRED_IN_MATCH");
+                    continue;
+                }
+                
                 System.out.println("Fehler beim Abrufen des Binance-API-Service: " + e.getMessage());
 
                 if (e.getMessage().contains("timeout") || e.getMessage().contains("SocketTimeoutException")) {
@@ -69,6 +80,15 @@ public class CheckOrderStatus {
 
                 continue;
             } catch (Exception e) {
+                // Prüfe auch hier auf Jackson-Fehler falls sie als andere Exception kommen
+                if (e.getMessage().contains("InvalidFormatException") || 
+                    e.getMessage().contains("EXPIRED_IN_MATCH") ||
+                    e.getMessage().contains("not one of declared Enum instance names")) {
+                    System.out.println("Jackson Deserialisierung Fehler (unbekannter OrderStatus): " + e.getMessage());
+                    System.out.println("Überspringe Order " + buyOrderId + " - wahrscheinlich neuer OrderStatus von Binance");
+                    continue;
+                }
+                
                 System.out.println("Unerwarteter Fehler beim Prüfen der Order " + buyOrderId + ": " + e.getMessage());
                 e.printStackTrace();
                 // Bei unerwarteten Fehlern auch weitermachen
@@ -361,4 +381,8 @@ public class CheckOrderStatus {
             e.printStackTrace();
         }
     }
+
+    // suche bei Binance alle gecancelten orders
+        // gibt es davon noch welche in meiner Datenbank?
+            // dann lösche die aus meiner Datenbank
 }
