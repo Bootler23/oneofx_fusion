@@ -23,13 +23,10 @@ import com.binance.api.tradingbot.Settings.set;
 
 public class CheckOrderStatus {
 
-    public static void OrderStatus(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList, List<Double> LivePrice) {
-
-        final String ATH = dbUrl.getATH();
-        int Grid = set.getGridforCurrency(currency);
+    public static void OrderStatus(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList,
+            List<Double> LivePrice) {
 
         for (Long buyOrderId : BuyOrderIdList) {
-
 
             // Fehler es wir bei binance gelöscht aber nicht in meiner Datenbank ?????
             try {
@@ -55,23 +52,25 @@ public class CheckOrderStatus {
                 }
 
                 if (((order.getSide().compareTo(OrderSide.BUY) == 0)
-                        && (order.getStatus().compareTo(OrderStatus.CANCELED) == 0))) {
+                        && (order.getStatus().compareTo(OrderStatus.EXPIRED_IN_MATCH) == 0))) {
 
-                            System.out.println("Gecancelte Order gefunden: " + buyOrderId);
+                    System.out.println("Gecancelte Order gefunden: " + buyOrderId);
+                    DeleteOrderWithOrderId(buyOrderId);
                 }
 
                 CancelOrderFromOutside(order);
 
             } catch (BinanceApiException e) {
                 // Prüfe ob es sich um einen Jackson Deserialisierung Fehler handelt
-                if (e.getMessage().contains("InvalidFormatException") || 
-                    e.getMessage().contains("EXPIRED_IN_MATCH") ||
-                    e.getMessage().contains("not one of declared Enum instance names")) {
+                if (e.getMessage().contains("InvalidFormatException") ||
+                        e.getMessage().contains("EXPIRED_IN_MATCH") ||
+                        e.getMessage().contains("not one of declared Enum instance names")) {
                     System.out.println("Jackson Deserialisierung Fehler (unbekannter OrderStatus): " + e.getMessage());
-                    System.out.println("Überspringe Order " + buyOrderId + " - wahrscheinlich neuer OrderStatus von Binance: EXPIRED_IN_MATCH");
+                    System.out.println("Überspringe Order " + buyOrderId
+                            + " - wahrscheinlich neuer OrderStatus von Binance: EXPIRED_IN_MATCH");
                     continue;
                 }
-                
+
                 System.out.println("Fehler beim Abrufen des Binance-API-Service: " + e.getMessage());
 
                 if (e.getMessage().contains("timeout") || e.getMessage().contains("SocketTimeoutException")) {
@@ -86,19 +85,34 @@ public class CheckOrderStatus {
                 continue;
             } catch (Exception e) {
                 // Prüfe auch hier auf Jackson-Fehler falls sie als andere Exception kommen
-                if (e.getMessage().contains("InvalidFormatException") || 
-                    e.getMessage().contains("EXPIRED_IN_MATCH") ||
-                    e.getMessage().contains("not one of declared Enum instance names")) {
+                if (e.getMessage().contains("InvalidFormatException") ||
+                        e.getMessage().contains("EXPIRED_IN_MATCH") ||
+                        e.getMessage().contains("not one of declared Enum instance names")) {
                     System.out.println("Jackson Deserialisierung Fehler (unbekannter OrderStatus): " + e.getMessage());
-                    System.out.println("Überspringe Order " + buyOrderId + " - wahrscheinlich neuer OrderStatus von Binance");
+                    System.out.println(
+                            "Überspringe Order " + buyOrderId + " - wahrscheinlich neuer OrderStatus von Binance");
                     continue;
                 }
-                
+
                 System.out.println("Unerwarteter Fehler beim Prüfen der Order " + buyOrderId + ": " + e.getMessage());
                 e.printStackTrace();
                 // Bei unerwarteten Fehlern auch weitermachen
                 continue;
             }
+        }
+    }
+
+    private static void DeleteOrderWithOrderId(Long buyOrderId) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
+                PreparedStatement pstmt = con.prepareStatement(
+                        "DELETE FROM POS WHERE BuyOrderId = ?")) {
+
+            pstmt.setLong(1, buyOrderId);
+            pstmt.executeUpdate();
+            System.out.println("Order aus Datenbank entfernt: " + buyOrderId);
+
+        } catch (SQLException err) {
+            System.err.println("Datenbankfehler beim Löschen: " + err.getMessage());
         }
     }
 
@@ -167,14 +181,15 @@ public class CheckOrderStatus {
         } catch (SQLException err) {
             System.out.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
         }
-    }   
+    }
 
     private static double getBuyPrice(Order order) {
         double BuyPrice = round.five(Double.valueOf(order.getPrice()));
         return BuyPrice;
     }
 
-    private static void BUY_NEW(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice, Long BuyOrderId, Double orderPrice) {
+    private static void BUY_NEW(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice,
+            Long BuyOrderId, Double orderPrice) {
 
         try {
             double CancelPrice = ATHSQL.getAllTimeHigh(currencyPair);
@@ -198,17 +213,7 @@ public class CheckOrderStatus {
                             client.cancelOrder(new CancelOrderRequest(currencyPair, BuyOrderId));
                             System.out.println("Order gecancelt: " + orderPrice);
 
-                            try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
-                                    PreparedStatement pstmt = con.prepareStatement(
-                                            "DELETE FROM POS WHERE BuyOrderId = ?")) {
-
-                                pstmt.setLong(1, BuyOrderId);
-                                pstmt.executeUpdate();
-                                System.out.println("Order aus Datenbank entfernt: " + orderPrice);
-
-                            } catch (SQLException err) {
-                                System.err.println("Datenbankfehler beim Löschen: " + err.getMessage());
-                            }
+                            DeleteOrderWithOrderId(BuyOrderId);
                             calc = false;
                             break;
                         }
@@ -222,7 +227,8 @@ public class CheckOrderStatus {
         }
     }
 
-    private static void Test_PARTIALLY_FILLED(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice, Long BuyOrderId, Double orderPrice,
+    private static void Test_PARTIALLY_FILLED(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice,
+            Long BuyOrderId, Double orderPrice,
             Order order) {
 
         try {
@@ -254,9 +260,9 @@ public class CheckOrderStatus {
                             double partially_BuyAmount = round.five(BuyPrice * Quantity);
 
                             if (partially_BuyAmount >= 6.0) {
-                                Status = 666;
+                                Status = 5;
                             } else {
-                                Status = 999;
+                                Status = 3;
                             }
 
                             try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());

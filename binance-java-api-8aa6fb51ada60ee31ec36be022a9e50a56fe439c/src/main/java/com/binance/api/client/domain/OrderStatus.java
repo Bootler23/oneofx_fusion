@@ -13,5 +13,6 @@ public enum OrderStatus {
   CANCELED,
   PENDING_CANCEL,
   REJECTED,
-  EXPIRED
+  EXPIRED,
+  EXPIRED_IN_MATCH
 }
