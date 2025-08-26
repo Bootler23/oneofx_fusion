@@ -53,26 +53,25 @@ public class HISTSQL {
                 GetDataRecord.add(dataRecord);
             }
         } catch (SQLException err) {
-            System.out.println("SQL-Fehler: " + err.getMessage());
+            System.out.println("SQL-Fehler: " + err.getMessage());  
         }
-    }
+    }    
 
     public static void getDataRecords_WhereStatusOne(List<String> GetDataRecord) {
         try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
                 Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT BuyOrderId, ProfitSplit FROM HIST WHERE Status = 1")) {
+                ResultSet rs = query.executeQuery("SELECT BuyOrderId, Split FROM HIST WHERE Status = 1")) {
 
             GetDataRecord.clear();
-
             while (rs.next()) {
                 String BuyOrderId = rs.getString("BuyOrderId");
-                String profitSplitValue = rs.getString("ProfitSplit");
+                String SplitValue = rs.getString("Split");
 
-                if (profitSplitValue == null) {
+                if (SplitValue == null) {
                     continue;
                 }
 
-                String dataRecord = BuyOrderId + ", " + profitSplitValue;
+                String dataRecord = BuyOrderId + ", " + SplitValue;
                 GetDataRecord.add(dataRecord);
             }
         } catch (SQLException err) {

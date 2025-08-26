@@ -121,7 +121,7 @@ public class SellOrderProcess {
         List<String> BuyAmountRecord = new ArrayList<String>();
 
         // nicht die größte Position sondern die, die am weitesten im Minus ist
-        POSSQL.getPositionWithMaxBuyAmount(BuyAmountRecord, currency, client);
+        POSSQL.getPositionWithMaxInMinus(BuyAmountRecord, currency, client);
 
         String record = BuyAmountRecord.get(0);
         String[] recordParts = record.split(", ");

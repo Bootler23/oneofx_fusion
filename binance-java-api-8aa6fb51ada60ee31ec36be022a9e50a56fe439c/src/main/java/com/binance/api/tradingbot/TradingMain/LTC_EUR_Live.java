@@ -9,6 +9,7 @@ import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.HourlySchedulerExample;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
+import com.binance.api.tradingbot.Indicator.Merge;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -18,7 +19,6 @@ import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
-import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.Settings.bnb;
 
 import java.util.List;
@@ -88,7 +88,7 @@ public class LTC_EUR_Live {
 
                     ATHSQL.updateLPP(currency);
 
-                    if (count == 41 || FirstRound) {
+                    if (count == 23 || FirstRound) {
 
                         HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                           
@@ -98,6 +98,9 @@ public class LTC_EUR_Live {
 
                         SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, bnb.getClient());
 
+                        HISTSQL.getDataRecords_WhereStatusOne(getDataRecords);
+                        Merge.splitValue(currency, getDataRecords);
+                                    
                         // Wieviel ist mein Portfolio im Minus
                         WPDSQL.getGewinnAfterTax();                     
 

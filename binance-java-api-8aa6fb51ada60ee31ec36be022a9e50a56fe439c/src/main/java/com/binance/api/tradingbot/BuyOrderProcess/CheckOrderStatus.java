@@ -149,6 +149,7 @@ public class CheckOrderStatus {
                     + "BuyPrice = " + BuyPrice + ", "
                     + "Qty = " + round.withPoint(Quantity) + ", "
                     + "OrderPrice = " + BuyPrice + ", "
+                    + "OrigPrice = " + BuyPrice + ", "
                     + "Währung = '" + currencyPair + "', "
                     + "BuyAmount = " + BuyAmount + ", "
                     + "Status = 5, "

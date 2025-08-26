@@ -24,8 +24,8 @@ public class SellAsset {
         if (currentMinute == 0 && (currentHour == 22 || currentHour == 6 || currentHour == 14)
                 && currentHour != ProcessedHour) {
 
-            System.out.println("Handel wird durchgeführt. Aktuelle Zeit: " + now);
-
+            System.out.println("Handel wird durchgeführt. Aktuelle Zeit: " + now);     
+            
             SellOrderProcess.handleSellProcess(currency, client);
 
             Sell_Asset_with_Qty_0_0_Double_Amount(client, "XRPEUR");
