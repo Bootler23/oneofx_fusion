@@ -7,12 +7,13 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 
 public class Merge {
 
-    public static void splitValue(final String POS, final String HIST, List<String> SplitRecords, List<Double> LivePrice) {
+    public static void splitValue(String currency, List<String> SplitRecords) {
         boolean splitComplete = false;
 
         for (String dataRecord : SplitRecords) {
@@ -26,18 +27,17 @@ public class Merge {
             double profitSplitValue_Double = Double.valueOf(profitSplitValue);
 
             List<String> BuyAmountRecord = new ArrayList<String>();
-            
-            // Hole einen Datensatz mit dem Status 1 und dem größten OrderPrice
-            POSSQL.getDataRecordsPOS_FirstEntryWithHighestOrderPrice(BuyAmountRecord);
+            POSSQL.getDataRecordsPOS_WithMaxInMinus(currency, BuyAmountRecord);
 
-            if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01)) { // Prüft, ob ein Datensatz vorhanden ist
+            if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01)) { // Prüft, ob ein Datensatz vorhanden
+                                                                                  // ist
                 String record = BuyAmountRecord.get(0); // Ersten Eintrag holen
 
                 String[] recordParts = record.split(", ");
                 String BuyOrderId_POS = recordParts[0];
                 String Quantity = recordParts[2];
                 String BuyAmount = recordParts[3];
-                String OrigBuyPrice = recordParts[5];
+                String OrigBuyPrice = recordParts[4];
 
                 double new_Buymount, new_BuyPrice;
 
@@ -45,39 +45,35 @@ public class Merge {
                 System.out.println("Old Position: " + BuyOrderId_POS + " - " + Quantity + " - " + BuyAmount + " - "
                         + OrigBuyPrice);
 
-                
                 new_Buymount = round.five(Double.valueOf(BuyAmount) - Double.valueOf(profitSplitValue));
                 if (new_Buymount < 6) {
                     return;
-                }               
-              
+                }
+
                 new_BuyPrice = round.five(new_Buymount / Double.valueOf(Quantity));
-              
 
                 System.out.println("New Position: " + BuyOrderId_POS + " - " + Quantity + " - " + new_Buymount + " - "
                         + new_BuyPrice);
 
-                updateOrderPOS(POS, "POS", new_Buymount, new_BuyPrice, BuyOrderId_POS);
-                updateOrderHIST(HIST, "HIST", new_Buymount, new_BuyPrice, BuyOrderId_POS);
-                updateHIST_Status(HIST, "HIST", BuyOrderId_Split);
+                updateOrderPOS("POS", new_Buymount, new_BuyPrice, BuyOrderId_POS);
+                updateOrderHIST("HIST", new_Buymount, new_BuyPrice, BuyOrderId_POS);
+                updateHIST_Status("HIST", BuyOrderId_Split);
 
                 splitComplete = true;
             } else {
-                updateHIST_Status(HIST, "HIST", BuyOrderId_Split);
+                updateHIST_Status("HIST", BuyOrderId_Split);
             }
         }
     }
 
-    private static void updateOrderPOS(final String Url_dataBase, final String tableName, double BuyAmount, double Price, String BuyOrderId) {
+    private static void updateOrderPOS(final String tableName, double BuyAmount, double Price, String BuyOrderId) {
 
-        try (Connection con_update = DriverManager.getConnection(Url_dataBase);
+        try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                 Statement update = con_update.createStatement()) {
 
             String SQL = "UPDATE " + tableName + " SET "
-                    + "BuyPrice = " + Price + ", "
-                    + "OrigPrice = " + Price + ", "
-                    + "OrderPrice = " + Price + ", "
-                    + "BuyAmount = " + BuyAmount + " "                 
+                    + "BuyPrice = " + Price + ", "                   
+                    + "BuyAmount = " + BuyAmount + " "
                     + "WHERE BuyOrderId = '" + BuyOrderId + "';";
 
             update.executeUpdate(SQL);
@@ -88,9 +84,9 @@ public class Merge {
         }
     }
 
-    private static void updateOrderHIST(final String Url_dataBase, final String tableName, double BuyAmount,
+    private static void updateOrderHIST(final String tableName, double BuyAmount,
             double Price, String BuyOrderId) {
-        try (Connection con_update = DriverManager.getConnection(Url_dataBase);
+        try (Connection con_update = DriverManager.getConnection(dbUrl.getHIST());
                 Statement update = con_update.createStatement()) {
 
             String SQL = "UPDATE " + tableName + " SET "
@@ -106,8 +102,8 @@ public class Merge {
         }
     }
 
-    private static void updateHIST_Status(final String Url_dataBase, final String tableName, String BuyOrderId) {
-        try (Connection con_update = DriverManager.getConnection(Url_dataBase);
+    private static void updateHIST_Status(final String tableName, String BuyOrderId) {
+        try (Connection con_update = DriverManager.getConnection(dbUrl.getHIST());
                 Statement update = con_update.createStatement()) {
 
             String SQL = "UPDATE " + tableName + " SET "

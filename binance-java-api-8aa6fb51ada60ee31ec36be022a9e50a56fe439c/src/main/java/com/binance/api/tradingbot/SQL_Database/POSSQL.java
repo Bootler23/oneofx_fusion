@@ -12,6 +12,7 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.Settings.bnb;
 
 public class POSSQL {
 
@@ -185,7 +186,9 @@ public class POSSQL {
         }
     }
 
-    public static void getDataRecordsPOS_FirstEntryWithHighestOrderPrice(List<String> dataRecords) {
+    public static void getDataRecordsPOS_WithMaxInMinus(String currency, List<String> dataRecords) {
+
+        double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
         try {
             dataRecords.clear();
             Connection con = DriverManager.getConnection(dbUrl.getPOS());
@@ -195,7 +198,7 @@ public class POSSQL {
                     +
                     "WHERE Status = 1 " +
                     "AND BuyAmount > 10 " +
-                    "ORDER BY BuyAmount DESC " +
+                    "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
                     "LIMIT 1";
 
             ResultSet rs = query.executeQuery(SQL);
@@ -222,10 +225,10 @@ public class POSSQL {
         }
     }
 
-    public static void getPositionWithMaxBuyAmount(List<String> dataRecords, String currencyPair,
+    public static void getPositionWithMaxInMinus(List<String> dataRecords, String currencyPair,
             BinanceApiRestClient client) {
 
-        double BuyPrice = Ticker.getAssetPrice(currencyPair, client);
+        double LivePrice = Ticker.getAssetPrice(currencyPair, client);
         try {
             dataRecords.clear();
             Connection con = DriverManager.getConnection(dbUrl.getPOS());
@@ -235,7 +238,7 @@ public class POSSQL {
                     +
                     "WHERE Status = 1 " +
                     "AND BuyAmount >= 10 " +
-                    "ORDER BY (BuyPrice - " + BuyPrice + ") DESC " +
+                    "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
                     "LIMIT 1";
 
             ResultSet rs = query.executeQuery(SQL);

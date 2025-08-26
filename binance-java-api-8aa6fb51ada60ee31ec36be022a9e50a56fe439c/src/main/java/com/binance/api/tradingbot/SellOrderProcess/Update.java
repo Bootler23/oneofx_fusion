@@ -13,6 +13,7 @@ import com.binance.api.client.domain.account.Trade;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.Database.dbUrl;
+import com.binance.api.tradingbot.HelperFunctions.CalcSplit;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class Update {
@@ -37,6 +38,7 @@ public class Update {
                 double Qty = 0;
                 double BuyAmount = 0;
                 double Fee = 0;
+                double SplitValue = 0;
 
                 for (Trade trade : tradeList) {
                     double tradeQuantity = Double.parseDouble(trade.getQty());
@@ -49,10 +51,19 @@ public class Update {
                     Fee = Fee + tradefee;
                 }
 
-                double SellPriceFromExchange = round.five(BuyAmount / Qty);  
+                double SellPriceFromExchange = round.five(BuyAmount / Qty);
                 double GewinnAfterTax = getGewinnAfterTaxAndFee(Quantity, BuyPrice, SetFeePercentFromBinance,
                         SellPriceFromExchange,
                         getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange));
+
+                if (GewinnAfterTax > 0) {
+                    SplitValue = (CalcSplit.calcSplitValue(GewinnAfterTax));
+                    if (SplitValue == 0) {
+                        continue;
+                    } else {
+                        GewinnAfterTax = (GewinnAfterTax - SplitValue);
+                    }
+                }
 
                 double LossAfterTax;
                 if (GewinnAfterTax < 0) {
@@ -68,12 +79,13 @@ public class Update {
 
                     String SQL = "UPDATE HIST SET SellPrice = " + SellPriceFromExchange +
                             ", Tax = " + getTaxe(Quantity, BuyPrice, SellPriceFromExchange) +
-                            ", Fee = " + getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange) + // hier noch den BuyFee holen und Addieren
+                            ", Fee = " + getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange) + 
                             ", Gewinn = " + getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange) +
-                            ", GewinnAfterTax = " + GewinnAfterTax +
-                            ", LossAfterTax = " + LossAfterTax +
+                            ", GewinnAfterTax = " + round.five(GewinnAfterTax) +
+                            ", LossAfterTax = " + round.five(LossAfterTax) +
                             ", Profit = " + getProfitinPercent(BuyPrice, SellPriceFromExchange) +
                             ", SellFee = " + round.five(Fee * (Ticker.getAssetPrice("BNBEUR", client))) +
+                            ", Split = " + round.five(SplitValue) +
                             ", Status = " + 1 +
                             " WHERE SellOrderId = " + OrderId + ";";
 
@@ -108,7 +120,7 @@ public class Update {
                 double Quantity = 0;
                 double BuyAmount = 0;
                 double Fee = 0;
-                double BuyPriceFromExchange = 0;              
+                double BuyPriceFromExchange = 0;
 
                 for (Trade trade : tradeList) {
                     double tradeQuantity = Double.parseDouble(trade.getQty());
@@ -128,6 +140,7 @@ public class Update {
 
                     String SQL_update = "UPDATE POS SET "
                             + "BuyPrice = " + BuyPriceFromExchange + ", "
+                            + "OrigPrice = " + BuyPriceFromExchange + ", "
                             + "Qty = " + Quantity + ", "
                             + "BuyAmount = " + round.five(BuyAmount) + ", "
                             + "Status = 1 "
@@ -138,19 +151,20 @@ public class Update {
 
                 } catch (SQLException err) {
                     System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
-                }              
+                }
 
                 try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
                         Statement insert_HIST = con_insert_HIST.createStatement()) {
 
-                  String SQL = "UPDATE HIST SET BuyPrice = " + BuyPriceFromExchange +
+                    String SQL = "UPDATE HIST SET BuyPrice = " + BuyPriceFromExchange +
+                            ", OrigPrice = " + BuyPriceFromExchange +
                             ", Quantity = " + Quantity +
                             ", BuyAmount = " + round.five(BuyAmount) +
-                            ", BuyFee = " + Fee +                          
+                            ", BuyFee = " + Fee +
                             " WHERE BuyOrderId = " + OrderId + ";";
 
                     insert_HIST.executeUpdate(SQL);
-                    System.out.println("Update in Hist!");                  
+                    System.out.println("Update in Hist!");
 
                 } catch (SQLException err) {
                     System.out.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
