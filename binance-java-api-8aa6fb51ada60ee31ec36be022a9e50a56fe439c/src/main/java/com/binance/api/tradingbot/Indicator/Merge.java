@@ -72,8 +72,9 @@ public class Merge {
                 Statement update = con_update.createStatement()) {
 
             String SQL = "UPDATE " + tableName + " SET "
-                    + "BuyPrice = " + Price + ", "                   
-                    + "BuyAmount = " + BuyAmount + " "
+                    + "BuyPrice = " + Price + ", "
+                    + "BuyAmount = " + BuyAmount + ", "
+                    + "Status = 7 "
                     + "WHERE BuyOrderId = '" + BuyOrderId + "';";
 
             update.executeUpdate(SQL);

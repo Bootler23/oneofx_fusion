@@ -7,12 +7,14 @@ import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
+import com.binance.api.tradingbot.SellAsset.SellAsset;
+import com.binance.api.tradingbot.Settings.bnb;
 
 public class HourlySchedulerExample {
 
     private static int ProcessedHour = -1;
 
-    public static void executeHourly(String currencyPair, BinanceApiRestClient client) {
+    public static void executeHourly() {
         LocalDateTime now = LocalDateTime.now();
         int currentHour = now.getHour();
         int currentMinute = now.getMinute();
@@ -20,9 +22,7 @@ public class HourlySchedulerExample {
         if (currentMinute == 0 && currentHour != ProcessedHour) {
 
             System.out.println("Stündliche Aufgabe wird ausgeführt. Aktuelle Zeit: " + now);
-
-            checkBuyAmount(currencyPair, client);
-
+            SellAsset.Sell_Asset_with_Qty_0_0_Double_Amount(bnb.getClient(), "XRPEUR");
             ProcessedHour = currentHour;
             System.out.println("Stündliche Aufgabe abgeschlossen um: " + now);
         }

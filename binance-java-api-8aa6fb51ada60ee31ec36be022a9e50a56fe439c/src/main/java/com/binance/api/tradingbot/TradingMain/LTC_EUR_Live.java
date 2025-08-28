@@ -1,6 +1,5 @@
 package com.binance.api.tradingbot.TradingMain;
 
-import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyOrderPocess;
 import com.binance.api.tradingbot.BuyOrderProcess.CheckOrderStatus;
@@ -9,13 +8,13 @@ import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.HourlySchedulerExample;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
+import com.binance.api.tradingbot.Indicator.MACD;
 import com.binance.api.tradingbot.Indicator.Merge;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
-import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
@@ -23,6 +22,7 @@ import com.binance.api.tradingbot.Settings.bnb;
 
 import java.util.List;
 import java.util.ArrayList;
+import com.binance.api.client.domain.market.CandlestickInterval;
 
 public class LTC_EUR_Live {
     public static void main(String[] args) {
@@ -88,7 +88,7 @@ public class LTC_EUR_Live {
 
                     ATHSQL.updateLPP(currency);
 
-                    if (count == 23 || FirstRound) {
+                    if (count == 42 || FirstRound) {
 
                         HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                           
@@ -109,11 +109,14 @@ public class LTC_EUR_Live {
                         FirstRound = false;
 
                         Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
-                    }                  
 
+                        //MACD.printMACD(bnb.getClient(), currency, CandlestickInterval.DAILY);
+                    }    
+                    //MACD.getMACD(bnb.getClient(), currency, CandlestickInterval.HOURLY);
+                  
                     // verkaufe die die am weitestem im Minus ist
-                    HourlySchedulerExample.executeHourly(currency, bnb.getClient());
-                    SellAsset.Three_TimesPerDay(currency, bnb.getClient());
+                    HourlySchedulerExample.executeHourly();
+                    //SellAsset.Three_TimesPerDay(currency, bnb.getClient());
 
                     count++;
 
@@ -125,7 +128,7 @@ public class LTC_EUR_Live {
                     CheckOrderStatus.OrderStatus(currency, bnb.getClient(), OrderIdList, LivePrice);
 
                     // // Sell                  
-                    POSSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
+                    POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
                     SellOrderProcess.setSellOrder(currency, percent, bnb.getClient(), getDataRecords, LivePrice);
                 }
 

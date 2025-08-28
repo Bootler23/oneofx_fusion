@@ -154,7 +154,7 @@ public class POSSQL {
         return averageBuyAmount;
     }
 
-    public static void getDataRecords_WhereStatusOne(String CurrencyPair, List<String> dataRecords) {
+    public static void getDataRecords_WhereStatusOneOrSeven(String CurrencyPair, List<String> dataRecords) {
         try {
             dataRecords.clear();
             try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
@@ -187,42 +187,56 @@ public class POSSQL {
     }
 
     public static void getDataRecordsPOS_WithMaxInMinus(String currency, List<String> dataRecords) {
-
         double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
-        try {
+        
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
+             Statement query = con.createStatement()) {
+            
             dataRecords.clear();
-            Connection con = DriverManager.getConnection(dbUrl.getPOS());
-            Statement query = con.createStatement();
 
-            String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS "
-                    +
-                    "WHERE Status = 1 " +
-                    "AND BuyAmount > 10 " +
-                    "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
-                    "LIMIT 1";
+            // Zuerst versuchen, einen Datensatz mit Status = 7 und passender Währung zu finden
+            String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
+                        "WHERE Status = 7 AND Währung = '" + currency + "'";
+            
+            try (ResultSet rs = query.executeQuery(SQL)) {
+                boolean foundStatus7 = false;
+                while (rs.next()) {
+                    foundStatus7 = true;
+                    addDataRecord(rs, dataRecords);
+                }
 
-            ResultSet rs = query.executeQuery(SQL);
-
-            while (rs.next()) {
-                String BuyOrderId = rs.getString("BuyOrderId"); // 0
-                String OrderPrice = rs.getString("OrderPrice"); // 1
-                String Quantity = rs.getString("Qty"); // 2
-                String BuyAmount = rs.getString("BuyAmount"); // 3
-                String BuyPrice = rs.getString("BuyPrice"); // 4
-                String BuyDate = rs.getString("BuyDate"); // 7
-                String BuyTime = rs.getString("BuyTime"); // 8
-
-                String dataRecord = BuyOrderId + ", " + OrderPrice + ", " + Quantity + ", " + BuyAmount + ", " +
-                        BuyPrice + ", " + BuyDate + ", " + BuyTime;
-
-                dataRecords.add(dataRecord);
+                // Falls kein Datensatz mit Status = 7 gefunden wurde, dann Status = 1 verwenden
+                if (!foundStatus7) {
+                    SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
+                          "WHERE Status = 1 AND Währung = '" + currency + "' " +
+                          "AND BuyAmount > 10 " +
+                          "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
+                          "LIMIT 1";
+                    
+                    try (ResultSet rs2 = query.executeQuery(SQL)) {
+                        while (rs2.next()) {
+                            addDataRecord(rs2, dataRecords);
+                        }
+                    }
+                }
             }
-            con.close();
-            query.close();
-
         } catch (SQLException err) {
             System.out.println(err.getMessage());
         }
+    }
+
+    private static void addDataRecord(ResultSet rs, List<String> dataRecords) throws SQLException {
+        String BuyOrderId = rs.getString("BuyOrderId");
+        String OrderPrice = rs.getString("OrderPrice");
+        String Quantity = rs.getString("Qty");
+        String BuyAmount = rs.getString("BuyAmount");
+        String BuyPrice = rs.getString("BuyPrice");
+        String BuyDate = rs.getString("BuyDate");
+        String BuyTime = rs.getString("BuyTime");
+
+        String dataRecord = BuyOrderId + ", " + OrderPrice + ", " + Quantity + ", " + BuyAmount + ", " +
+                BuyPrice + ", " + BuyDate + ", " + BuyTime;
+        dataRecords.add(dataRecord);
     }
 
     public static void getPositionWithMaxInMinus(List<String> dataRecords, String currencyPair,

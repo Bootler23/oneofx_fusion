@@ -42,7 +42,7 @@ public class BuyAmountFunktion {
         double freeBalance = SETSQL.getBalance_SQL();
 
         freeBalance = freeBalance - Tax;
-        double LPPTest = (LivePrice.get(0) * 0.93);
+        double LPPTest = (LivePrice.get(0) * 0.80);
 
         while (Loop1) {
             while (Loop2) {
@@ -62,11 +62,11 @@ public class BuyAmountFunktion {
                 }
             }          
 
-            rest_Postion = count_PositionToBottom - count_PositionTo20Percent;
+            // rest_Postion = count_PositionToBottom - count_PositionTo20Percent;
 
-            //freeBalance = (freeBalance - (rest_Postion * 5.5));
+            // freeBalance = (freeBalance * 0.8);
 
-            getBuyAmount = (freeBalance / count_PositionTo20Percent);
+            getBuyAmount = ((freeBalance * 0.8) / count_PositionTo20Percent);
 
             Loop1 = false;
         }
