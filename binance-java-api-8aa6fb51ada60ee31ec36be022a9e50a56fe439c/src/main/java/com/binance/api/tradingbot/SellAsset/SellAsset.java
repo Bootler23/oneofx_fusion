@@ -6,7 +6,7 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.round;
-import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
+import com.binance.api.tradingbot.Settings.bnb;
 
 import static com.binance.api.client.domain.account.NewOrder.marketSell;
 
@@ -26,9 +26,9 @@ public class SellAsset {
 
             System.out.println("Handel wird durchgeführt. Aktuelle Zeit: " + now);     
             
-            SellOrderProcess.handleSellProcess(currency, client);
+            //SellOrderProcess.handleSellProcess(currency, client);
 
-            Sell_Asset_with_Qty_0_0_Double_Amount(client, "XRPEUR");
+            Sell_Asset_with_Qty_0_0_Double_Amount(bnb.getClient(), "XRPEUR");
 
             ProcessedHour = currentHour;
             System.out.println("Handel abgeschlossen um: " + now);
@@ -51,7 +51,7 @@ public class SellAsset {
         }
     }
 
-    private static void Sell_Asset_with_Qty_0_0_Double_Amount(BinanceApiRestClient client, String CurrencyPair) {
+    public static void Sell_Asset_with_Qty_0_0_Double_Amount(BinanceApiRestClient client, String CurrencyPair) {
         try {
             double qty = round.one(GlobalBuyAmount / Ticker.getAssetPrice(CurrencyPair, client));
             String qtyStr = String.valueOf(qty);

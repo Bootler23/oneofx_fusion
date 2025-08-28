@@ -2,6 +2,7 @@ package com.binance.api.tradingbot.HelperFunctions;
 
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
+import com.binance.api.tradingbot.Indicator.MACD;
 
 public class CalcSplit {
 
@@ -9,15 +10,20 @@ public class CalcSplit {
 
         double BalanceExchange = SETSQL.getBalance_SQL();
         double BalancePosition = POSSQL.getSumBuyAmount();
+        double split = 0;
 
         if (BalanceExchange == 0 || BalancePosition == 0) {
             return 0;
         } else {
-            double split = ((BalancePosition / BalanceExchange) * GewinnAfterTax);
+            split = ((BalancePosition / BalanceExchange) * GewinnAfterTax);
             if (split > GewinnAfterTax) {
-                split = (GewinnAfterTax * 0.8);
+                split = (GewinnAfterTax * 0.99);
+            } else {
+                split = (GewinnAfterTax * 0.80);
             }
             return split;
-        }
+        }    
     }
+
+    
 }

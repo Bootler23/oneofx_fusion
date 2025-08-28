@@ -39,6 +39,7 @@ public class Update {
                 double BuyAmount = 0;
                 double Fee = 0;
                 double SplitValue = 0;
+                double LossAfterTax = 0;
 
                 for (Trade trade : tradeList) {
                     double tradeQuantity = Double.parseDouble(trade.getQty());
@@ -65,7 +66,7 @@ public class Update {
                     }
                 }
 
-                double LossAfterTax;
+                
                 if (GewinnAfterTax < 0) {
                     LossAfterTax = GewinnAfterTax;
                     GewinnAfterTax = 0;
