@@ -273,4 +273,32 @@ public class POSSQL {
             System.out.println(err.getMessage());
         }
     }
+
+    public static void getTwoPositions(String currency, List<String> dataRecords) {    
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
+             Statement query = con.createStatement()) {
+
+            dataRecords.clear();
+            String SQL = "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM POS " +
+                         "WHERE Status = 1 " +
+                         "AND BuyAmount < 10 " +
+                         "AND Währung = '" + currency + "'";
+
+            ResultSet rs = query.executeQuery(SQL);
+
+            while (rs.next()) {
+                String BuyOrderId = rs.getString("BuyOrderId");
+                String Quantity = rs.getString("Qty");
+                String currencyFromDB = rs.getString("Währung");
+                String BuyPrice = rs.getString("BuyPrice");
+                String BuyAmount = rs.getString("BuyAmount");
+
+                String dataRecord = BuyOrderId + ", " + Quantity + ", " + currencyFromDB + ", " + BuyPrice + ", " + BuyAmount;
+
+                dataRecords.add(dataRecord);
+            }
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
 }

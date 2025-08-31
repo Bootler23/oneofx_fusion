@@ -8,7 +8,6 @@ import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
 
-
 public class BuyAmountFunktion {
 
     static final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";
@@ -28,6 +27,7 @@ public class BuyAmountFunktion {
 
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
         double unten = POSSQL.getLastPrice(currencyPair, LivePrice);
+        double BA = 0.0;
 
         double LPP = ATHSQL.getLPP(currencyPair);
         double getBuyAmount = 0.0;
@@ -60,13 +60,10 @@ public class BuyAmountFunktion {
                         Loop2 = false;
                     }
                 }
-            }          
+            }
 
-            // rest_Postion = count_PositionToBottom - count_PositionTo20Percent;
-
-            // freeBalance = (freeBalance * 0.8);
-
-            getBuyAmount = ((freeBalance * 0.8) / count_PositionTo20Percent);
+            freeBalance = freeBalance - (5.5 * count_PositionToBottom);
+            getBuyAmount = (freeBalance / 23);
 
             Loop1 = false;
         }
@@ -81,4 +78,5 @@ public class BuyAmountFunktion {
 
         return getBuyAmount;
     }
+
 }

@@ -13,7 +13,7 @@ import static com.binance.api.client.domain.account.NewOrder.marketSell;
 public class SellAsset {
 
     private static int ProcessedHour = -1;
-    private static double GlobalBuyAmount = 10.0;
+    private static double GlobalBuyAmount = 5.5;
 
     public static void Three_TimesPerDay(String currency, BinanceApiRestClient client) {
         LocalDateTime now = LocalDateTime.now();
