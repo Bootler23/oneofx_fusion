@@ -6,24 +6,25 @@ import com.binance.api.tradingbot.Indicator.MACD;
 
 public class CalcSplit {
 
-    public static double calcSplitValue(double GewinnAfterTax) {
+    public static double calcSplitValue(String currency, double GewinnAfterTax) {
 
         double BalanceExchange = SETSQL.getBalance_SQL();
         double BalancePosition = POSSQL.getSumBuyAmount();
         double split = 0;
+        int countPosition = POSSQL.getCountPOS(currency);
 
         if (BalanceExchange == 0 || BalancePosition == 0) {
             return 0;
         } else {
-            split = ((BalancePosition / BalanceExchange) * GewinnAfterTax);
-            if (split > GewinnAfterTax) {
-                split = (GewinnAfterTax * 0.99);
-            } else {
-                split = (GewinnAfterTax * 0.80);
-            }
+
+            // hier soll jetzt 1 Position für 1% stehen das heißt 1% entspricht 0.01
+            if (countPosition > 0) {
+                split = GewinnAfterTax * (0.01 * countPosition);
+                if (split > GewinnAfterTax) {
+                    split = (GewinnAfterTax * 0.99);
+                }
+            }          
             return split;
         }    
-    }
-
-    
+    }  
 }

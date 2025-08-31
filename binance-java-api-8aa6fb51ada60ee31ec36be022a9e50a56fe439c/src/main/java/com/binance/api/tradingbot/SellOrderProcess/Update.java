@@ -26,12 +26,12 @@ public class Update {
             String SellOrderId = parts[0];
             String Quantity = parts[1];
             String BuyPrice = parts[2];
-            String Währung = parts[3];
+            String currency = parts[3];
 
             Long OrderId = Long.valueOf(SellOrderId);
             double SetFeePercentFromBinance = 0.08; // 0.1 = 0.15
 
-            List<Trade> tradeList = find_TradesWithOrderId(client, Währung, OrderId);
+            List<Trade> tradeList = find_TradesWithOrderId(client, currency, OrderId);
 
             if (!tradeList.isEmpty()) {
 
@@ -53,12 +53,19 @@ public class Update {
                 }
 
                 double SellPriceFromExchange = round.five(BuyAmount / Qty);
+                
+                // GewinnAfterTax überarbeiten
                 double GewinnAfterTax = getGewinnAfterTaxAndFee(Quantity, BuyPrice, SetFeePercentFromBinance,
                         SellPriceFromExchange,
                         getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange));
 
+                // sollte Leer ankommen dann beim nächsten mal versuchen
+                if (GewinnAfterTax == 0) {
+                    continue;
+                }
+
                 if (GewinnAfterTax > 0) {
-                    SplitValue = (CalcSplit.calcSplitValue(GewinnAfterTax));
+                    SplitValue = (CalcSplit.calcSplitValue(currency, GewinnAfterTax));
                     if (SplitValue == 0) {
                         continue;
                     } else {
@@ -66,7 +73,6 @@ public class Update {
                     }
                 }
 
-                
                 if (GewinnAfterTax < 0) {
                     LossAfterTax = GewinnAfterTax;
                     GewinnAfterTax = 0;
@@ -80,7 +86,7 @@ public class Update {
 
                     String SQL = "UPDATE HIST SET SellPrice = " + SellPriceFromExchange +
                             ", Tax = " + getTaxe(Quantity, BuyPrice, SellPriceFromExchange) +
-                            ", Fee = " + getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange) + 
+                            ", Fee = " + getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange) +
                             ", Gewinn = " + getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange) +
                             ", GewinnAfterTax = " + round.five(GewinnAfterTax) +
                             ", LossAfterTax = " + round.five(LossAfterTax) +

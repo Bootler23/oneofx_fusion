@@ -34,7 +34,7 @@ public class SellOrderProcess {
 
             double sellTarget = (BuyPrice_Double / 100) * (100 + p);           
 
-            if ((LivePrice.get(0) >= sellTarget) || (BuyPrice_Double * 0.93 > LivePrice.get(0))) {
+            if ((LivePrice.get(0) >= sellTarget)) {
 
                 empty.Line();
                 System.out.println("es soll " + CurrencyPair + " verkauft werden");

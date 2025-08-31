@@ -115,7 +115,7 @@ public class LTC_EUR_Live {
                     //MACD.getMACD(bnb.getClient(), currency, CandlestickInterval.HOURLY);
                   
                     // verkaufe die die am weitestem im Minus ist
-                    HourlySchedulerExample.executeHourly();
+                    //HourlySchedulerExample.executeHourly();
                     //SellAsset.Three_TimesPerDay(currency, bnb.getClient());
 
                     count++;
