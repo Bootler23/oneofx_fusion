@@ -14,6 +14,7 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
+import com.binance.api.tradingbot.HelperFunctions.CalcPercenToSell;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
@@ -22,8 +23,10 @@ import com.binance.api.tradingbot.SQL_Database.POSSQL;
 
 public class SellOrderProcess {
 
-    public static void setSellOrder(String CurrencyPair, double p, BinanceApiRestClient client, List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
-      
+    public static void setSellOrder(String currency, BinanceApiRestClient client, List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
+
+        double percent = CalcPercenToSell.PercentToSell(currency);
+
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
 
@@ -31,17 +34,16 @@ public class SellOrderProcess {
             String Quantity_String = parts[2];
             String BuyPrice_String = parts[4];
             double BuyPrice_Double = round.two(Double.valueOf(BuyPrice_String));
-
-            double sellTarget = (BuyPrice_Double / 100) * (100 + p);           
+            double sellTarget = (BuyPrice_Double / 100) * (100 + percent);           
 
             if ((LivePrice.get(0) >= sellTarget)) {
 
                 empty.Line();
-                System.out.println("es soll " + CurrencyPair + " verkauft werden");
+                System.out.println("es soll " + currency + " verkauft werden");
                 System.out.println("DEBUG: Verkaufsbedingung erfüllt! Starte Verkauf...");
 
                 try {
-                    NewOrderResponse newOrderResponse = getNewSellOrderResponse(CurrencyPair, client, Quantity_String);
+                    NewOrderResponse newOrderResponse = getNewSellOrderResponse(currency, client, Quantity_String);
 
                     update_POS_AfterMarketSell(BuyOrderId);
                     update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(),

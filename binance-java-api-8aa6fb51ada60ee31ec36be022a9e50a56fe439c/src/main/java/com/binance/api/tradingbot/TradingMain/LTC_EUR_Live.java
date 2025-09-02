@@ -17,6 +17,7 @@ import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
+import com.binance.api.tradingbot.HelperFunctions.CalcPercenToSell;
 import com.binance.api.tradingbot.Settings.set;
 import com.binance.api.tradingbot.Settings.bnb;
 
@@ -40,7 +41,7 @@ public class LTC_EUR_Live {
                 boolean FirstRound = true;
                 boolean StartStop = true;
 
-                double percent = 1.31; // +% mit wieviel die Position verkauft wird
+                //double percent = 0.5; // +% mit wieviel die Position verkauft wird
                 // soll dynamisch gea,cht werden genausso wie die % bei dem Verkauf
                 // Primzahlen bis ab 2 -> 2, 3, 5, 7, 11, 13, 17, 19, 23,
                 // 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79,
@@ -64,9 +65,9 @@ public class LTC_EUR_Live {
                 // DatenBankelogik ???
 
                 // WPD einfacher gestalten -> Logik überarbeiten
-               
-                // Binance API Client erstellen - jetzt als Singleton
-                // BinanceApiRestClient client = BinanceConfig.getClient();
+                
+                // percent dynamisch vom count der Position erstellen. wenig Positionen -> viel percent -> viel Positionen wenig percent
+                    // 0.5% -> x%              
 
                 List<Long> OrderIdList = new ArrayList<Long>();
                 List<String> getDataRecords = new ArrayList<String>();
@@ -110,6 +111,8 @@ public class LTC_EUR_Live {
 
                         Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
 
+                        System.out.println("Percent: " + CalcPercenToSell.PercentToSell(currency));
+
                         //MACD.printMACD(bnb.getClient(), currency, CandlestickInterval.DAILY);
                     }    
                     //MACD.getMACD(bnb.getClient(), currency, CandlestickInterval.HOURLY);
@@ -129,7 +132,7 @@ public class LTC_EUR_Live {
 
                     // // Sell                  
                     POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
-                    SellOrderProcess.setSellOrder(currency, percent, bnb.getClient(), getDataRecords, LivePrice);
+                    SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice);
                 }
 
             } catch (IndexOutOfBoundsException e) {
