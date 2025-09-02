@@ -23,9 +23,13 @@ import com.binance.api.tradingbot.SQL_Database.POSSQL;
 
 public class SellOrderProcess {
 
-    public static void setSellOrder(String currency, BinanceApiRestClient client, List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
+    public static void setSellOrder(String currency, BinanceApiRestClient client,
+            List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
         double percent = CalcPercenToSell.PercentToSell(currency);
+        if (percent <= 0) {
+            percent = 1;
+        }
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
@@ -34,7 +38,7 @@ public class SellOrderProcess {
             String Quantity_String = parts[2];
             String BuyPrice_String = parts[4];
             double BuyPrice_Double = round.two(Double.valueOf(BuyPrice_String));
-            double sellTarget = (BuyPrice_Double / 100) * (100 + percent);           
+            double sellTarget = (BuyPrice_Double / 100) * (100 + percent);
 
             if ((LivePrice.get(0) >= sellTarget)) {
 
