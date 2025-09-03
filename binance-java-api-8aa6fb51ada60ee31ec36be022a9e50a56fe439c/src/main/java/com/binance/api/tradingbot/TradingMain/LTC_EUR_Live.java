@@ -23,7 +23,6 @@ import com.binance.api.tradingbot.Settings.bnb;
 
 import java.util.List;
 import java.util.ArrayList;
-import com.binance.api.client.domain.market.CandlestickInterval;
 
 public class LTC_EUR_Live {
     public static void main(String[] args) {

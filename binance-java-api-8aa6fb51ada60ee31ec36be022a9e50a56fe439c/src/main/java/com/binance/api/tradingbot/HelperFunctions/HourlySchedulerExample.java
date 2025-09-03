@@ -22,7 +22,14 @@ public class HourlySchedulerExample {
         if (currentMinute == 0 && currentHour != ProcessedHour) {
 
             System.out.println("Stündliche Aufgabe wird ausgeführt. Aktuelle Zeit: " + now);
+            
+            // Bestehende Trading-Logik
             SellAsset.Sell_Asset_with_Qty_0_0_Double_Amount(bnb.getClient(), "XRPEUR");
+            
+            // NEUER CODE: Git-Backup zur vollen Stunde
+            System.out.println("🔄 Starte stündliches Git-Backup...");
+            GitBackup.performHourlyBackup();
+            
             ProcessedHour = currentHour;
             System.out.println("Stündliche Aufgabe abgeschlossen um: " + now);
         }

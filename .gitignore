@@ -19,6 +19,10 @@
 *.tar.gz
 *.rar
 
+# Database backups - Explizit erlauben
+!database_backup/
+!database_backup/*.db
+
 # Virtual machine crash logs
 hs_err_pid*
 
