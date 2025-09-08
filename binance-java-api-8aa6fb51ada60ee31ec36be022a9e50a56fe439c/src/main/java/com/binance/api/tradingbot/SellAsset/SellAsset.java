@@ -62,7 +62,7 @@ public class SellAsset {
         } catch (BinanceApiException ex) {
             String FehlerMessage = CurrencyPair + " - Fehler beim Verkauf: BuyAmount wurde angepasst!";
             GlobalBuyAmount = GlobalBuyAmount + 0.1;
-            Sell_Asset_with_Integer_Amount(client, CurrencyPair);
+            Sell_Asset_with_Qty_0_0_Double_Amount(client, CurrencyPair);
             System.out.println(FehlerMessage);
         }
     }

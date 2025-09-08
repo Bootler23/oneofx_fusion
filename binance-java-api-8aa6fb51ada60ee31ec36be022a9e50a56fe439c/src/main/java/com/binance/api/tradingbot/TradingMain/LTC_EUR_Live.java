@@ -8,7 +8,6 @@ import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.HourlySchedulerExample;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
-import com.binance.api.tradingbot.Indicator.MACD;
 import com.binance.api.tradingbot.Indicator.Merge;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
@@ -17,9 +16,9 @@ import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
-import com.binance.api.tradingbot.HelperFunctions.CalcPercenToSell;
 import com.binance.api.tradingbot.Settings.set;
 import com.binance.api.tradingbot.Settings.bnb;
+import com.binance.api.tradingbot.Settings.CurrencyConfig;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -30,7 +29,8 @@ public class LTC_EUR_Live {
         while (true) {
             try {
 
-                String[] currencies = {"LTCEUR"};
+                String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
+                String[] SellCurrencies = {"LTCEUR"};
                 String currency = "";
                 int state = 0;
 
@@ -38,28 +38,13 @@ public class LTC_EUR_Live {
              
                 int count = 0;
                 boolean FirstRound = true;
-                boolean StartStop = true;
-
-                //double percent = 0.5; // +% mit wieviel die Position verkauft wird
-                // soll dynamisch gea,cht werden genausso wie die % bei dem Verkauf
-                // Primzahlen bis ab 2 -> 2, 3, 5, 7, 11, 13, 17, 19, 23,
-                // 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79,
-                // 100 -> 101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
-                // 151, 157, 163, 167, 173,
+                boolean StartStop = true;             
 
                 // ----------------------------------------------------------------------------------------------------------------------
 
                 // ToDo´s ---> BIG THREE <---
 
-                // BuyAmountFunktion -> wie kann ich relativ hohe Buy-Orders generieren?
-                    // Jeden Tag die Größte Position verkaufen -> abschneiden der verluste
-                        // -> ggf. bei einem Absturz -7% verkaufen -> wenn sie vorher schon weg sind durch abschneiden wäre das gut !!!
-
-                        // jeden Tag die Position welche am weitesten im Minus ist verkaufen
-                            // wenn die Position unter -7% fällt -> verkaufen ???
-                                // Wenn es kein Geld mehr gibt -> verkaufen von oben
-                                    // 1% vom Balance als BuyPrice ???
-                                        // -> derzeit nach einem Low -> dauert Lange bis wieder Geld Liquide wird von oben
+                // Wenn BNB gleich alle dann nachkaufen.
 
                 // DatenBankelogik ???
 
@@ -75,8 +60,8 @@ public class LTC_EUR_Live {
 
                 while (StartStop) {
 
-                    state = set.Currency(currencies, state);
-                    currency = currencies[state];                  
+                    state = set.Currency(BuyCurrencies, state);
+                    currency = BuyCurrencies[state];                  
 
                     sleep.for_1_second();
 
@@ -109,16 +94,10 @@ public class LTC_EUR_Live {
                         FirstRound = false;
 
                         Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
-
-                        System.out.println("Percent: " + CalcPercenToSell.PercentToSell(currency));
-
-                        //MACD.printMACD(bnb.getClient(), currency, CandlestickInterval.DAILY);
-                    }    
-                    //MACD.getMACD(bnb.getClient(), currency, CandlestickInterval.HOURLY);
+                    }                      
                   
                     // verkaufe die die am weitestem im Minus ist
-                    //HourlySchedulerExample.executeHourly();
-                    //SellAsset.Three_TimesPerDay(currency, bnb.getClient());
+                    HourlySchedulerExample.executeHourly();
 
                     count++;
 

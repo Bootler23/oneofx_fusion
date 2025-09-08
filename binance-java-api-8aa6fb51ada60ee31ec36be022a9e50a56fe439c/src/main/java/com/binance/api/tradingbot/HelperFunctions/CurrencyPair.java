@@ -14,6 +14,8 @@ public class CurrencyPair {
                 return round.zero(value);
             case "TRXXRP":
                 return round.one(value);
+            case "TRXEUR":
+                return round.zero(value);
             default:
                 return value;
         }

@@ -2,6 +2,7 @@ package com.binance.api.tradingbot.SQL_Database;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -72,9 +73,9 @@ public class ATHSQL {
         double AllTimeHighMinus80Percent = (ATHSQL.getAllTimeHigh(currencyPair) / 100) * 20;
 
         if (AllTimeHighMinus80Percent > LastPossiblePrice) {
-            LastPossiblePrice += 0.01;           
+            LastPossiblePrice += 0.01;
         } else {
-            LastPossiblePrice -= 0.01;          
+            LastPossiblePrice -= 0.01;
         }
         return round.three(LastPossiblePrice);
     }
@@ -96,6 +97,68 @@ public class ATHSQL {
             }
         } catch (SQLException err) {
             System.out.println("Fehler beim Prüfen/Hinzufügen des Currency Pair: " + err.getMessage());
+        }
+    }
+
+    public static double GetHighestBuyAmount(String currency) {
+        String sql = "SELECT HighestBuyAmount FROM ATH WHERE Währung = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, currency);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    double val = rs.getDouble("HighestBuyAmount");
+                    return rs.wasNull() ? 0.0 : val;
+                }
+            }
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+
+        return 0.0;
+    }
+
+    public static void setHighestBuyAmount(String currency, double BuyAmount) {
+        String sql = "UPDATE ATH SET HighestBuyAmount = ? WHERE Währung = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.two(BuyAmount));
+            ps.setString(2, currency);
+
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    public static double getMinBuyAmount(String currencyPair) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
+             Statement query = con.createStatement();
+             ResultSet rs = query.executeQuery("SELECT MinBuyAmount FROM ATH WHERE `Währung` = '" + currencyPair + "'")) {
+            return round.two(rs.getDouble("MinBuyAmount"));
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 5.5;
+        }
+    }
+
+    public static void setMinBuyAmount(String currency, double BuyAmount) {
+        String sql = "UPDATE ATH SET MinBuyAmount = ? WHERE Währung = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.two(BuyAmount));
+            ps.setString(2, currency);
+
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
         }
     }
 }
