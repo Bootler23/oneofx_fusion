@@ -30,7 +30,8 @@ import com.binance.api.tradingbot.Settings.set;
 
 public class BuyOrderPocess {
 
-    public static void setBuyOrder(String CurrencyPair, String EURO, BinanceApiRestClient client, List<Double> LivePrice) {
+    public static void setBuyOrder(String CurrencyPair, String EURO, BinanceApiRestClient client,
+            List<Double> LivePrice) {
 
         double BuyAmaunt;
         double Ath = ATHSQL.getAllTimeHigh(CurrencyPair);
@@ -58,6 +59,8 @@ public class BuyOrderPocess {
 
                 empty.Line();
                 System.out.println("Setze mal eine Order bei: " + BuyPrice);
+
+                ATHSQL.GetHighestBuyAmount(CurrencyPair);
 
                 sleep.for_05_second();
 

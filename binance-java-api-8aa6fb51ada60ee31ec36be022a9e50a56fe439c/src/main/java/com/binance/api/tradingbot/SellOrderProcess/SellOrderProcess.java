@@ -27,6 +27,8 @@ public class SellOrderProcess {
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
         double percent = CalcPercenToSell.PercentToSell(currency);
+        //System.out.println("DEBUG: Verkaufsprozent für " + currency + ": " + percent + "%");
+
         if (percent <= 0) {
             percent = 1;
         }
