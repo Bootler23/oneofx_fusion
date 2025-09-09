@@ -57,21 +57,20 @@ public class HISTSQL {
         }
     }    
 
-    public static void getDataRecords_WhereStatusOne(List<String> GetDataRecord) {
+    public static void getDataRecords_WhereStatusOne(String currency, List<String> GetDataRecord) {
         try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
-                Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT BuyOrderId, Split FROM HIST WHERE Status = 1")) {
+                PreparedStatement query = con.prepareStatement("SELECT BuyOrderId, Split, Währung FROM HIST WHERE Status = 1 AND Split IS NOT NULL AND Währung = ?")) {
+
+            query.setString(1, currency);
+            ResultSet rs = query.executeQuery();
 
             GetDataRecord.clear();
             while (rs.next()) {
                 String BuyOrderId = rs.getString("BuyOrderId");
                 String SplitValue = rs.getString("Split");
+                String currency_Split = rs.getString("Währung");
 
-                if (SplitValue == null) {
-                    continue;
-                }
-
-                String dataRecord = BuyOrderId + ", " + SplitValue;
+                String dataRecord = BuyOrderId + ", " + SplitValue + ", " + currency_Split;
                 GetDataRecord.add(dataRecord);
             }
         } catch (SQLException err) {

@@ -1,9 +1,9 @@
 package com.binance.api.tradingbot.Settings;
 
 public class CurrencyConfig {
-    
+
     private static final String[] BUY_CURRENCIES = {"LTCEUR", "BNBEUR"};
-    
+
     /**
      * Gibt die konfigurierten Währungspaare für Kaufoperationen zurück
      * @return Array der Währungspaare

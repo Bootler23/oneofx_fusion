@@ -29,8 +29,7 @@ public class LTC_EUR_Live {
         while (true) {
             try {
 
-                String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
-                String[] SellCurrencies = {"LTCEUR"};
+                String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();             
                 String currency = "";
                 int state = 0;
 
@@ -73,7 +72,7 @@ public class LTC_EUR_Live {
 
                     ATHSQL.updateLPP(currency);
 
-                    if (count == 42 || FirstRound) {
+                    if (count == 41 || FirstRound) {
 
                         HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                           
@@ -83,9 +82,12 @@ public class LTC_EUR_Live {
 
                         SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, bnb.getClient());
 
-                        HISTSQL.getDataRecords_WhereStatusOne(getDataRecords);
+                        HISTSQL.getDataRecords_WhereStatusOne(currency,getDataRecords);
                         Merge.splitValue(currency, getDataRecords);
-                                    
+
+                        // POSSQL.getPositionSmallerThen10AndMinus7Percent(currency, getDataRecords);
+                        // POSSQL.mergePosition(currency, getDataRecords);
+
                         // Wieviel ist mein Portfolio im Minus
                         WPDSQL.getGewinnAfterTax();                     
 

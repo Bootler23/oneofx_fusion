@@ -53,10 +53,14 @@ public class BuyAmountFunktion {
                         count_PositionTo20Percent++;
                     }
 
-                    if (38.80 > BuyPrice || LPP > BuyPrice) {
+                    if (LPP > BuyPrice) {
                         Loop2 = false;
                     }
                 }
+            }
+
+            if (count_PositionToBottom > 1000) {
+                count_PositionToBottom = 1000;
             }
 
             freeBalance = freeBalance - (minBuyAmount * count_PositionToBottom);
@@ -68,11 +72,7 @@ public class BuyAmountFunktion {
         if (ATHSQL.GetHighestBuyAmount(currencyPair) < getBuyAmount) {
             ATHSQL.setHighestBuyAmount(currencyPair, getBuyAmount);
             ATHSQL.setMinBuyAmount(currencyPair, (ATHSQL.getMinBuyAmount(currencyPair) + 0.1));
-        }
-
-        // if (getBuyAmount > SETSQL.getBuyAmount()) {
-        // getBuyAmount = SETSQL.getBuyAmount();
-        // }
+        }      
 
         if (getBuyAmount < 5.5) {
             getBuyAmount = 5.5;

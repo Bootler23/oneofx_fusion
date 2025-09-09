@@ -187,6 +187,7 @@ public class POSSQL {
     }
 
     public static void getDataRecordsPOS_WithMaxInMinus(String currency, List<String> dataRecords) {
+
         double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
         
         try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
@@ -204,6 +205,51 @@ public class POSSQL {
                     foundStatus7 = true;
                     addDataRecord(rs, dataRecords);
                 }
+
+                // Falls kein Datensatz mit Status = 7 gefunden wurde, dann Status = 1 verwenden
+                if (!foundStatus7) {
+                    SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
+                          "WHERE Status = 1 AND Währung = '" + currency + "' " +
+                          "AND BuyAmount > 10 " +
+                          "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
+                          "LIMIT 1";
+                    
+                    try (ResultSet rs2 = query.executeQuery(SQL)) {
+                        while (rs2.next()) {
+                            addDataRecord(rs2, dataRecords);
+                        }
+                    }
+                }
+            }
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+     public static void Test_getDataRecordsPOS_WithMaxInMinus(String currency, List<String> dataRecords) {
+        
+        double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
+
+        // Hole von jeder Wärung den Preis. 
+            // vergleiche es mit der Datenbank welche am meisten im Minus ist.
+                // nimm die Währung die am meisten im Minus ist.
+
+        
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
+             Statement query = con.createStatement()) {
+            
+            dataRecords.clear();
+
+            // Zuerst versuchen, einen Datensatz mit Status = 7 zu finden.
+                       String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
+                        "WHERE Status = 7";
+
+            try (ResultSet rs = query.executeQuery(SQL)) {
+                boolean foundStatus7 = false;
+                while (rs.next()) {
+                    foundStatus7 = true;
+                    addDataRecord(rs, dataRecords);
+                }                
 
                 // Falls kein Datensatz mit Status = 7 gefunden wurde, dann Status = 1 verwenden
                 if (!foundStatus7) {
@@ -301,4 +347,66 @@ public class POSSQL {
             System.out.println(err.getMessage());
         }
     }
+
+    public static void getPositionSmallerThen10AndMinus7Percent(String currency, List<String> dataRecords) {
+        double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
+
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
+             Statement query = con.createStatement()) {
+
+            dataRecords.clear();
+            String SQL = "SELECT * FROM POS WHERE Währung = '" + currency + "' AND BuyAmount < 10 AND Status = 1 AND (BuyPrice - " + LivePrice + ") / BuyPrice >= 0.07";
+            ResultSet rs = query.executeQuery(SQL);
+
+            while (rs.next()) {
+                String BuyOrderId = rs.getString("BuyOrderId");
+                String Quantity = rs.getString("Qty");
+                String currencyFromDB = rs.getString("Währung");
+                String BuyPrice = rs.getString("BuyPrice");
+                String BuyAmount = rs.getString("BuyAmount");
+
+                String dataRecord = BuyOrderId + ", " + Quantity + ", " + currencyFromDB + ", " + BuyPrice + ", " + BuyAmount;
+                dataRecords.add(dataRecord);
+            }
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    public static void mergePosition(String currency, List<String> dataRecords) {
+
+        double TotalBuyAmount = 0.0;
+        double TotalBuyPrice = 0.0;
+        double TotalQuantity = 0.0;
+
+        for (String record : dataRecords) {
+            String[] parts = record.split(", ");
+
+            String BuyOrderId_POS = parts[0];
+            long BuyOrderId_POS_Long = Long.parseLong(BuyOrderId_POS);
+            String Quantity = parts[1];
+              
+            double BuyPrice = Double.parseDouble(parts[3]);
+            double BuyAmount = Double.parseDouble(parts[4]);
+
+            TotalBuyAmount += BuyAmount;
+            TotalBuyPrice += BuyPrice;
+            TotalQuantity += Double.parseDouble(Quantity);
+        }
+
+        //updateOrderPOS("POS", TotalBuyAmount, round.five(TotalBuyAmount / TotalQuantity), String.valueOf(dataRecords.get(0).split(", ")[0]));
+
+        
+
+
+
+
+
+    }
+
+         
+
+          
+    
+
 }
