@@ -24,15 +24,15 @@ public class Merge {
             String[] parts = dataRecord.split(", ");
             String BuyOrderId_Split = parts[0];
             String profitSplitValue = parts[1];
+            String currency_Split = parts[2];
             double profitSplitValue_Double = Double.valueOf(profitSplitValue);
 
             List<String> BuyAmountRecord = new ArrayList<String>();
             POSSQL.getDataRecordsPOS_WithMaxInMinus(currency, BuyAmountRecord);
 
-            if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01)) { // Prüft, ob ein Datensatz vorhanden
-                                                                                  // ist
-                String record = BuyAmountRecord.get(0); // Ersten Eintrag holen
-
+            if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01) && currency_Split.equals(currency)) { 
+                                                                                  
+                String record = BuyAmountRecord.get(0); 
                 String[] recordParts = record.split(", ");
                 String BuyOrderId_POS = recordParts[0];
                 String Quantity = recordParts[2];
@@ -61,7 +61,7 @@ public class Merge {
 
                 splitComplete = true;
             } else {
-                updateHIST_Status("HIST", BuyOrderId_Split);
+                //updateHIST_Status("HIST", BuyOrderId_Split);
             }
         }
     }
