@@ -9,25 +9,30 @@ import java.sql.Statement;
 import java.util.List;
 
 import com.binance.api.tradingbot.Database.dbUrl;
+import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class ATHSQL {
 
-    public static double getAllTimeHigh(String CurrencyPair) {
-        ensureCurrencyPairExists(dbUrl.getATH(), CurrencyPair);
+    public static double getAllTimeHigh(String Currency) {
+        ensureCurrencyPairExists(dbUrl.getATH(), Currency);
         try (Connection con = DriverManager.getConnection(dbUrl.getATH());
                 Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT ATH FROM ATH WHERE `Währung` = '" + CurrencyPair + "'")) {
-            return rs.next() ? round.two(rs.getDouble("ATH")) : 0.0;
+                ResultSet rs = query.executeQuery("SELECT ATH FROM ATH WHERE `Währung` = '" + Currency + "'")) {
+            if (rs.next()) {
+                return RoundCurrency.forTickerPrice(rs.getDouble("ATH"), Currency);
+            } else {
+                return 0.0;
+            }
         } catch (SQLException err) {
             System.out.println("Fehler beim holen der ATH Preis " + err.getMessage());
             return 0.0;
         }
     }
 
-    public static void CheckForNewAllTimeHigh(String CurrencyPair, List<Double> LivePrice) {
-        if (LivePrice.get(0) > getAllTimeHigh(CurrencyPair)) {
-            setAllTimeHigh(CurrencyPair, dbUrl.getATH(), LivePrice.get(0));
+    public static void CheckForNewAllTimeHigh(String currency, List<Double> LivePrice) {
+        if (LivePrice.get(0) > getAllTimeHigh(currency)) {
+            setAllTimeHigh(currency, dbUrl.getATH(), LivePrice.get(0));
             System.out.println("New ATH small function");
         }
     }
@@ -138,8 +143,9 @@ public class ATHSQL {
 
     public static double getMinBuyAmount(String currencyPair) {
         try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-             Statement query = con.createStatement();
-             ResultSet rs = query.executeQuery("SELECT MinBuyAmount FROM ATH WHERE `Währung` = '" + currencyPair + "'")) {
+                Statement query = con.createStatement();
+                ResultSet rs = query
+                        .executeQuery("SELECT MinBuyAmount FROM ATH WHERE `Währung` = '" + currencyPair + "'")) {
             return round.two(rs.getDouble("MinBuyAmount"));
         } catch (SQLException err) {
             System.out.println(err.getMessage());
@@ -150,7 +156,7 @@ public class ATHSQL {
     public static void setMinBuyAmount(String currency, double BuyAmount) {
         String sql = "UPDATE ATH SET MinBuyAmount = ? WHERE Währung = ?";
         try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-             PreparedStatement ps = con.prepareStatement(sql)) {
+                PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.two(BuyAmount));
             ps.setString(2, currency);

@@ -5,6 +5,7 @@ import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.market.TickerPrice;
 import com.binance.api.client.exception.BinanceApiException;
+import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
@@ -14,14 +15,15 @@ public class Ticker {
     public static double getAssetPrice(String currencyPair, BinanceApiRestClient client) {
         int maxRetries = 10;
         int retryCount = 0;
-        
+
         while (retryCount < maxRetries) {
             try {
                 TickerPrice tickerPrice = client.getPrice(currencyPair);
                 return round.two(Double.parseDouble(tickerPrice.getPrice()));
             } catch (BinanceApiException e) {
                 if (e.getCause() instanceof java.net.SocketTimeoutException && retryCount < maxRetries - 1) {
-                    System.out.println("Timeout aufgetreten in getAssetPrice, versuche es erneut (" + (retryCount + 1) + "/" + maxRetries + ")");
+                    System.out.println("Timeout aufgetreten in getAssetPrice, versuche es erneut (" + (retryCount + 1)
+                            + "/" + maxRetries + ")");
                     retryCount++;
                     sleep.for_10_seconds();
                 } else {
@@ -37,15 +39,16 @@ public class Ticker {
         return 0.0;
     }
 
-    public static void get_CurrencyPair_Price(String currencyPair, BinanceApiRestClient client,
+    public static void get_CurrencyPair_Price(String currency, BinanceApiRestClient client,
             List<Double> LiveTicker) {
         int maxRetries = 10;
         int retryCount = 0;
         LiveTicker.clear();
+
         while (retryCount < maxRetries) {
             try {
-                TickerPrice tickerPrice = client.getPrice(currencyPair);
-                LiveTicker.add(round.two(Double.parseDouble(tickerPrice.getPrice())));
+                TickerPrice tickerPrice = client.getPrice(currency);
+                LiveTicker.add(RoundCurrency.forTickerPrice(Double.parseDouble(tickerPrice.getPrice()), currency));               
                 System.out.print(".");
                 return;
             } catch (BinanceApiException e) {

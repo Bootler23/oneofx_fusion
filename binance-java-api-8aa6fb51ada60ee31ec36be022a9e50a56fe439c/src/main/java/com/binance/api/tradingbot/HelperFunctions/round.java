@@ -44,7 +44,7 @@ public class round {
     }    
 
     public static double Quantity(double value, String Currency) {
-        return CurrencyPair.formatValueByCurrency(value, Currency);
+        return RoundCurrency.forQuantity(value, Currency);
     }
 
     public static String withPoint(double Qty) {

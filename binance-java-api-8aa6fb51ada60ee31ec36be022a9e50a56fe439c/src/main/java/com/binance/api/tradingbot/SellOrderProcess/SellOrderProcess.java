@@ -33,6 +33,10 @@ public class SellOrderProcess {
             percent = 1;
         }
 
+        // if (currency.equals("LTCEUR")) {
+        //     return;
+        // }       
+
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
 

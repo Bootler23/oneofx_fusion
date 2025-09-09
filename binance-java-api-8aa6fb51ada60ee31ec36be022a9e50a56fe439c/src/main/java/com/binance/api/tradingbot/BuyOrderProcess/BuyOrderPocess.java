@@ -20,6 +20,7 @@ import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
+import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
@@ -30,22 +31,22 @@ import com.binance.api.tradingbot.Settings.set;
 
 public class BuyOrderPocess {
 
-    public static void setBuyOrder(String CurrencyPair, String EURO, BinanceApiRestClient client,
+    public static void setBuyOrder(String currency, String EURO, BinanceApiRestClient client,
             List<Double> LivePrice) {
 
         double BuyAmaunt;
-        double Ath = ATHSQL.getAllTimeHigh(CurrencyPair);
-        double unten = POSSQL.getLastPrice(CurrencyPair, LivePrice);
+        double Ath = ATHSQL.getAllTimeHigh(currency);
+        double unten = POSSQL.getLastPrice(currency, LivePrice);
         double BuyPrice;
         int Count = 0;
         boolean BuyOrderCalc = true;
         double TickerPrice = LivePrice.get(0);
-        int grid = set.getGridforCurrency(CurrencyPair);
+        int grid = set.getGridforCurrency(currency);       
 
         while (BuyOrderCalc) {
 
             Ath = Ath - ((Ath / 100) / grid);
-            BuyPrice = round.two(Ath);
+            BuyPrice = RoundCurrency.forTickerPrice(Ath, currency);
 
             if (TickerPrice >= BuyPrice) {
 
@@ -60,20 +61,20 @@ public class BuyOrderPocess {
                 empty.Line();
                 System.out.println("Setze mal eine Order bei: " + BuyPrice);
 
-                ATHSQL.GetHighestBuyAmount(CurrencyPair);
+                ATHSQL.GetHighestBuyAmount(currency);
 
                 sleep.for_05_second();
 
-                BuyAmaunt = BuyAmountFunktion.getBuyAmount(CurrencyPair, EURO, client, LivePrice, true);
+                BuyAmaunt = BuyAmountFunktion.getBuyAmount(currency, EURO, client, LivePrice, true);
 
                 BuyAmaunt = checkBuyAmount(EURO, client, BuyAmaunt);
 
-                String Quantity = getQty(CurrencyPair, LivePrice, BuyAmaunt);
+                String Quantity = getQty(currency, LivePrice, BuyAmaunt);
                 String buyprice = String.valueOf(BuyPrice);
 
                 try {
                     NewOrderResponse newOrderResponse = client
-                            .newOrder(limitBuy(CurrencyPair, TimeInForce.GTC, Quantity, buyprice));
+                            .newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
 
                     try (Connection con = DriverManager.getConnection(dbUrl.getPOS())) {
                         String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung) VALUES (?, ?, ?, ?)";
@@ -81,14 +82,14 @@ public class BuyOrderPocess {
                             pstmt.setLong(1, newOrderResponse.getOrderId());
                             pstmt.setBigDecimal(2, new BigDecimal(newOrderResponse.getPrice()));
                             pstmt.setInt(3, 0);
-                            pstmt.setString(4, CurrencyPair);
+                            pstmt.setString(4, currency);
                             pstmt.executeUpdate();
                         }
                     }
 
                     System.out.println("NEW_POSITION in DataBase: " + BuyPrice + " EUR");
                     System.out.println("BUY AMOUNT bei..........: " + round.three(BuyAmaunt) + " EUR");
-                    System.out.println("Quantity bei............: " + Quantity + " " + CurrencyPair);
+                    System.out.println("Quantity bei............: " + Quantity + " " + currency);
                     System.out.println("");
                     break;
 

@@ -18,12 +18,14 @@ public class CalcSplit {
         } else {
 
             // hier soll jetzt 1 Position für 1% stehen das heißt 1% entspricht 0.01
-            if (countPosition > 0) {
+            if (countPosition >= 0) {
                 split = GewinnAfterTax * (0.01 * countPosition);
                 if (split > GewinnAfterTax) {
                     split = (GewinnAfterTax * 0.99);
+                } else {
+                    split = (GewinnAfterTax * 0.01);
                 }
-            }          
+            }      
             return split;
         }    
     }  

@@ -30,16 +30,11 @@ public class BuyAmountFunktion {
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
-
-        int count_PositionToBottom = 0;
-        int count_PositionTo20Percent = 0;
-        int rest_Postion = 0;
+        int count_PositionToBottom = 0;     
 
         double Tax = HISTSQL.getTaxe();
         double freeBalance = SETSQL.getBalance_SQL();
-
-        freeBalance = (freeBalance - Tax);
-        double LPPTest = (LivePrice.get(0) * 0.80);
+        freeBalance = (freeBalance - Tax);     
 
         while (Loop1) {
             while (Loop2) {
@@ -47,21 +42,13 @@ public class BuyAmountFunktion {
                 BuyPrice = BuyPrice - ((BuyPrice / 100) / grid);
                 if (((LivePrice.get(0) >= BuyPrice)) && (unten > BuyPrice)) {
 
-                    count_PositionToBottom++;
-
-                    if (LPPTest < BuyPrice) {
-                        count_PositionTo20Percent++;
-                    }
+                    count_PositionToBottom++;                  
 
                     if (LPP > BuyPrice) {
                         Loop2 = false;
                     }
                 }
-            }
-
-            if (count_PositionToBottom > 1000) {
-                count_PositionToBottom = 1000;
-            }
+            }           
 
             freeBalance = freeBalance - (minBuyAmount * count_PositionToBottom);
             getBuyAmount = (freeBalance / 23);
