@@ -33,6 +33,7 @@ public class SellOrderProcess {
             percent = 1;
         }
 
+        percent = 0.42;
         // if (currency.equals("LTCEUR")) {
         //     return;
         // }       

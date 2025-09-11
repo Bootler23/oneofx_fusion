@@ -37,10 +37,10 @@ public class RoundCurrency {
                 return round.four(value);
             case "LTCBTC":
                 return round.six(value);
+            case "XRPBTC":
+                return round.eight(value);
             default:
                 return value;
         }
-    }
-
-    
+    }    
 }

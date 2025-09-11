@@ -147,7 +147,7 @@ public class CheckOrderStatus {
 
             String SQL_update = "UPDATE POS SET "
                     + "BuyPrice = " + BuyPrice + ", "
-                    + "Qty = " + round.withPoint(Quantity) + ", "
+                    + "Qty = " + round.withPoint(Quantity) + ", " // TODO alle info von der Börse holen
                     + "OrderPrice = " + BuyPrice + ", "
                     + "OrigPrice = " + BuyPrice + ", "
                     + "Währung = '" + currencyPair + "', "
