@@ -33,6 +33,7 @@ public class SellOrderProcess {
             percent = 1;
         }
 
+        percent = 0.5; // TODO nur zum testen entfernen
         // if (currency.equals("LTCEUR")) {
         //     return;
         // }       
@@ -123,8 +124,7 @@ public class SellOrderProcess {
 
     public static NewOrderResponse getNewSellOrderResponse(String CurrencyPair, BinanceApiRestClient client,
             String Quantity_String) {
-        NewOrderResponse newOrderResponse = client
-                .newOrder(marketSell(CurrencyPair, Quantity_String));
+        NewOrderResponse newOrderResponse = client.newOrder(marketSell(CurrencyPair, Quantity_String));
         return newOrderResponse;
     }
 

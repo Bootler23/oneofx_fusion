@@ -2,6 +2,7 @@ package com.binance.api.tradingbot.SellOrderProcess;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -9,12 +10,15 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.binance.api.client.BinanceApiRestClient;
+import com.binance.api.client.domain.account.Order;
 import com.binance.api.client.domain.account.Trade;
+import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.CalcSplit;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
 
 public class Update {
 
@@ -31,35 +35,39 @@ public class Update {
             Long OrderId = Long.valueOf(SellOrderId);
             double SetFeePercentFromBinance = 0.08; // 0.1 = 0.15
 
-            List<Trade> tradeList = find_TradesWithOrderId(client, currency, OrderId);
+            Order order = find_OrderWithOrderId(client, currency, OrderId);
+            if (order != null) {
 
-            if (!tradeList.isEmpty()) {
+                List<Trade> tradeList = find_TradesWithOrderId(client, currency, OrderId);
 
-                double Qty = 0;
-                double BuyAmount = 0;
-                double Fee = 0;
+                double trade_quantity = 0;
+                double trade_fee = 0;
+
+                for (Trade trade : tradeList) {
+                    double Qty = Double.parseDouble(trade.getQty());                   
+                    double Fee = Double.valueOf(trade.getCommission());
+
+                    trade_quantity = trade_quantity + Qty;
+                    trade_fee = trade_fee + Fee;
+                }
+
+                if (round.three(trade_quantity) != round.three(Double.valueOf(order.getExecutedQty()))) {
+                    System.out.println("Die Mengen stimmen nicht überein!");
+                    continue;
+                }
+
+                double Qty = Double.valueOf(order.getExecutedQty());
+                double BuyAmount = Double.valueOf(order.getCummulativeQuoteQty());
+                double SellFee = round.eight(trade_fee * Ticker.getAssetPrice("BNBEUR", client));
                 double SplitValue = 0;
                 double LossAfterTax = 0;
 
-                for (Trade trade : tradeList) {
-                    double tradeQuantity = Double.parseDouble(trade.getQty());
-                    double tradeAmount = Double.parseDouble(trade.getQuoteQty());
-                    double tradefee = Double.valueOf(trade.getCommission());
+                double SellPriceFromExchange = RoundCurrency.forQuantity((BuyAmount / Qty), currency);
 
-                    // hier muss man sich entscheiden welche Menge man nimmt
-                    Qty = Qty + tradeQuantity;
-                    BuyAmount = BuyAmount + tradeAmount;
-                    Fee = Fee + tradefee;
-                }
-
-                double SellPriceFromExchange = round.five(BuyAmount / Qty);
-                
-                // GewinnAfterTax überarbeiten
                 double GewinnAfterTax = getGewinnAfterTaxAndFee(Quantity, BuyPrice, SetFeePercentFromBinance,
                         SellPriceFromExchange,
                         getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange));
 
-                // sollte Leer ankommen dann beim nächsten mal versuchen
                 if (GewinnAfterTax == 0) {
                     continue;
                 }
@@ -86,12 +94,19 @@ public class Update {
 
                     String SQL = "UPDATE HIST SET SellPrice = " + SellPriceFromExchange +
                             ", Tax = " + getTaxe(Quantity, BuyPrice, SellPriceFromExchange) +
-                            ", Fee = " + getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange) +
+                            ", Fee = " + getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange) + // TODO
+                                                                                                             // hier mus
+                                                                                                             // ich noch
+                                                                                                             // die HIST
+                                                                                                             // Fee
+                                                                                                             // holen
+                                                                                                             // und
+                                                                                                             // addieren
                             ", Gewinn = " + getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange) +
                             ", GewinnAfterTax = " + round.five(GewinnAfterTax) +
                             ", LossAfterTax = " + round.five(LossAfterTax) +
                             ", Profit = " + getProfitinPercent(BuyPrice, SellPriceFromExchange) +
-                            ", SellFee = " + round.five(Fee * (Ticker.getAssetPrice("BNBEUR", client))) +
+                            ", SellFee = " + SellFee +
                             ", Split = " + round.five(SplitValue) +
                             ", Status = " + 1 +
                             " WHERE SellOrderId = " + OrderId + ";";
@@ -116,31 +131,38 @@ public class Update {
 
             String[] parts = dataRecord.split(", ");
             String BuyOrderId = parts[0];
-            String Währung = parts[1];
+            String currency = parts[1];
 
             Long OrderId = Long.valueOf(BuyOrderId);
 
-            List<Trade> tradeList = find_TradesWithOrderId(client, Währung, OrderId);
+            Order order = find_OrderWithOrderId(client, currency, OrderId);
 
-            if (!tradeList.isEmpty()) {
+            if (order != null) {
 
-                double Quantity = 0;
-                double BuyAmount = 0;
-                double Fee = 0;
-                double BuyPriceFromExchange = 0;
+                List<Trade> tradeList = find_TradesWithOrderId(client, currency, OrderId);
+
+                double trade_quantity = 0;
+                double trade_fee = 0;
 
                 for (Trade trade : tradeList) {
-                    double tradeQuantity = Double.parseDouble(trade.getQty());
-                    double tradeAmount = Double.parseDouble(trade.getQuoteQty());
-                    double tradefee = Double.valueOf(trade.getCommission());
+                    double Qty = Double.parseDouble(trade.getQty());
+                    double Fee = Double.valueOf(trade.getCommission());
 
-                    Quantity = Quantity + tradeQuantity;
-                    BuyAmount = BuyAmount + tradeAmount;
-                    Fee = Fee + tradefee;
+                    trade_quantity = trade_quantity + Qty;
+                    trade_fee = trade_fee + Fee;
                 }
 
-                Fee = round.five(Fee * Ticker.getAssetPrice("BNBEUR", client));
-                BuyPriceFromExchange = round.five(BuyAmount / Quantity);
+                if (round.three(trade_quantity) != round.three(Double.valueOf(order.getExecutedQty()))) {
+                    System.out.println("Die Mengen stimmen nicht überein!");
+                    continue;
+                }
+
+                double Quantity = Double.valueOf(order.getExecutedQty());
+                double BuyAmount = Double.valueOf(order.getCummulativeQuoteQty());      
+
+                double BuyPriceFromExchange = Double.valueOf(order.getPrice());
+
+                double BuyFee = round.eight(trade_fee * Ticker.getAssetPrice("BNBEUR", client));
 
                 try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                         Statement update = con_update.createStatement()) {
@@ -148,8 +170,8 @@ public class Update {
                     String SQL_update = "UPDATE POS SET "
                             + "BuyPrice = " + BuyPriceFromExchange + ", "
                             + "OrigPrice = " + BuyPriceFromExchange + ", "
-                            + "Qty = " + Quantity + ", "
-                            + "BuyAmount = " + round.five(BuyAmount) + ", "
+                            + "Qty = " + RoundCurrency.forQuantity(Quantity, currency) + ", "
+                            + "BuyAmount = " + RoundCurrency.BuyAmount(BuyAmount, currency) + ", "
                             + "Status = 1 "
                             + "WHERE BuyOrderId = " + BuyOrderId;
 
@@ -161,20 +183,23 @@ public class Update {
                 }
 
                 try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
-                        Statement insert_HIST = con_insert_HIST.createStatement()) {
+                        PreparedStatement pstmt = con_insert_HIST.prepareStatement(
+                                "UPDATE HIST SET BuyPrice = ?, OrigPrice = ?, Quantity = ?, BuyAmount = ?, BuyFee = ? "
+                                        +
+                                        "WHERE BuyOrderId = ?")) {
 
-                    String SQL = "UPDATE HIST SET BuyPrice = " + BuyPriceFromExchange +
-                            ", OrigPrice = " + BuyPriceFromExchange +
-                            ", Quantity = " + Quantity +
-                            ", BuyAmount = " + round.five(BuyAmount) +
-                            ", BuyFee = " + Fee +
-                            " WHERE BuyOrderId = " + OrderId + ";";
+                    pstmt.setDouble(1, BuyPriceFromExchange);
+                    pstmt.setDouble(2, BuyPriceFromExchange);
+                    pstmt.setDouble(3, RoundCurrency.forQuantity(Quantity, currency));
+                    pstmt.setDouble(4, RoundCurrency.BuyAmount(BuyAmount, currency));
+                    pstmt.setDouble(5, BuyFee);
+                    pstmt.setLong(6, OrderId);
 
-                    insert_HIST.executeUpdate(SQL);
+                    pstmt.executeUpdate();
                     System.out.println("Update in Hist!");
 
                 } catch (SQLException err) {
-                    System.out.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
+                    System.out.println("Fehler beim Aktualisieren der HIST-Tabelle: " + err.getMessage());
                 }
             }
         }
@@ -204,6 +229,20 @@ public class Update {
     private static double getProfitinPercent(String BuyPrice, double SellPriceFromExchange) {
         return SELL.getProfit(Double.valueOf(SellPriceFromExchange),
                 (Double.valueOf(BuyPrice)));
+    }
+
+    public static Order find_OrderWithOrderId(BinanceApiRestClient client, String currencyPair, long orderId) {
+        try {
+            OrderStatusRequest orderStatusRequest = new OrderStatusRequest(currencyPair, orderId);
+            Order order = client.getOrderStatus(orderStatusRequest);
+            return order;
+
+        } catch (BinanceApiException e) {
+            System.out.println("Fehler beim Abrufen der Order von Binance: " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("Ein unerwarteter Fehler ist beim Abrufen der Order aufgetreten: " + e.getMessage());
+        }
+        return null;
     }
 
     public static List<Trade> find_TradesWithOrderId(BinanceApiRestClient client, String currencyPair,

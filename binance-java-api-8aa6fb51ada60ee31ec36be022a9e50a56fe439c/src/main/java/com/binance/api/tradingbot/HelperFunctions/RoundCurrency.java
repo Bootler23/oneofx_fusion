@@ -37,10 +37,37 @@ public class RoundCurrency {
                 return round.four(value);
             case "LTCBTC":
                 return round.six(value);
+            case "XRPBTC":
+                return round.eight(value);
             default:
                 return value;
         }
+    }    
+
+    public static double BuyAmount(double value, String currency) {
+        switch (currency.toUpperCase()) {
+            case "LTCEUR":
+                return round.five(value);            
+            default:
+                return value;
+        }           
     }
 
-    
+    public static double BuyPrice(double value, String currency) {
+        switch (currency.toUpperCase()) {
+            case "LTCEUR":
+                return round.five(value);
+            default:
+                return value;
+        }           
+    }
+
+    public static double Fee(double value, String currency) {
+        switch (currency.toUpperCase()) {
+            case "LTCEUR":
+                return round.five(value);
+            default:
+                return value;
+        }           
+    }
 }

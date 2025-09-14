@@ -1,7 +1,11 @@
 package com.binance.api.tradingbot.HelperFunctions;
 
+import static com.binance.api.client.domain.account.NewOrder.marketBuy;
+
 import com.binance.api.client.BinanceApiRestClient;
+import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
+import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 
 public class Asset {
 
@@ -53,10 +57,14 @@ public class Asset {
             double bnbeuro = Double.valueOf(client.getPrice(currencyPeer).getPrice());
             double returnvalue = round.five(bnbeuro * bnbbalance);
             System.out.println(); // Zeilenumbruch vor der Balance-Ausgabe
-            System.out.println("BNB Balance: " + returnvalue + " EUR");            
+            System.out.println("BNB Balance: " + returnvalue + " EUR");
 
             if ((bnbeuro * bnbbalance) < 5.0) {
+
                 System.out.println("BNB unter 5 Euro -> Bitte Nachkaufen!");
+
+                Buy_BNB(client);
+
             }
             return returnvalue;
 
@@ -67,5 +75,23 @@ public class Asset {
             System.out.println("Unbekannter Fehler: " + e.getMessage());
             return 0.0;
         }
-    }   
+    }
+
+    private static void Buy_BNB(BinanceApiRestClient client) {
+
+        double Qty = RoundCurrency.forQuantity((5.5/Ticker.getAssetPrice("BNBEUR", client)), "BNBEUR");
+        String Quantity = String.valueOf(Qty);
+
+        try {
+            NewOrderResponse newOrderResponse = client.newOrder(marketBuy("BNBEUR", Quantity));
+
+            System.out.println("BNB Nachkauf erfolgreich! " + newOrderResponse.getOrigQty());
+
+        } catch (BinanceApiException dex) {
+            System.err.println("Fehler beim Verkauf: Keine Menge für den Verkauf verfügbar!");
+            sleep.for_10_seconds();
+        } catch (Exception e) {
+            System.err.println("Fehler beim Verkaufsprozess: " + e.getMessage());
+        }
+    }
 }
