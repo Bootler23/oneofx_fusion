@@ -134,11 +134,9 @@ public class CheckOrderStatus {
 
     private static void BUY_FILLED(String currencyPair, BinanceApiRestClient client, Long BuyOrderId, Order order) {
 
-        double BuyPrice = getBuyPrice(order);
+        double OrderPrice = getBuyPrice(order);
         String BuyDate = Time.getCurrentDate();
         String BuyTime = Time.getCurrentTime_HHmmss();
-        double Quantity = round.Quantity((Double.valueOf(order.getExecutedQty())), currencyPair);
-        double BuyAmount = round.five(BuyPrice * Quantity);
 
         Update.NewCounterPosition();
 
@@ -146,37 +144,30 @@ public class CheckOrderStatus {
                 Statement update = con_update.createStatement()) {
 
             String SQL_update = "UPDATE POS SET "
-                    + "BuyPrice = " + BuyPrice + ", "
-                    + "Qty = " + round.withPoint(Quantity) + ", " // TODO alle info von der Börse holen
-                    + "OrderPrice = " + BuyPrice + ", "
-                    + "OrigPrice = " + BuyPrice + ", "
-                    + "Währung = '" + currencyPair + "', "
-                    + "BuyAmount = " + BuyAmount + ", "
+                    + "OrderPrice = " + OrderPrice + ", "
                     + "Status = 5, "
-                    + "BuyTime = '" + BuyTime + "', "
-                    + "BuyDate = '" + BuyDate + "' "
+                    + "BuyTime = '" + Time.getCurrentTime_HHmmss() + "', "
+                    + "BuyDate = '" + Time.getCurrentDate() + "' "
                     + "WHERE BuyOrderId = " + BuyOrderId;
 
             update.executeUpdate(SQL_update);
-            System.out.println("BUY FILLED - Vollzogen: " + BuyPrice);
+            System.out.println("BUY FILLED - Vollzogen: " + OrderPrice);
 
         } catch (SQLException err) {
             System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
         }
 
         try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
-                Statement insert_HIST = con_insert_HIST.createStatement()) {
+                PreparedStatement insert_HIST = con_insert_HIST.prepareStatement(
+                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime) VALUES (?, ?, ?, ?, ?)")) {        
+           
+            insert_HIST.setString(1, currencyPair);
+            insert_HIST.setLong(2, BuyOrderId);
+            insert_HIST.setDouble(3, OrderPrice);
+            insert_HIST.setString(4, BuyDate);
+            insert_HIST.setString(5, BuyTime);
 
-            String SQL = "INSERT INTO HIST (Währung, BuyOrderId, BuyPrice, Quantity, BuyAmount, BuyDate, BuyTime) VALUES ('"
-                    + currencyPair + "', "
-                    + BuyOrderId + ", "
-                    + BuyPrice + ", "
-                    + round.withPoint(Quantity) + ", "
-                    + BuyAmount + ", '"
-                    + BuyDate + "', '"
-                    + BuyTime + "')";
-
-            insert_HIST.execute(SQL);
+            insert_HIST.executeUpdate();
             System.out.println("Part in Hist Saved");
 
         } catch (SQLException err) {

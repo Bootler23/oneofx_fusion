@@ -43,4 +43,31 @@ public class RoundCurrency {
                 return value;
         }
     }    
+
+    public static double BuyAmount(double value, String currency) {
+        switch (currency.toUpperCase()) {
+            case "LTCEUR":
+                return round.five(value);            
+            default:
+                return value;
+        }           
+    }
+
+    public static double BuyPrice(double value, String currency) {
+        switch (currency.toUpperCase()) {
+            case "LTCEUR":
+                return round.five(value);
+            default:
+                return value;
+        }           
+    }
+
+    public static double Fee(double value, String currency) {
+        switch (currency.toUpperCase()) {
+            case "LTCEUR":
+                return round.five(value);
+            default:
+                return value;
+        }           
+    }
 }

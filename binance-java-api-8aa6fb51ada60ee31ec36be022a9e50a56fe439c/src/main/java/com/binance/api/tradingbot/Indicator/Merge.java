@@ -61,7 +61,7 @@ public class Merge {
 
                 splitComplete = true;
             } else {
-                //updateHIST_Status("HIST", BuyOrderId_Split);
+                updateHIST_Status("HIST", BuyOrderId_Split);
             }
         }
     }
