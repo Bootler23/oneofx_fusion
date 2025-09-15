@@ -9,12 +9,12 @@ public class CalcPercenToSell {
         int positionCount = POSSQL.getCountPOS(currency);
 
         if (positionCount >= 100) {
-            return 0.5;
+            return 0.42;
         } else if (positionCount <= 1) {
-            return 1.2;
+            return 0.73;
         } else {
 
-            return round.two(1.2 - ((positionCount - 1) * 0.7 / 99.0));
+            return round.two(0.73 - ((positionCount - 1) * 0.31 / 99.0));
         }
     }
 }

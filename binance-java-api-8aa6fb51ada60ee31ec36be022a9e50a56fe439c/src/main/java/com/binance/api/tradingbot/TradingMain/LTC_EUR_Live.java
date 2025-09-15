@@ -5,6 +5,7 @@ import com.binance.api.tradingbot.BuyOrderProcess.BuyOrderPocess;
 import com.binance.api.tradingbot.BuyOrderProcess.CheckOrderStatus;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
+import com.binance.api.tradingbot.HelperFunctions.BalanceChecker;
 import com.binance.api.tradingbot.HelperFunctions.HourlySchedulerExample;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
@@ -73,6 +74,9 @@ public class LTC_EUR_Live {
                     ATHSQL.updateLPP(currency);
 
                     if (count == 41 || FirstRound) {
+
+                        // Balance-Check für LTC hinzufügen
+                        BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());                      
 
                         HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                           

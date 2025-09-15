@@ -97,6 +97,23 @@ public class POSSQL {
         return 0.0;
     }
 
+     public static double getSumQuantity() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
+                Statement statement = con.createStatement()) {
+
+            String SQL = "SELECT SUM(Qty) AS SumQuantity FROM POS";
+            ResultSet rs = statement.executeQuery(SQL);
+
+            if (rs.next()) {
+                return rs.getDouble("SumQuantity");
+            }
+
+        } catch (SQLException err) {
+            System.out.println("Fehler beim Abrufen der SumQuantity aus POS: " + err.getMessage());
+        }
+        return 0.0;
+    }
+
     public static double getSumColumnWith(final String Url, String columnName, String tableName) {
         try (Connection con = DriverManager.getConnection(Url);
                 Statement statement = con.createStatement()) {
