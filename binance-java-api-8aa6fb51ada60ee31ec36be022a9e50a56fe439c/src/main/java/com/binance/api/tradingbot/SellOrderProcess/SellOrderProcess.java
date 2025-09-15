@@ -29,14 +29,10 @@ public class SellOrderProcess {
         double percent = CalcPercenToSell.PercentToSell(currency);
         //System.out.println("DEBUG: Verkaufsprozent für " + currency + ": " + percent + "%");
 
+        //System.out.println("percent: " + percent);
         if (percent <= 0) {
             percent = 1;
         }
-
-        percent = 0.5; // TODO nur zum testen entfernen
-        // if (currency.equals("LTCEUR")) {
-        //     return;
-        // }       
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");

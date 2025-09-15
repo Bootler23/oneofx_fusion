@@ -94,14 +94,7 @@ public class Update {
 
                     String SQL = "UPDATE HIST SET SellPrice = " + SellPriceFromExchange +
                             ", Tax = " + getTaxe(Quantity, BuyPrice, SellPriceFromExchange) +
-                            ", Fee = " + getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange) + // TODO
-                                                                                                             // hier mus
-                                                                                                             // ich noch
-                                                                                                             // die HIST
-                                                                                                             // Fee
-                                                                                                             // holen
-                                                                                                             // und
-                                                                                                             // addieren
+                            ", Fee = " + (getBuyFeeInfoFromHist(OrderId) + SellFee) +
                             ", Gewinn = " + getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange) +
                             ", GewinnAfterTax = " + round.five(GewinnAfterTax) +
                             ", LossAfterTax = " + round.five(LossAfterTax) +
@@ -123,6 +116,25 @@ public class Update {
                 }
             }
         }
+    }
+
+    public static double getBuyFeeInfoFromHist(long BuyOrderId) {
+        double BuyFee = 0;
+        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+                PreparedStatement pstmt = con
+                        .prepareStatement("SELECT BuyFee FROM HIST WHERE SellOrderId = ?")) {
+
+            pstmt.setLong(1, BuyOrderId);
+            java.sql.ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                BuyFee = rs.getDouble("BuyFee");
+            }
+
+        } catch (SQLException err) {
+            System.out.println("Fehler beim Abrufen der BuyFee aus HIST: " + err.getMessage());
+        }
+        return BuyFee;
     }
 
     public static void getBuyTradeInformation(BinanceApiRestClient client, List<String> dataRecords) {
