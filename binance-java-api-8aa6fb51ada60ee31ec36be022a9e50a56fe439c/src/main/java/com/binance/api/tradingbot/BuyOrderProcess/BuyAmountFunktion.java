@@ -24,7 +24,7 @@ public class BuyAmountFunktion {
 
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
         double unten = POSSQL.getLastPrice(currencyPair, LivePrice);
-        double minBuyAmount = round.two(ATHSQL.getMinBuyAmount(currencyPair));
+        // double minBuyAmount = round.two(ATHSQL.getMinBuyAmount(currencyPair));
 
         double LPP = ATHSQL.getLPP(currencyPair);
         double getBuyAmount = 0.0;
@@ -34,6 +34,8 @@ public class BuyAmountFunktion {
 
         double Tax = HISTSQL.getTaxe();
         double freeBalance = SETSQL.getBalance_SQL();
+        double Reserve = SETSQL.getReserve();
+
         freeBalance = (freeBalance - Tax);     
 
         while (Loop1) {
@@ -48,18 +50,18 @@ public class BuyAmountFunktion {
                         Loop2 = false;
                     }
                 }
-            }           
+            }  
 
-            freeBalance = freeBalance - (minBuyAmount * count_PositionToBottom);
-            getBuyAmount = (freeBalance / 23);
+            freeBalance = (freeBalance - (5.5 * count_PositionToBottom) - Reserve);
+            getBuyAmount = freeBalance;
 
             Loop1 = false;
         }
 
-        if (ATHSQL.GetHighestBuyAmount(currencyPair) < getBuyAmount) {
-            ATHSQL.setHighestBuyAmount(currencyPair, getBuyAmount);
-            ATHSQL.setMinBuyAmount(currencyPair, (ATHSQL.getMinBuyAmount(currencyPair) + 0.1));
-        }      
+        // if (ATHSQL.GetHighestBuyAmount(currencyPair) < getBuyAmount) {
+        //     ATHSQL.setHighestBuyAmount(currencyPair, getBuyAmount);
+        //     ATHSQL.setMinBuyAmount(currencyPair, (ATHSQL.getMinBuyAmount(currencyPair) + 0.1));
+        // }      
 
         if (getBuyAmount < 5.5) {
             getBuyAmount = 5.5;
@@ -67,5 +69,4 @@ public class BuyAmountFunktion {
 
         return getBuyAmount;
     }
-
 }

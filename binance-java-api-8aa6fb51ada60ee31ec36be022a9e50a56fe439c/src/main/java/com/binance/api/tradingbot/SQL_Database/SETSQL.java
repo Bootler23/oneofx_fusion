@@ -2,6 +2,7 @@ package com.binance.api.tradingbot.SQL_Database;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -57,18 +58,20 @@ public class SETSQL {
         }
     }
 
-    // public static void checkForNewBuyAmount(String currencyPair, double newBuyAmount, double LivePrice) {
-    //     double currentBuyAmount = get_newBuyAmount();
-    //     if (newBuyAmount > currentBuyAmount) {
-    //         EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
-    //         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-    //                 Statement query = con.createStatement()) {
-    //             String SQL = "UPDATE SETTING SET newBuyAmount = " + round.three(newBuyAmount);
-    //             query.executeUpdate(SQL);
-    //         } catch (SQLException err) {
-    //             System.out.println(err.getMessage());
-    //         }
-    //     }
+    // public static void checkForNewBuyAmount(String currencyPair, double
+    // newBuyAmount, double LivePrice) {
+    // double currentBuyAmount = get_newBuyAmount();
+    // if (newBuyAmount > currentBuyAmount) {
+    // EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
+    // try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+    // Statement query = con.createStatement()) {
+    // String SQL = "UPDATE SETTING SET newBuyAmount = " +
+    // round.three(newBuyAmount);
+    // query.executeUpdate(SQL);
+    // } catch (SQLException err) {
+    // System.out.println(err.getMessage());
+    // }
+    // }
     // }
 
     public static int getcountPart() {
@@ -104,7 +107,7 @@ public class SETSQL {
             System.out.println(err.getMessage());
             return 0.0;
         }
-    }  
+    }
 
     public static double getBuyAmount() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -158,6 +161,35 @@ public class SETSQL {
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT " + value + " FROM " + tableName)) {
             return round.two(rs.getDouble(value));
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 0.0;
+        }
+    }
+
+    public static double getReserve() {
+        String sql = "SELECT Reserve FROM SETTING";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    double val = rs.getDouble("Reserve");
+                    return rs.wasNull() ? 0.0 : val;
+                }
+            }
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+        return 0.0;
+    }
+
+    public static double setReserve(double newValue) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement()) {
+            String SQL = "UPDATE SETTING SET Reserve = " + round.eight(newValue);
+            query.executeUpdate(SQL);
+            return newValue;
         } catch (SQLException err) {
             System.out.println(err.getMessage());
             return 0.0;
