@@ -25,6 +25,8 @@ public class HourlySchedulerExample {
             
             // Bestehende Trading-Logik
             SellAsset.Sell_Asset_with_Qty_0_0_Double_Amount(bnb.getClient(), "XRPEUR");
+
+            
             
             // NEUER CODE: Git-Backup zur vollen Stunde
             // System.out.println("🔄 Starte stündliches Git-Backup...");

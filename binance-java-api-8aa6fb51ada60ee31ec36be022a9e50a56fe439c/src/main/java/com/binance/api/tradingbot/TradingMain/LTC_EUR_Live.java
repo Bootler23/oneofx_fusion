@@ -15,6 +15,7 @@ import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
+import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
@@ -74,9 +75,8 @@ public class LTC_EUR_Live {
                     ATHSQL.updateLPP(currency);
 
                     if (count == 41 || FirstRound) {
-
-                        // Balance-Check für LTC hinzufügen
-                        BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());                      
+                       
+                        //BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());       
 
                         HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                           
@@ -93,16 +93,14 @@ public class LTC_EUR_Live {
                         // POSSQL.mergePosition(currency, getDataRecords);
 
                         // Wieviel ist mein Portfolio im Minus
-                        WPDSQL.getGewinnAfterTax();                     
+                        WPDSQL.getGewinnAfterTax(); 
 
-                        count = 0;
-                        
-                        FirstRound = false;
+                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());                        
 
-                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
-                    }                      
+                        count = 0;                        
+                        FirstRound = false;                       
+                    }      
                   
-                    // verkaufe die die am weitestem im Minus ist
                     HourlySchedulerExample.executeHourly();
 
                     count++;

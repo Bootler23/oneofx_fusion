@@ -6,7 +6,10 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.bnb;
+
+import com.binance.api.client.domain.account.NewOrderResponse;
 
 import static com.binance.api.client.domain.account.NewOrder.marketSell;
 
@@ -56,8 +59,11 @@ public class SellAsset {
             double qty = round.one(GlobalBuyAmount / Ticker.getAssetPrice(CurrencyPair, client));
             String qtyStr = String.valueOf(qty);
 
-            client.newOrder(marketSell(CurrencyPair, qtyStr));
-            System.out.println("Verkauf von " + CurrencyPair);
+            NewOrderResponse orderResponse = client.newOrder(marketSell(CurrencyPair, qtyStr));         
+
+            SETSQL.setReserve(SETSQL.getReserve() + Double.valueOf(orderResponse.getCummulativeQuoteQty()));
+
+            System.out.println("Verkauf von " + orderResponse.getCummulativeQuoteQty() + " EUR " + CurrencyPair);
 
         } catch (BinanceApiException ex) {
             String FehlerMessage = CurrencyPair + " - Fehler beim Verkauf: BuyAmount wurde angepasst!";
