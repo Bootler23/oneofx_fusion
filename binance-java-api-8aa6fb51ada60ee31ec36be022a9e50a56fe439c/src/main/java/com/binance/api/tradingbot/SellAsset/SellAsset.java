@@ -59,10 +59,8 @@ public class SellAsset {
             double qty = round.one(GlobalBuyAmount / Ticker.getAssetPrice(CurrencyPair, client));
             String qtyStr = String.valueOf(qty);
 
-            NewOrderResponse orderResponse = client.newOrder(marketSell(CurrencyPair, qtyStr));         
-
+            NewOrderResponse orderResponse = client.newOrder(marketSell(CurrencyPair, qtyStr));    
             SETSQL.setReserve(SETSQL.getReserve() + Double.valueOf(orderResponse.getCummulativeQuoteQty()));
-
             System.out.println("Verkauf von " + orderResponse.getCummulativeQuoteQty() + " EUR " + CurrencyPair);
 
         } catch (BinanceApiException ex) {
