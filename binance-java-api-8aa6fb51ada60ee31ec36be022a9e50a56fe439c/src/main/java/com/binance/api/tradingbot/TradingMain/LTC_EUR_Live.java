@@ -1,5 +1,8 @@
 package com.binance.api.tradingbot.TradingMain;
 
+import com.binance.api.tradingbot.Arbitrage.TriangularArbitrageExample;
+import com.binance.api.tradingbot.Arbitrage.TriangularArbitrageBot;
+import java.math.BigDecimal;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyOrderPocess;
 import com.binance.api.tradingbot.BuyOrderProcess.CheckOrderStatus;
@@ -97,9 +100,15 @@ public class LTC_EUR_Live {
 
                         Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());                        
 
-                        count = 0;                        
-                        FirstRound = false;                       
-                    }      
+                        count = 0;
+                        
+                        FirstRound = false;
+
+                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
+
+                        TriangularArbitrageBot arbitrageBot = new TriangularArbitrageBot(new BigDecimal("1000.00"));
+                        TriangularArbitrageExample.beispiel2_LivePreise(arbitrageBot);
+                    }                      
                   
                     HourlySchedulerExample.executeHourly();
 
