@@ -10,6 +10,7 @@ import java.util.List;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class Merge {
 
@@ -65,6 +66,22 @@ public class Merge {
             }
         }
     }
+
+    // public static void valueToDCA(String currency){
+
+    //     double valueDCA = 1;
+
+    //     if (SETSQL.getReserve() > valueDCA) {
+    //         SETSQL.setReserve(SETSQL.getReserve() - valueDCA);
+
+    //        List<String> BuyAmountRecord = new ArrayList<String>();
+    //        POSSQL.getDataRecordsPOS_WithMaxInMinus(currency, BuyAmountRecord);
+
+    //       if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01) && currency_Split.equals(currency)) { 
+
+    //     // ToDo
+    //     }
+    // }
 
     private static void updateOrderPOS(final String tableName, double BuyAmount, double Price, String BuyOrderId) {
 

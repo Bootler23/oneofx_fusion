@@ -296,6 +296,11 @@ public class CheckOrderStatus {
                                 System.err.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
                                 err.printStackTrace();
                             }
+                            
+                            // Cancel der verbleibenden offenen Order
+                            client.cancelOrder(new CancelOrderRequest(currencyPair, BuyOrderId));
+                            System.out.println("Verbleibende Order gecancelt: " + BuyOrderId);
+                            
                             calc = false;
                             break;
                         }
