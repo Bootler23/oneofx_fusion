@@ -34,15 +34,15 @@ public class LTC_EUR_Live {
         while (true) {
             try {
 
-                String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();             
+                String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
                 String currency = "";
                 int state = 0;
 
                 String EURO = "EUR";
-             
+
                 int count = 0;
                 boolean FirstRound = true;
-                boolean StartStop = true;             
+                boolean StartStop = true;
 
                 // ----------------------------------------------------------------------------------------------------------------------
 
@@ -53,19 +53,20 @@ public class LTC_EUR_Live {
                 // DatenBankelogik ???
 
                 // WPD einfacher gestalten -> Logik überarbeiten
-                
-                // percent dynamisch vom count der Position erstellen. wenig Positionen -> viel percent -> viel Positionen wenig percent
-                    // 0.5% -> x%              
+
+                // percent dynamisch vom count der Position erstellen. wenig Positionen -> viel
+                // percent -> viel Positionen wenig percent
+                // 0.5% -> x%
 
                 List<Long> OrderIdList = new ArrayList<Long>();
                 List<String> getDataRecords = new ArrayList<String>();
-                List<Double> LivePrice = new ArrayList<Double>();  
+                List<Double> LivePrice = new ArrayList<Double>();
                 // -----------------------------------------------------------------------------------------------------------------------------------------------------
 
                 while (StartStop) {
 
                     state = set.Currency(BuyCurrencies, state);
-                    currency = BuyCurrencies[state];                  
+                    currency = BuyCurrencies[state];
 
                     sleep.for_1_second();
 
@@ -78,38 +79,36 @@ public class LTC_EUR_Live {
                     ATHSQL.updateLPP(currency);
 
                     if (count == 41 || FirstRound) {
-                       
-                        //BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());       
 
-                        HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);                    
-                        Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                           
+                        //BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
 
-                        POSSQL.get_BuyTrade_Records_WhereStatusFive(getDataRecords);   
-                        Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);   
+                        HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);
+                        Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
+
+                        POSSQL.get_BuyTrade_Records_WhereStatusFive(getDataRecords);
+                        Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);
 
                         SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, bnb.getClient());
 
-                        HISTSQL.getDataRecords_WhereStatusOne(currency,getDataRecords);
+                        HISTSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
                         Merge.splitValue(currency, getDataRecords);
 
                         // POSSQL.getPositionSmallerThen10AndMinus7Percent(currency, getDataRecords);
                         // POSSQL.mergePosition(currency, getDataRecords);
 
                         // Wieviel ist mein Portfolio im Minus
-                        WPDSQL.getGewinnAfterTax(); 
-
-                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());                        
-
-                        count = 0;
-                        
-                        FirstRound = false;
+                        WPDSQL.getGewinnAfterTax();
 
                         Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
 
-                        TriangularArbitrageBot arbitrageBot = new TriangularArbitrageBot(new BigDecimal("1000.00"));
-                        TriangularArbitrageExample.beispiel2_LivePreise(arbitrageBot);
-                    }                      
-                  
+                        count = 0;
+
+                        FirstRound = false;                      
+                    }
+
+                    // TriangularArbitrageBot arbitrageBot = new TriangularArbitrageBot(new BigDecimal("1000.00"));
+                    // TriangularArbitrageExample.beispiel2_LivePreise(arbitrageBot);
+
                     HourlySchedulerExample.executeHourly();
 
                     count++;
@@ -121,7 +120,7 @@ public class LTC_EUR_Live {
                     POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
                     CheckOrderStatus.OrderStatus(currency, bnb.getClient(), OrderIdList, LivePrice);
 
-                    // // Sell                  
+                    // // Sell
                     POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
                     SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice);
                 }

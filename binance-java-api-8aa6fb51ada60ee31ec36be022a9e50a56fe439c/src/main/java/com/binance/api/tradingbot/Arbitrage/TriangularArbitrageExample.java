@@ -10,10 +10,10 @@ public class TriangularArbitrageExample {
         
         // Analyse mit echten Binance-Preisen
         bot.analyseTriangularArbitrage("BTCEUR", "ETHBTC", "ETHEUR");
-        bot.analyseTriangularArbitrage("ETHBTC", "BNBETH", "BNBBTC");
+        //bot.analyseTriangularArbitrage("ETHBTC", "BNBETH", "BNBBTC");
         
         
-        warteKurz();
+        // warteKurz();
     }    
   
     private static void beispiel4_KontinuierlicheUeberwachung(TriangularArbitrageBot bot) {
@@ -24,7 +24,7 @@ public class TriangularArbitrageExample {
         // Kurze Demo mit nur 3 Updates
         bot.kontinuierlicheUeberwachung(3);
         
-        warteKurz();
+        //warteKurz();
     }    
   
     public static void erweiterteCurrencyCombination() {

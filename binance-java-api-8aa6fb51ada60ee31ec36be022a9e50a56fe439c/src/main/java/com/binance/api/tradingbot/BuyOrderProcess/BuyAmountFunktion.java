@@ -3,6 +3,7 @@ package com.binance.api.tradingbot.BuyOrderProcess;
 import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.Indicator.Merge;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -30,7 +31,8 @@ public class BuyAmountFunktion {
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
-        int count_PositionToBottom = 0;     
+        int count_PositionToBottom = 0;    
+        int count_20_PrcntPosition = 0; 
 
         double Tax = HISTSQL.getTaxe();
         double freeBalance = SETSQL.getBalance_SQL();
@@ -44,7 +46,7 @@ public class BuyAmountFunktion {
                 BuyPrice = BuyPrice - ((BuyPrice / 100) / grid);
                 if (((LivePrice.get(0) >= BuyPrice)) && (unten > BuyPrice)) {
 
-                    count_PositionToBottom++;                  
+                    count_PositionToBottom++; 
 
                     if (LPP > BuyPrice) {
                         Loop2 = false;
@@ -52,8 +54,10 @@ public class BuyAmountFunktion {
                 }
             }  
 
-            freeBalance = (freeBalance - (5.5 * count_PositionToBottom) - Reserve);
-            getBuyAmount = freeBalance;
+            count_20_PrcntPosition = (int) (count_PositionToBottom * 0.2);
+
+            freeBalance = (freeBalance - (5.5 * (count_PositionToBottom - count_20_PrcntPosition)) - Reserve);
+            getBuyAmount = (freeBalance / count_20_PrcntPosition);
 
             Loop1 = false;
         }
@@ -65,6 +69,10 @@ public class BuyAmountFunktion {
 
         if (getBuyAmount < 5.5) {
             getBuyAmount = 5.5;
+
+            // mache ein DCA auf die Nr7
+
+            // Merge.splitValue(currencyPair, null);
         }
 
         return getBuyAmount;
