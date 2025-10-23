@@ -140,6 +140,15 @@ public class CheckOrderStatus {
 
         Update.NewCounterPosition();
 
+        
+                    // mache ein DCA auf die Nr7
+                    // Merge.splitValue(currencyPair, null);
+                
+
+
+
+
+
         try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                 Statement update = con_update.createStatement()) {
 
