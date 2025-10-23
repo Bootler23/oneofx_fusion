@@ -10,7 +10,6 @@ import java.util.List;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
-import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class Merge {
 

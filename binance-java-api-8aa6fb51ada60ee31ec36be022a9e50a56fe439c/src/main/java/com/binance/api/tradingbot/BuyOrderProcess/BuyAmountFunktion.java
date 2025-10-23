@@ -31,12 +31,10 @@ public class BuyAmountFunktion {
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
-        int count_PositionToBottom = 0;    
-        int count_20_PrcntPosition = 0; 
+        int count_PositionToBottom = 0;   
 
         double Tax = HISTSQL.getTaxe();
         double freeBalance = SETSQL.getBalance_SQL();
-        double Reserve = SETSQL.getReserve();
 
         freeBalance = (freeBalance - Tax);     
 
@@ -54,25 +52,15 @@ public class BuyAmountFunktion {
                 }
             }  
 
-            count_20_PrcntPosition = (int) (count_PositionToBottom * 0.2);
 
-            freeBalance = (freeBalance - (5.5 * (count_PositionToBottom - count_20_PrcntPosition)) - Reserve);
-            getBuyAmount = (freeBalance / count_20_PrcntPosition);
-
+            freeBalance = (freeBalance - (5.5 * (count_PositionToBottom)));
+            getBuyAmount = (freeBalance / 23);
             Loop1 = false;
-        }
-
-        // if (ATHSQL.GetHighestBuyAmount(currencyPair) < getBuyAmount) {
-        //     ATHSQL.setHighestBuyAmount(currencyPair, getBuyAmount);
-        //     ATHSQL.setMinBuyAmount(currencyPair, (ATHSQL.getMinBuyAmount(currencyPair) + 0.1));
-        // }      
+        }     
 
         if (getBuyAmount < 5.5) {
             getBuyAmount = 5.5;
-
-            // mache ein DCA auf die Nr7
-
-            // Merge.splitValue(currencyPair, null);
+       
         }
 
         return getBuyAmount;

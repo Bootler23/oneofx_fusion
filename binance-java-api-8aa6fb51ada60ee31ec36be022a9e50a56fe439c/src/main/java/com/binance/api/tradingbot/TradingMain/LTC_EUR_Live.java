@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.ArrayList;
 
 public class LTC_EUR_Live {
-    public static void main(String[] args) {
+    public static void main(String[] args) {       
 
         while (true) {
             try {
@@ -42,8 +42,7 @@ public class LTC_EUR_Live {
 
                 int count = 0;
                 boolean FirstRound = true;
-                boolean StartStop = true;
-
+                
                 // ----------------------------------------------------------------------------------------------------------------------
 
                 // ToDo´s ---> BIG THREE <---
@@ -63,8 +62,9 @@ public class LTC_EUR_Live {
                 List<Double> LivePrice = new ArrayList<Double>();
                 // -----------------------------------------------------------------------------------------------------------------------------------------------------
 
-                while (StartStop) {
-
+                // Hauptschleife - läuft solange der Bot aktiv ist
+                while (true) {
+                                 
                     state = set.Currency(BuyCurrencies, state);
                     currency = BuyCurrencies[state];
 
@@ -114,13 +114,13 @@ public class LTC_EUR_Live {
                     count++;
 
                     // Buy
-                    BuyOrderPocess.setBuyOrder(currency, EURO, bnb.getClient(), LivePrice);
+                    // BuyOrderPocess.setBuyOrder(currency, EURO, bnb.getClient(), LivePrice);
 
                     // Check
                     POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
                     CheckOrderStatus.OrderStatus(currency, bnb.getClient(), OrderIdList, LivePrice);
 
-                    // // Sell
+                    // Sell
                     POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
                     SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice);
                 }

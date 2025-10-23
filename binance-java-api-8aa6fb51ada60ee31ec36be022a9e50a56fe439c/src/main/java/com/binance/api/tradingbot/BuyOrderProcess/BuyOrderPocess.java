@@ -66,13 +66,7 @@ public class BuyOrderPocess {
                 sleep.for_05_second();
 
                 BuyAmaunt = BuyAmountFunktion.getBuyAmount(currency, EURO, client, LivePrice, true);
-                BuyAmaunt = checkBuyAmount(EURO, client, BuyAmaunt);
-
-                if (BuyAmaunt < 5.5) {
-                    BuyAmaunt = 5.5;
-                    // mache ein DCA auf die Nr7
-                    // Merge.splitValue(currencyPair, null);
-                }
+                BuyAmaunt = checkBuyAmount(EURO, client, BuyAmaunt);              
 
                 String Quantity = getQty(currency, LivePrice, BuyAmaunt);
                 String buyprice = String.valueOf(BuyPrice);

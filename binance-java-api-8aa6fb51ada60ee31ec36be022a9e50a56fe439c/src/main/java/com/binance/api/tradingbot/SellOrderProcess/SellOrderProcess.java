@@ -29,7 +29,7 @@ public class SellOrderProcess {
         double percent = CalcPercenToSell.PercentToSell(currency);
         //System.out.println("DEBUG: Verkaufsprozent für " + currency + ": " + percent + "%");
 
-        //System.out.println("percent: " + percent);
+        // System.out.println("percent: " + percent);
         if (percent <= 0) {
             percent = 1;
         }
