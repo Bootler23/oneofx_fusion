@@ -31,8 +31,10 @@ public class SellOrderProcess {
 
         // System.out.println("percent: " + percent);
         if (percent <= 0) {
-            percent = 1;
+            percent = 1.0;
         }
+
+        percent = 1.2;
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");

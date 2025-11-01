@@ -2,25 +2,23 @@ package com.binance.api.tradingbot.BuyOrderProcess;
 
 import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.tradingbot.HelperFunctions.round;
-import com.binance.api.tradingbot.Indicator.Merge;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
+import com.binance.api.tradingbot.constants.TradingConstants;
 
 public class BuyAmountFunktion {
 
     static final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";
 
-    public static double getBuyAmount(String currencyPair, String EURO, BinanceApiRestClient client,
-            List<Double> LivePrice, boolean wahr) {
+    public static double getBuyAmount(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice, boolean wahr) {
 
         int grid = set.getGridforCurrency(currencyPair);
 
         if (wahr) {
-            SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, client);
+            SETSQL.CompareBalanceInSQLWithBinanceBalance(client);
         }
 
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
@@ -31,7 +29,9 @@ public class BuyAmountFunktion {
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
-        int count_PositionToBottom = 0;   
+        int count_PositionToBottom = 0;  
+        int count_20 = 0;
+        int restPosition = 0;
 
         double Tax = HISTSQL.getTaxe();
         double freeBalance = SETSQL.getBalance_SQL();
@@ -52,13 +52,32 @@ public class BuyAmountFunktion {
                 }
             }  
 
+            // count_20 = (int) (count_PositionToBottom * 0.2);
 
-            freeBalance = (freeBalance - (5.5 * (count_PositionToBottom)));
-            getBuyAmount = (freeBalance / 23);
+            // restPosition = count_PositionToBottom - count_20;
+
+            // freeBalance = freeBalance * 0.8;
+            // if ((restPosition * 5.5) > freeBalance) {
+            //     freeBalance = restPosition * 5.5;
+            // }
+
+            getBuyAmount = (freeBalance / count_PositionToBottom);
+
+    
+
+
+
+            // getBuyAmount = (freeBalance / count_PositionToBottom);
+
+            // getBuyAmount = TradingConstants.MIN_BUY_AMOUNT;
+
+            getBuyAmount = 5.5;
+         
+            
             Loop1 = false;
         }     
 
-        if (getBuyAmount < 5.5) {
+        if (getBuyAmount < TradingConstants.MIN_BUY_AMOUNT) {
             getBuyAmount = 5.5;
        
         }

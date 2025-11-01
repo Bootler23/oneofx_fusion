@@ -4,7 +4,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,6 +17,8 @@ import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.CalcSplit;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
+import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
 
 public class Update {
@@ -44,7 +45,7 @@ public class Update {
                 double trade_fee = 0;
 
                 for (Trade trade : tradeList) {
-                    double Qty = Double.parseDouble(trade.getQty());                   
+                    double Qty = Double.parseDouble(trade.getQty());
                     double Fee = Double.valueOf(trade.getCommission());
 
                     trade_quantity = trade_quantity + Qty;
@@ -71,13 +72,20 @@ public class Update {
                 if (GewinnAfterTax == 0) {
                     continue;
                 }
-
-                if (GewinnAfterTax > 0) {
-                    SplitValue = (CalcSplit.calcSplitValue(currency, GewinnAfterTax));
-                    if (SplitValue == 0) {
-                        continue;
-                    } else {
-                        GewinnAfterTax = (GewinnAfterTax - SplitValue);
+              
+                if (SETSQL.getROIstatus()) {  
+                    if (GewinnAfterTax > 0) {
+                        SplitValue = CalcSplit.calcROI(currency, GewinnAfterTax);
+                        
+                        if (SplitValue == 0) {
+                            continue;
+                        }
+                        
+                        if (SplitValue > TradingConstants.MIN_SPLIT_VALUE) {
+                            GewinnAfterTax = (GewinnAfterTax - SplitValue);
+                        } else {
+                            SplitValue = 0;
+                        }
                     }
                 }
 
@@ -88,29 +96,29 @@ public class Update {
                     LossAfterTax = 0;
                 }
 
-                try {
-                    Connection conUpdateHIST = DriverManager.getConnection(dbUrl.getHIST());
-                    Statement updateHIST = conUpdateHIST.createStatement();
+                try (Connection conUpdateHIST = DriverManager.getConnection(dbUrl.getHIST());
+                        PreparedStatement pstmt = conUpdateHIST.prepareStatement(
+                                "UPDATE HIST SET SellPrice = ?, Tax = ?, Fee = ?, Gewinn = ?, " +
+                                        "GewinnAfterTax = ?, LossAfterTax = ?, Profit = ?, SellFee = ?, " +
+                                        "Split = ?, Status = ?, statusCode = ? WHERE SellOrderId = ?")) {
 
-                    String SQL = "UPDATE HIST SET SellPrice = " + SellPriceFromExchange +
-                            ", Tax = " + getTaxe(Quantity, BuyPrice, SellPriceFromExchange) +
-                            ", Fee = " + (getBuyFeeInfoFromHist(OrderId) + SellFee) +
-                            ", Gewinn = " + getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange) +
-                            ", GewinnAfterTax = " + round.five(GewinnAfterTax) +
-                            ", LossAfterTax = " + round.five(LossAfterTax) +
-                            ", Profit = " + getProfitinPercent(BuyPrice, SellPriceFromExchange) +
-                            ", SellFee = " + SellFee +
-                            ", Split = " + round.five(SplitValue) +
-                            ", Status = " + 1 +
-                            " WHERE SellOrderId = " + OrderId + ";";
+                    pstmt.setDouble(1, SellPriceFromExchange);
+                    pstmt.setDouble(2, getTaxe(Quantity, BuyPrice, SellPriceFromExchange));
+                    pstmt.setDouble(3, getBuyFeeInfoFromHist(OrderId) + SellFee);
+                    pstmt.setDouble(4, getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange));
+                    pstmt.setDouble(5, round.five(GewinnAfterTax));
+                    pstmt.setDouble(6, round.five(LossAfterTax));
+                    pstmt.setDouble(7, getProfitinPercent(BuyPrice, SellPriceFromExchange));
+                    pstmt.setDouble(8, SellFee);
+                    pstmt.setDouble(9, round.five(SplitValue));
+                    pstmt.setInt(10, 1);
+                    pstmt.setString(11, TradingConstants.STATUS_FILLED_CHECKED);
+                    pstmt.setLong(12, OrderId);
 
-                    updateHIST.executeUpdate(SQL);
-                    updateHIST.close();
-                    conUpdateHIST.close();
-
+                    pstmt.executeUpdate();
                     System.out.println("Update in Hist!");
 
-                } catch (Exception e) {
+                } catch (SQLException e) {
                     System.err.println("Error updating HIST: " + e.getMessage());
                     e.printStackTrace();
                 }
@@ -170,24 +178,26 @@ public class Update {
                 }
 
                 double Quantity = Double.valueOf(order.getExecutedQty());
-                double BuyAmount = Double.valueOf(order.getCummulativeQuoteQty());      
+                double BuyAmount = Double.valueOf(order.getCummulativeQuoteQty());
 
                 double BuyPriceFromExchange = Double.valueOf(order.getPrice());
 
                 double BuyFee = round.eight(trade_fee * Ticker.getAssetPrice("BNBEUR", client));
 
                 try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
-                        Statement update = con_update.createStatement()) {
+                        PreparedStatement pstmt = con_update.prepareStatement(
+                                "UPDATE POS SET BuyPrice = ?, OrigPrice = ?, Qty = ?, BuyAmount = ?, " +
+                                        "Status = ?, statusCode = ? WHERE BuyOrderId = ?")) {
 
-                    String SQL_update = "UPDATE POS SET "
-                            + "BuyPrice = " + BuyPriceFromExchange + ", "
-                            + "OrigPrice = " + BuyPriceFromExchange + ", "
-                            + "Qty = " + RoundCurrency.forQuantity(Quantity, currency) + ", "
-                            + "BuyAmount = " + RoundCurrency.BuyAmount(BuyAmount, currency) + ", "
-                            + "Status = 1 "
-                            + "WHERE BuyOrderId = " + BuyOrderId;
+                    pstmt.setDouble(1, BuyPriceFromExchange);
+                    pstmt.setDouble(2, BuyPriceFromExchange);
+                    pstmt.setDouble(3, RoundCurrency.forQuantity(Quantity, currency));
+                    pstmt.setDouble(4, RoundCurrency.BuyAmount(BuyAmount, currency));
+                    pstmt.setInt(5, 1);
+                    pstmt.setString(6, TradingConstants.STATUS_FILLED_CHECKED);
+                    pstmt.setLong(7, OrderId);
 
-                    update.executeUpdate(SQL_update);
+                    pstmt.executeUpdate();
                     System.out.println("Update BuyDataInformation");
 
                 } catch (SQLException err) {

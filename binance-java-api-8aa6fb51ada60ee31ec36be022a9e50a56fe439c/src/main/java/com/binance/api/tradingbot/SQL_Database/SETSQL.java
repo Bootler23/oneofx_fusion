@@ -13,11 +13,12 @@ import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.constants.TradingConstants;
 
 public class SETSQL {
 
-    public static void CompareBalanceInSQLWithBinanceBalance(String currency, BinanceApiRestClient client) {
-        double BNB_Balance = Asset.getFreeCalced_Balance(currency, client);
+    public static void CompareBalanceInSQLWithBinanceBalance(BinanceApiRestClient client) {
+        double BNB_Balance = Asset.getFreeCalced_Balance(TradingConstants.BASE_CURRENCY, client);
         System.out.print(":");
         if ((getBalance_SQL() != (BNB_Balance) && (BNB_Balance > 1.0))) {
             setBalance(BNB_Balance);
@@ -58,21 +59,72 @@ public class SETSQL {
         }
     }
 
-    // public static void checkForNewBuyAmount(String currencyPair, double
-    // newBuyAmount, double LivePrice) {
-    // double currentBuyAmount = get_newBuyAmount();
-    // if (newBuyAmount > currentBuyAmount) {
-    // EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
-    // try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-    // Statement query = con.createStatement()) {
-    // String SQL = "UPDATE SETTING SET newBuyAmount = " +
-    // round.three(newBuyAmount);
-    // query.executeUpdate(SQL);
-    // } catch (SQLException err) {
-    // System.out.println(err.getMessage());
-    // }
-    // }
-    // }
+    public static double getROIpercent() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT ROI_percent FROM SETTING")) {
+            return round.three(rs.getDouble("ROI_percent"));
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 0.0;
+        }
+    }
+    
+    public static boolean getROIstatus() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT ROI_status FROM SETTING")) {
+
+            if (rs.next()) {
+                String status = rs.getString("ROI_status");
+                // Unterstütze verschiedene Formate: "true", "1", "TRUE", etc.
+                return "true".equalsIgnoreCase(status) || "1".equals(status);
+            }
+            return false;
+
+        } catch (SQLException err) {
+            System.err.println("Fehler beim Abrufen des ROI-Status: " + err.getMessage());
+            return false;
+        }
+    }
+   
+    public static boolean setROIstatus(boolean enabled) {
+        String statusValue = enabled ? "true" : "false";
+
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement pstmt = con.prepareStatement(
+                        "UPDATE SETTING SET ROI_status = ?")) {
+
+            pstmt.setString(1, statusValue);
+            int updatedRows = pstmt.executeUpdate();
+
+            if (updatedRows > 0) {
+                System.out.println("ROI-Status wurde aktualisiert: " + statusValue);
+                return true;
+            }
+            return false;
+
+        } catch (SQLException err) {
+            System.err.println("Fehler beim Setzen des ROI-Status: " + err.getMessage());
+            return false;
+        }
+    }
+
+    public static void checkForNewBuyAmount(String currencyPair, double newBuyAmount, double LivePrice) {
+        double currentBuyAmount = get_newBuyAmount();
+        if (newBuyAmount > currentBuyAmount) {
+            EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
+            try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                    Statement query = con.createStatement()) {
+                String SQL = "UPDATE SETTING SET newBuyAmount = " + round.three(newBuyAmount);
+
+                query.executeUpdate(SQL);
+
+            } catch (SQLException err) {
+                System.out.println(err.getMessage());
+            }
+        }
+    }
 
     public static int getcountPart() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());

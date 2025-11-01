@@ -13,13 +13,13 @@ import com.binance.api.tradingbot.HelperFunctions.Time;
 
 public class HISTSQL {
 
-    public static void get_SellTrade_Records_WhereStatusZero(List<String> GetDataRecord) {
+    public static void get_SellTrade_Records_WhereStatusZero(List<String> records) {
         try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT SellOrderId, Quantity, Währung, BuyPrice FROM HIST WHERE Status = 0")) {
 
-            GetDataRecord.clear();
+            records.clear();
 
             while (rs.next()) {
                 String sellOrderId = rs.getString("SellOrderId");
@@ -28,34 +28,37 @@ public class HISTSQL {
                 String Währung = rs.getString("Währung");
 
                 String dataRecord = sellOrderId + ", " + quantity + ", " + buyPrice + ", " + Währung;
-                GetDataRecord.add(dataRecord);
+                records.add(dataRecord);
             }
         } catch (SQLException err) {
             System.out.println("SQL-Fehler: " + err.getMessage());
         }
     }
 
-    public static void get_BuyTrade_Records_WhereStatusZero(List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
-                Statement query = con.createStatement();
-                ResultSet rs = query
-                        .executeQuery("SELECT BuyOrderId, Quantity, Währung, BuyPrice FROM HIST WHERE Status = 0")) {
+    // public static void getTradeInformationRecords(int statusCode, List<String> records) { // TODO
+    //     String sql = "SELECT * FROM HIST WHERE Status = ?";
+    //     try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+    //             PreparedStatement pstmt = con.prepareStatement(sql)) {
 
-            GetDataRecord.clear();
+    //         pstmt.setInt(1, statusCode);
+    //         ResultSet rs = pstmt.executeQuery();
 
-            while (rs.next()) {
-                String sellOrderId = rs.getString("BuyOrderId");
-                String quantity = rs.getString("Quantity");
-                String buyPrice = rs.getString("BuyPrice");
-                String Währung = rs.getString("Währung");
+    //         records.clear();
 
-                String dataRecord = sellOrderId + ", " + quantity + ", " + buyPrice + ", " + Währung;
-                GetDataRecord.add(dataRecord);
-            }
-        } catch (SQLException err) {
-            System.out.println("SQL-Fehler: " + err.getMessage());  
-        }
-    }    
+    //         while (rs.next()) {
+    //             String sellOrderId = rs.getString("SellOrderId");
+    //             String quantity = rs.getString("Quantity");
+    //             String buyPrice = rs.getString("BuyPrice");
+    //             String Währung = rs.getString("Währung");
+
+    //             String dataRecord = sellOrderId + ", " + quantity + ", " + buyPrice + ", " + Währung;
+    //             records.add(dataRecord);
+    //         }
+    //     } catch (SQLException err) {
+    //         System.out.println("SQL-Fehler: " + err.getMessage());
+    //     }
+
+    // }  
 
     public static void getDataRecords_WhereStatusOne(String currency, List<String> GetDataRecord) {
         try (Connection con = DriverManager.getConnection(dbUrl.getHIST());

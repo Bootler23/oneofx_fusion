@@ -22,8 +22,12 @@ import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
+import com.binance.api.tradingbot.TradeInformation.getTrade;
 import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.Settings.CurrencyConfig;
+import com.binance.api.tradingbot.constants.TradingConstants;
+import com.binance.api.tradingbot.domain.OrderStatus;
+import com.binance.api.tradingbot.Database.dbUrl;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -36,9 +40,7 @@ public class LTC_EUR_Live {
 
                 String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
                 String currency = "";
-                int state = 0;
-
-                String EURO = "EUR";
+                int state = 0;             
 
                 int count = 0;
                 boolean FirstRound = true;
@@ -74,21 +76,23 @@ public class LTC_EUR_Live {
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
-                    BuyAmountFunktion.getBuyAmount(currency, EURO, bnb.getClient(), LivePrice, false);
+                    BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
 
                     ATHSQL.updateLPP(currency);
 
-                    if (count == 41 || FirstRound) {
+                    // Periodische Updates alle UPDATE_CYCLE_COUNT Durchläufe (41 = ca. 41 Sekunden bei 1s Intervall)
+                    if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
-                        //BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                        //BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());    
+                       
+                        getTrade.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0, TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);                       
+                        Update.getSellTradeInformation(bnb.getClient(), getDataRecords);                       
 
-                        HISTSQL.get_SellTrade_Records_WhereStatusZero(getDataRecords);
-                        Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
-
-                        POSSQL.get_BuyTrade_Records_WhereStatusFive(getDataRecords);
+                        getTrade.RecordsByStatus(dbUrl.getPOS(), TradingConstants.TABLE_POS, 5, TradingConstants.POS_COLUMNS_BUY_TRADES, getDataRecords);
+                        //POSSQL.get_BuyTrade_Records_WhereStatusFive(getDataRecords);
                         Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);
 
-                        SETSQL.CompareBalanceInSQLWithBinanceBalance(EURO, bnb.getClient());
+                        SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
 
                         HISTSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
                         Merge.splitValue(currency, getDataRecords);
@@ -104,17 +108,18 @@ public class LTC_EUR_Live {
                         count = 0;
 
                         FirstRound = false;                      
-                    }
-
+                    }          
+                  
                     // TriangularArbitrageBot arbitrageBot = new TriangularArbitrageBot(new BigDecimal("1000.00"));
                     // TriangularArbitrageExample.beispiel2_LivePreise(arbitrageBot);
 
+                    HourlySchedulerExample.Sell_Every_10_Minutes();
                     HourlySchedulerExample.executeHourly();
 
                     count++;
 
                     // Buy
-                    // BuyOrderPocess.setBuyOrder(currency, EURO, bnb.getClient(), LivePrice);
+                    BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
 
                     // Check
                     POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
