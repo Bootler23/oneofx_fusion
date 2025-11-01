@@ -8,7 +8,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.List;
@@ -28,11 +27,11 @@ import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
+import com.binance.api.tradingbot.constants.TradingConstants;
 
 public class BuyOrderPocess {
 
-    public static void setBuyOrder(String currency, String EURO, BinanceApiRestClient client,
-            List<Double> LivePrice) {
+    public static void setBuyOrder(String currency, BinanceApiRestClient client, List<Double> LivePrice) {
 
         double BuyAmaunt;
         double Ath = ATHSQL.getAllTimeHigh(currency);
@@ -65,8 +64,8 @@ public class BuyOrderPocess {
 
                 sleep.for_05_second();
 
-                BuyAmaunt = BuyAmountFunktion.getBuyAmount(currency, EURO, client, LivePrice, true);
-                BuyAmaunt = checkBuyAmount(EURO, client, BuyAmaunt);              
+                BuyAmaunt = BuyAmountFunktion.getBuyAmount(currency, client, LivePrice, true);
+                BuyAmaunt = checkBuyAmount(client, BuyAmaunt);              
 
                 String Quantity = getQty(currency, LivePrice, BuyAmaunt);
                 String buyprice = String.valueOf(BuyPrice);
@@ -76,12 +75,14 @@ public class BuyOrderPocess {
                             .newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
 
                     try (Connection con = DriverManager.getConnection(dbUrl.getPOS())) {
-                        String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung) VALUES (?, ?, ?, ?)";
+                        String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung, statusCode) VALUES (?, ?, ?, ?, ?)";
                         try (PreparedStatement pstmt = con.prepareStatement(SQL)) {
                             pstmt.setLong(1, newOrderResponse.getOrderId());
                             pstmt.setBigDecimal(2, new BigDecimal(newOrderResponse.getPrice()));
                             pstmt.setInt(3, 0);
                             pstmt.setString(4, currency);
+                            pstmt.setString(5, TradingConstants.STATUS_NEW);
+
                             pstmt.executeUpdate();
                         }
                     }
@@ -105,10 +106,10 @@ public class BuyOrderPocess {
         }
     }
 
-    private static double checkBuyAmount(String EURO, BinanceApiRestClient client, double BuyAmaunt) {
+    private static double checkBuyAmount(BinanceApiRestClient client, double BuyAmaunt) {
 
         double sqlBalance = SETSQL.getBalance_SQL();
-        double ExcangeBalance = Asset.getFreeCalced_Balance(EURO, client);
+        double ExcangeBalance = Asset.getFreeCalced_Balance(TradingConstants.BASE_CURRENCY, client);
 
         if (sqlBalance != ExcangeBalance) {
             System.out.println(

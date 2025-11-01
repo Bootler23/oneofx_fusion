@@ -47,7 +47,14 @@ public class round {
         return RoundCurrency.forQuantity(value, Currency);
     }
 
-    public static String withPoint(double Qty) {
+    /**
+     * Formatiert einen double-Wert als String mit Punkt als Dezimaltrennzeichen.
+     * 
+     * @param Qty Der zu formatierende Wert
+     * @param decimalPlaces Anzahl der Nachkommastellen (z.B. 6 oder 8)
+     * @return Formatierter String mit Punkt (z.B. "0.12345678")
+     */
+    public static String withPoint(double Qty, int decimalPlaces) {
         DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
         symbols.setDecimalSeparator('.');
 
@@ -57,5 +64,13 @@ public class round {
 
         // Formatieren des Ergebnisses als String
         return df.format(Qty);
+    }
+    
+    /**
+     * Formatiert einen double-Wert als String mit 6 Nachkommastellen und Punkt.
+     * Backward-kompatible Methode.
+     */
+    public static String withPoint(double Qty) {
+        return withPoint(Qty, 6);
     }
 }
