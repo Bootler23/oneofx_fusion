@@ -4,6 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.7.18</version>
+    <relativePath/>
+  </parent>
+
   <groupId>com.binance.api</groupId>
   <artifactId>binance-api-client</artifactId>
   <version>1.0.1</version>
@@ -15,16 +22,31 @@
   </licenses>
 
   <properties>
+    <java.version>1.8</java.version>
     <com.squareup.retrofit2.version>2.4.0</com.squareup.retrofit2.version>
   </properties>
 
   <dependencies>
 
-     <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-simple</artifactId>
-        <version>1.7.32</version>
-    </dependency>  
+    <!-- Spring Boot Web + Thymeleaf -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- SLF4J wird bereits von spring-boot-starter-web über logback-classic bereitgestellt -->
+    <!-- slf4j-simple wurde entfernt, um Binding-Konflikte zu vermeiden -->
+    
     <dependency>
       <groupId>org.ta4j</groupId>
       <artifactId>ta4j-core</artifactId>

@@ -21,10 +21,11 @@ public class POSSQL {
         boolean foundPriceInDB = false;
 
         try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
-                Statement query = con.createStatement()) {
-            String SQL = "SELECT OrderPrice FROM POS WHERE Status IN (0, 1) AND Währung = '" + currencyPair + "'";
-
-            ResultSet rs = query.executeQuery(SQL);
+                PreparedStatement pstmt = con.prepareStatement(
+                    "SELECT OrderPrice FROM POS WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+            
+            pstmt.setString(1, currencyPair);
+            ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 double currentPrice = rs.getDouble("OrderPrice");
@@ -212,8 +213,7 @@ public class POSSQL {
 
             dataRecords.clear();
 
-            // Zuerst versuchen, einen Datensatz mit Status = 7 und passender Währung zu
-            // finden
+            // Zuerst versuchen, einen Datensatz mit Status = 7 und passender Währung zu finden
             String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
                     "WHERE Status = 7 AND Währung = '" + currency + "'";
 
@@ -242,51 +242,7 @@ public class POSSQL {
         } catch (SQLException err) {
             System.out.println(err.getMessage());
         }
-    }
-
-    public static void Test_getDataRecordsPOS_WithMaxInMinus(String currency, List<String> dataRecords) {
-
-        double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
-
-        // Hole von jeder Wärung den Preis.
-        // vergleiche es mit der Datenbank welche am meisten im Minus ist.
-        // nimm die Währung die am meisten im Minus ist.
-
-        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
-                Statement query = con.createStatement()) {
-
-            dataRecords.clear();
-
-            // Zuerst versuchen, einen Datensatz mit Status = 7 zu finden.
-            String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
-                    "WHERE Status = 7";
-
-            try (ResultSet rs = query.executeQuery(SQL)) {
-                boolean foundStatus7 = false;
-                while (rs.next()) {
-                    foundStatus7 = true;
-                    addDataRecord(rs, dataRecords);
-                }
-
-                // Falls kein Datensatz mit Status = 7 gefunden wurde, dann Status = 1 verwenden
-                if (!foundStatus7) {
-                    SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
-                            "WHERE Status = 1 AND Währung = '" + currency + "' " +
-                            "AND BuyAmount > 10 " +
-                            "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
-                            "LIMIT 1";
-
-                    try (ResultSet rs2 = query.executeQuery(SQL)) {
-                        while (rs2.next()) {
-                            addDataRecord(rs2, dataRecords);
-                        }
-                    }
-                }
-            }
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
-    }
+    }   
 
     private static void addDataRecord(ResultSet rs, List<String> dataRecords) throws SQLException {
         String BuyOrderId = rs.getString("BuyOrderId");

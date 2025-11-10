@@ -15,10 +15,7 @@ import java.util.stream.Collectors;
 public class MultiPriceFetcher {
     
     private final BinanceApiRestClient restClient;
-    
-    /**
-     * Konstruktor für MultiPriceFetcher
-     */
+       
     public MultiPriceFetcher() {
         // REST-Client ohne Authentifizierung erstellen (für öffentliche Marktdaten)
         BinanceApiClientFactory factory = BinanceApiClientFactory.newInstance();

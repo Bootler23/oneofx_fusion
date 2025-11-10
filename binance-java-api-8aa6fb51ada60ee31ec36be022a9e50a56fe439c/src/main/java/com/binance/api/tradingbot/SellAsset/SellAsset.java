@@ -20,7 +20,7 @@ public class SellAsset {
 
     private static int ProcessedHour = -1;
 
-    private static double GlobalBuyAmount = 5.5;
+    private static double GlobalBuyAmount = 11;
     
     // Konstanten für Retry-Mechanismus
     private static final int MAX_RETRY_ATTEMPTS = 5;
@@ -93,7 +93,7 @@ public class SellAsset {
     }
 
     public static void Sell_Asset_with_Qty_OnePoint(BinanceApiRestClient client, String CurrencyPair) {
-        Sell_Asset_with_Qty_OnePoint(client, CurrencyPair, 13.0, 0);
+        Sell_Asset_with_Qty_OnePoint(client, CurrencyPair, 13, 0);
     }
     
     private static void Sell_Asset_with_Qty_OnePoint(BinanceApiRestClient client, String CurrencyPair, 

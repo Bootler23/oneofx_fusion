@@ -7,6 +7,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
@@ -15,7 +18,14 @@ import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.constants.TradingConstants;
 
+/**
+ * Repository-Klasse für SETTING-Tabellen-Operationen.
+ * Verwaltet globale Trading-Einstellungen wie Balance, Reserve, und
+ * Status-Flags.
+ */
 public class SETSQL {
+
+    private static final Logger logger = LoggerFactory.getLogger(SETSQL.class);
 
     public static void CompareBalanceInSQLWithBinanceBalance(BinanceApiRestClient client) {
         double BNB_Balance = Asset.getFreeCalced_Balance(TradingConstants.BASE_CURRENCY, client);
@@ -48,16 +58,30 @@ public class SETSQL {
         }
     }
 
-    public static double get_newBuyAmount() {
+    public static double getMinBuyAmount() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT newBuyAmount FROM SETTING")) {
-            return round.three(rs.getDouble("newBuyAmount"));
+                ResultSet rs = query
+                        .executeQuery("SELECT MinBuyAmount FROM SETTING")) {
+            return round.two(rs.getDouble("MinBuyAmount"));
         } catch (SQLException err) {
             System.out.println(err.getMessage());
-            return 0.0;
+            return 5.5;
         }
     }
+
+    public static void setMinBuyAmount(double BuyAmount) {
+        String sql = "UPDATE SETTING SET MinBuyAmount = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.two(BuyAmount)); 
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }  
 
     public static double getROIpercent() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -69,61 +93,113 @@ public class SETSQL {
             return 0.0;
         }
     }
-    
-    public static boolean getROIstatus() {
+
+    public static double getDCA_Amount() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT ROI_status FROM SETTING")) {
+                ResultSet rs = query.executeQuery("SELECT DCA_Amount FROM SETTING")) {
+            return round.three(rs.getDouble("DCA_Amount"));
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 0.0;
+        }
+    }
+
+    @Deprecated
+    public static boolean getROIstatus() {
+        return getRoiStatus();
+    }
+
+    public static boolean getStatus(StatusType statusType) {
+        return getStatus(statusType.getColumnName());
+    }
+
+    public static boolean getStatus(String statusColumn) {
+        if (!isValidStatusColumn(statusColumn)) {
+            throw new IllegalArgumentException(
+                    "Ungültige Statusspalte: " + statusColumn +
+                            ". Erlaubt sind: ROI, BUYING, SELLING");
+        }
+
+        String sql = "SELECT " + statusColumn + " FROM SETTING";
+
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
 
             if (rs.next()) {
-                String status = rs.getString("ROI_status");
+                String status = rs.getString(statusColumn);
                 // Unterstütze verschiedene Formate: "true", "1", "TRUE", etc.
                 return "true".equalsIgnoreCase(status) || "1".equals(status);
             }
             return false;
 
         } catch (SQLException err) {
-            System.err.println("Fehler beim Abrufen des ROI-Status: " + err.getMessage());
+            logger.error("Fehler beim Abrufen des Status für {}: {}", statusColumn, err.getMessage());
             return false;
         }
     }
-   
-    public static boolean setROIstatus(boolean enabled) {
-        String statusValue = enabled ? "true" : "false";
+
+    private static boolean isValidStatusColumn(String columnName) {
+        return "ROI".equals(columnName) ||
+                "BUYING".equals(columnName) ||
+                "SELLING".equals(columnName);
+    }
+
+    public static boolean getRoiStatus() {
+        return getStatus(StatusType.ROI);
+    }
+
+    public static boolean getBuyingStatus() {
+        return getStatus(StatusType.BUYING);
+    }
+
+    public static boolean getSellingStatus() {
+        return getStatus(StatusType.SELLING);
+    }
+
+    public static boolean setStatus(StatusType statusType, boolean value) {
+        return setStatus(statusType.getColumnName(), value);
+    }
+
+    public static boolean setStatus(String statusColumn, boolean value) {
+        // Validierung der erlaubten Spalten
+        if (!isValidStatusColumn(statusColumn)) {
+            throw new IllegalArgumentException(
+                    "Ungültige Statusspalte: " + statusColumn +
+                            ". Erlaubt sind: ROI_status, BUYING, SELLING");
+        }
+
+        String sql = "UPDATE SETTING SET " + statusColumn + " = ?";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                PreparedStatement pstmt = con.prepareStatement(
-                        "UPDATE SETTING SET ROI_status = ?")) {
+                PreparedStatement ps = con.prepareStatement(sql)) {
 
-            pstmt.setString(1, statusValue);
-            int updatedRows = pstmt.executeUpdate();
+            ps.setString(1, value ? "1" : "0");
+            int rowsAffected = ps.executeUpdate();
 
-            if (updatedRows > 0) {
-                System.out.println("ROI-Status wurde aktualisiert: " + statusValue);
+            if (rowsAffected > 0) {
+                logger.info("{} wurde erfolgreich auf {} gesetzt", statusColumn, value);
                 return true;
             }
             return false;
 
         } catch (SQLException err) {
-            System.err.println("Fehler beim Setzen des ROI-Status: " + err.getMessage());
+            logger.error("Fehler beim Setzen des Status für {}: {}", statusColumn, err.getMessage());
             return false;
         }
     }
 
-    public static void checkForNewBuyAmount(String currencyPair, double newBuyAmount, double LivePrice) {
-        double currentBuyAmount = get_newBuyAmount();
-        if (newBuyAmount > currentBuyAmount) {
-            EXPOSQL.insertnewBuyAmountEntry(currencyPair, newBuyAmount, LivePrice);
-            try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                    Statement query = con.createStatement()) {
-                String SQL = "UPDATE SETTING SET newBuyAmount = " + round.three(newBuyAmount);
+    public static boolean setRoiStatus(boolean enabled) {
+        return setStatus(StatusType.ROI, enabled);
+    }
 
-                query.executeUpdate(SQL);
+    public static boolean setBuyingStatus(boolean enabled) {
+        return setStatus(StatusType.BUYING, enabled);
+    }
 
-            } catch (SQLException err) {
-                System.out.println(err.getMessage());
-            }
-        }
+    public static boolean setSellingStatus(boolean enabled) {
+        return setStatus(StatusType.SELLING, enabled);
     }
 
     public static int getcountPart() {

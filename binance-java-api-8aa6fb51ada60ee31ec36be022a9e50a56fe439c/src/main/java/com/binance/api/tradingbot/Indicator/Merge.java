@@ -42,18 +42,16 @@ public class Merge {
                 double new_Buymount, new_BuyPrice;
 
                 System.out.println("ProfitSplitValue: " + profitSplitValue);
-                System.out.println("Old Position: " + BuyOrderId_POS + " - " + Quantity + " - " + BuyAmount + " - "
-                        + OrigBuyPrice);
+                System.out.println("Old Position: " + BuyOrderId_POS + " - " + Quantity + " - " + BuyAmount + " - " + OrigBuyPrice);
 
                 new_Buymount = round.five(Double.valueOf(BuyAmount) - Double.valueOf(profitSplitValue));
+                new_BuyPrice = round.five(new_Buymount / Double.valueOf(Quantity));
+              
                 if (new_Buymount < 6) {
                     return;
-                }
+                }             
 
-                new_BuyPrice = round.five(new_Buymount / Double.valueOf(Quantity));
-
-                System.out.println("New Position: " + BuyOrderId_POS + " - " + Quantity + " - " + new_Buymount + " - "
-                        + new_BuyPrice);
+                System.out.println("New Position: " + BuyOrderId_POS + " - " + Quantity + " - " + new_Buymount + " - " + new_BuyPrice);
 
                 updateOrderPOS("POS", new_Buymount, new_BuyPrice, BuyOrderId_POS);
                 updateOrderHIST("HIST", new_Buymount, new_BuyPrice, BuyOrderId_POS);
@@ -64,25 +62,9 @@ public class Merge {
                 updateHIST_Status("HIST", BuyOrderId_Split);
             }
         }
-    }
+    }   
 
-    // public static void valueToDCA(String currency){
-
-    //     double valueDCA = 1;
-
-    //     if (SETSQL.getReserve() > valueDCA) {
-    //         SETSQL.setReserve(SETSQL.getReserve() - valueDCA);
-
-    //        List<String> BuyAmountRecord = new ArrayList<String>();
-    //        POSSQL.getDataRecordsPOS_WithMaxInMinus(currency, BuyAmountRecord);
-
-    //       if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01) && currency_Split.equals(currency)) { 
-
-    //     // ToDo
-    //     }
-    // }
-
-    private static void updateOrderPOS(final String tableName, double BuyAmount, double Price, String BuyOrderId) {
+    public static void updateOrderPOS(final String tableName, double BuyAmount, double Price, String BuyOrderId) {
 
         try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                 Statement update = con_update.createStatement()) {
@@ -101,7 +83,7 @@ public class Merge {
         }
     }
 
-    private static void updateOrderHIST(final String tableName, double BuyAmount,
+    public static void updateOrderHIST(final String tableName, double BuyAmount,
             double Price, String BuyOrderId) {
         try (Connection con_update = DriverManager.getConnection(dbUrl.getHIST());
                 Statement update = con_update.createStatement()) {

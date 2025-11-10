@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="oneofx.app - Professionelle Crypto Trading Bot Plattform für automatisierten Handel">
+    <meta name="keywords" content="crypto, trading bot, bitcoin, ethereum, automatischer handel">
+    <meta name="author" content="Stefan Klaeck">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="oneofx.app - Crypto Trading Bot">
+    <meta property="og:description" content="Professionelle Trading Bot Plattform für Kryptowährungen">
+    <meta property="og:url" content="https://oneofx.app">
+    
+    <title th:text="${title} ?: 'oneofx.app - Crypto Trading Bot'">oneofx.app - Crypto Trading Bot</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* Dunkler Hintergrund wie Dashboard */
+        body.dark-bg {
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .beta-banner {
+            background: rgba(255, 152, 0, 0.15);
+            border: 1px solid rgba(255, 152, 0, 0.4);
+            border-left: 4px solid #ff9800;
+            padding: 0.8rem 1.5rem;
+            text-align: center;
+            color: #ffb74d;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin: 1rem 0;
+        }
+
+        .hero-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 70vh;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .hero-card {
+            background: rgba(34, 34, 34, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 60px 80px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 178, 200, 0.2);
+            animation: fadeIn 1.5s ease-in;
+            max-width: 900px;
+        }
+
+        .hero-title {
+            font-size: 4em;
+            margin: 0 0 20px 0;
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: fadeIn 2s ease-in;
+        }
+
+        .hero-message {
+            font-size: 1.5em;
+            color: #888;
+            margin-bottom: 40px;
+        }
+
+        .wave {
+            display: inline-block;
+            animation: wave 2s infinite;
+            transform-origin: 70% 70%;
+            font-size: 1.2em;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes wave {
+            0%, 100% { transform: rotate(0deg); }
+            10%, 30% { transform: rotate(14deg); }
+            20% { transform: rotate(-8deg); }
+            40% { transform: rotate(-4deg); }
+            50% { transform: rotate(10deg); }
+            60% { transform: rotate(0deg); }
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feature-card {
+            background: rgba(0, 178, 200, 0.1);
+            border: 1px solid rgba(0, 178, 200, 0.3);
+            padding: 1.5rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 178, 200, 0.3);
+            border-color: rgba(0, 178, 200, 0.5);
+        }
+
+        .feature-card h3 {
+            color: #00b2c8;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        /* Login Styles */
+        .login-container {
+            margin: 2rem 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .login-card {
+            background: rgba(0, 178, 200, 0.1);
+            border: 1px solid rgba(0, 178, 200, 0.3);
+            padding: 2.5rem;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+
+        .login-card h3 {
+            color: #00b2c8;
+            margin-bottom: 2rem;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #00b2c8;
+            box-shadow: 0 0 0 2px rgba(0, 178, 200, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .form-group input::placeholder {
+            color: #888;
+        }
+
+        .form-actions {
+            text-align: center;
+        }
+
+        .login-button {
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            border: none;
+            color: #fff;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 1.5rem;
+        }
+
+        .login-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 178, 200, 0.4);
+        }
+
+        .login-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .login-links a {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .login-links a:hover {
+            color: #00b2c8;
+        }
+
+        .cta-buttons {
+            margin-top: 30px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .cta-button {
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .cta-primary {
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            color: white;
+        }
+
+        .cta-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0, 178, 200, 0.4);
+        }
+
+        .cta-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .cta-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+        }
+
+        .navbar-dark {
+            background: rgba(34, 34, 34, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .footer-dark {
+            background: rgba(34, 34, 34, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 4rem;
+        }
+
+        /* Language Switcher */
+        .language-switcher {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .lang-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+
+        .lang-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .lang-btn.active {
+            background: rgba(0, 178, 200, 0.3);
+            border-color: #00b2c8;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Focus States für Accessibility */
+        .form-group input:focus-visible,
+        .login-button:focus-visible,
+        .lang-btn:focus-visible,
+        .login-links a:focus-visible {
+            outline: 2px solid #00b2c8;
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .hero-card {
+                padding: 40px 30px;
+            }
+            
+            .hero-title {
+                font-size: 2.5em;
+            }
+
+            .hero-message {
+                font-size: 1.2em;
+            }
+
+            .language-switcher {
+                gap: 0.3rem;
+            }
+
+            .lang-btn {
+                padding: 0.4rem;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="dark-bg">
+    <nav class="navbar navbar-dark" role="navigation" aria-label="Hauptnavigation">
+        <div class="nav-container" style="justify-content: space-between;">
+            <a href="/" style="text-decoration: none;">
+                <h1 class="nav-logo" style="color: #00b2c8; margin: 0;">oneofx.app</h1>
+            </a>
+            <div class="language-switcher" role="group" aria-label="Sprachauswahl">
+                <button class="lang-btn active" 
+                        onclick="switchLanguage('de')" 
+                        title="Deutsch" 
+                        aria-label="Sprache auf Deutsch umstellen"
+                        aria-pressed="true">
+                    🇩🇪
+                </button>
+                <button class="lang-btn" 
+                        onclick="switchLanguage('en')" 
+                        title="English" 
+                        aria-label="Switch language to English"
+                        aria-pressed="false">
+                    🇺🇸
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Beta Banner -->
+    <div class="beta-banner">
+        ⚠️ Beta-Version – Projekt im Aufbau
+    </div>
+
+    <main role="main">
+        <div class="hero-container">
+            <div class="hero-card">
+                <h1 class="hero-title" th:text="${title} ?: 'Willkommen bei oneofx.app'">
+                    Willkommen bei oneofx.app <span class="wave" aria-hidden="true">👋</span>
+                </h1>
+
+                <div class="login-container">
+                    <div class="login-card">
+                        <h2 style="color: #00b2c8; margin-bottom: 2rem; text-align: center; font-size: 1.5rem;">Anmelden</h2>
+                        
+                        <!-- Fehlermeldung anzeigen -->
+                        <div th:if="${errorMessage}" 
+                             style="background: rgba(255, 59, 48, 0.2); border: 1px solid rgba(255, 59, 48, 0.5); padding: 0.8rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.85rem; color: #ff3b30;">
+                            <strong>❌ Fehler:</strong> <span th:text="${errorMessage}">Fehlermeldung</span>
+                        </div>
+
+                        <form id="loginForm" 
+                              action="/login"
+                              method="post"
+                              aria-label="Login-Formular">
+                            <div class="form-group">
+                                <label for="username">Benutzername:</label>
+                                <input type="text" 
+                                       id="username" 
+                                       name="username" 
+                                       autocomplete="username"
+                                       placeholder="Benutzername eingeben"
+                                       aria-required="true"
+                                       required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="password">Passwort:</label>
+                                <input type="password" 
+                                       id="password" 
+                                       name="password" 
+                                       autocomplete="current-password"
+                                       placeholder="Passwort eingeben"
+                                       aria-required="true"
+                                       required>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="submit" 
+                                        class="login-button" 
+                                        id="loginBtn"
+                                        aria-label="Anmelden">
+                                    <span id="btnText">Anmelden</span>
+                                    <div class="loading-spinner" id="loadingSpinner"></div>
+                                </button>
+                                <!-- Passwort vergessen und Registrierung deaktiviert -->
+                                <!-- 
+                                <div class="login-links">
+                                    <a href="/forgot-password" class="forgot-password">Passwort vergessen?</a>
+                                    <a href="/dashboard/create-account" class="create-account">Neues Konto erstellen</a>
+                                </div>
+                                -->
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="cta-buttons">
+                    <a href="/about" class="cta-button cta-secondary" aria-label="Mehr über oneofx.app erfahren">Mehr erfahren</a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer footer-dark" role="contentinfo">
+        <div class="container" style="text-align: center;">
+            <nav class="footer-nav" aria-label="Footer Navigation">
+                <a href="/" 
+                   style="color: #7877c6; text-decoration: none; margin: 0 1rem; font-weight: bold;"
+                   aria-current="page">Home</a>
+                <a href="/about" 
+                   style="color: #00b2c8; text-decoration: none; margin: 0 1rem;">Über uns</a>
+                <a href="/impressum" 
+                   style="color: #00b2c8; text-decoration: none; margin: 0 1rem;">Impressum</a>
+            </nav>
+        </div>
+    </footer>
+    
+    <script>
+        // Language Switcher
+        function switchLanguage(lang) {
+            const langButtons = document.querySelectorAll('.lang-btn');
+            langButtons.forEach(btn => {
+                btn.classList.remove('active');
+                btn.setAttribute('aria-pressed', 'false');
+            });
+            
+            event.target.classList.add('active');
+            event.target.setAttribute('aria-pressed', 'true');
+            
+            // TODO: Implementiere Sprach-Wechsel (i18n)
+            localStorage.setItem('preferredLanguage', lang);
+            console.log('Sprache gewechselt zu:', lang);
+            
+            // Zeige Notification
+            showNotification(`Sprache zu ${lang === 'de' ? 'Deutsch' : 'English'} gewechselt`, 'info');
+        }
+
+        // Login Handler - Backend-basiert mit localStorage
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    // Setze localStorage VOR dem Submit
+                    localStorage.setItem('isLoggedIn', 'true');
+                    // Formular wird normal abgeschickt (kein preventDefault)
+                });
+            }
+        });
+        
+        // Benachrichtigung anzeigen
+        function showNotification(message, type = 'info') {
+            // Entferne vorherige Benachrichtigungen
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(notification => notification.remove());
+            
+            // Erstelle neue Benachrichtigung
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                z-index: 10000;
+                max-width: 400px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                transition: all 0.3s ease;
+                transform: translateX(100%);
+            `;
+            
+            // Farbe je nach Typ setzen
+            if (type === 'success') {
+                notification.style.background = 'linear-gradient(45deg, #28a745, #20c997)';
+            } else if (type === 'error') {
+                notification.style.background = 'linear-gradient(45deg, #dc3545, #c82333)';
+            } else if (type === 'warning') {
+                notification.style.background = 'linear-gradient(45deg, #ffc107, #e0a800)';
+            } else {
+                notification.style.background = 'linear-gradient(45deg, #007bff, #6f42c1)';
+            }
+            
+            notification.textContent = message;
+            
+            // Zur Seite hinzufügen
+            document.body.appendChild(notification);
+            
+            // Animation einblenden
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            // Nach 4 Sekunden entfernen
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 4000);
+        }
+        
+        
+        // Keyboard Navigation für Login-Form
+        document.addEventListener('DOMContentLoaded', () => {
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            
+            // Auto-focus auf erstes Feld
+            if (usernameInput) {
+                usernameInput.focus();
+            }
+            
+            // Enter-Taste in Username-Feld springt zu Passwort
+            if (usernameInput && passwordInput) {
+                usernameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        passwordInput.focus();
+                    }
+                });
+            }
+            
+            // Sprache aus localStorage laden
+            const savedLang = localStorage.getItem('preferredLanguage');
+            if (savedLang && savedLang !== 'de') {
+                const langBtn = document.querySelector(`[onclick="switchLanguage('${savedLang}')"]`);
+                if (langBtn) {
+                    document.querySelectorAll('.lang-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                        btn.setAttribute('aria-pressed', 'false');
+                    });
+                    langBtn.classList.add('active');
+                    langBtn.setAttribute('aria-pressed', 'true');
+                }
+            }
+            
+            // Session-Expired Warnung anzeigen
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('sessionExpired') === 'true') {
+                showNotification('⚠️ Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.', 'warning');
+            }
+        });
+    </script>
+</body>
+</html>
