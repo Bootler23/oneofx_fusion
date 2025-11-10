@@ -1,0 +1,2712 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Bot Einstellungen - oneofx.app</title>
+    <link rel="stylesheet" href="/css/style.css?v=2.0">
+    <link rel="stylesheet" href="/css/bot-settings.css?v=2.0">
+    <style>
+        /* Notification System */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 9999;
+            opacity: 0;
+            transform: translateX(400px);
+            transition: all 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .notification-success {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+        }
+        
+        .notification-error {
+            background: linear-gradient(135deg, #f44336, #d32f2f);
+        }
+        
+        .notification-info {
+            background: linear-gradient(135deg, #00b2c8, #0097a7);
+        }
+        
+        /* Exchange Select Fix - Always show text */
+        #exchangeName {
+            color: #fff !important;
+            background-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        
+        #exchangeName option {
+            color: #fff !important;
+            background-color: #222 !important;
+            padding: 0.5rem !important;
+            font-size: 1rem !important;
+        }
+        
+        #exchangeName option:hover {
+            background-color: #333 !important;
+        }
+        
+        /* Base Currency Select Fix - Always show text */
+        #baseCurrency {
+            color: #fff !important;
+            background-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        
+        #baseCurrency option {
+            color: #fff !important;
+            background-color: #222 !important;
+            padding: 0.5rem !important;
+            font-size: 1rem !important;
+        }
+        
+        #baseCurrency option:hover {
+            background-color: #333 !important;
+        }
+        
+        /* Allgemeines Select/Option Styling für alle Dropdowns */
+        select {
+            color: #fff !important;
+            background-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        
+        select option {
+            color: #fff !important;
+            background-color: #222 !important;
+            padding: 0.5rem !important;
+            font-size: 1rem !important;
+        }
+        
+        select option:hover {
+            background-color: #333 !important;
+        }
+    </style>
+    <script>
+        // Session-Status beim Laden setzen
+        (function() {
+            localStorage.setItem('isLoggedIn', 'true');
+        })();
+    </script>
+</head>
+<body>
+    <!-- Beta Banner -->
+    <div class="beta-banner">
+        ⚠️ Beta-Version – Projekt im Aufbau
+    </div>
+    
+    <nav class="navbar-dashboard">
+        <a href="/dashboard" class="logo">oneofx.app</a>
+        <div class="user-info">
+            <a href="/dashboard" class="back-btn">← Zurück zum Dashboard</a>
+            <div class="user-avatar" th:text="${username != null ? username.substring(0,1).toUpperCase() : 'U'}">U</div>
+            <span th:text="${username}">Benutzer</span>
+            <button class="logout-btn" onclick="logout()">Abmelden</button>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="page-header">
+            <h1>🤖 Bot Einstellungen</h1>
+            <p th:if="${botId != null}">
+                Bot ID: <span th:text="${botId}">-</span>
+            </p>
+            <p th:if="${botId == null}">Konfigurieren Sie Ihre Trading-Bots mit individuellen Strategien</p>
+        </div>
+        
+        <!-- Tab Navigation (Browser-Style) -->
+        <div class="tab-navigation">
+            <button class="tab-button active" data-tab="create" onclick="switchTab('create')">
+                <span class="tab-icon">🤖</span>
+                <span class="tab-label">Bot erstellen</span>
+            </button>
+            <button class="tab-button" data-tab="strategy" onclick="switchTab('strategy')" th:if="${botId != null}">
+                <span class="tab-icon">🎯</span>
+                <span class="tab-label">Strategie</span>
+            </button>
+            <button class="tab-button" data-tab="key" onclick="switchTab('key')">
+                <span class="tab-icon">🔑</span>
+                <span class="tab-label">Key</span>
+            </button>
+            <button class="tab-button" data-tab="currency" onclick="switchTab('currency')">
+                <span class="tab-icon">💱</span>
+                <span class="tab-label">Currency</span>
+            </button>
+            <button class="tab-button" data-tab="profit" onclick="switchTab('profit')">
+                <span class="tab-icon">💰</span>
+                <span class="tab-label">Profit</span>
+            </button>
+            <button class="tab-button" data-tab="settings" onclick="switchTab('settings')">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-label">Settings</span>
+            </button>
+        </div>
+        
+        <!-- Zentrale Speicher-Leiste -->
+        <div class="save-bar" th:if="${botId != null}" style="position: sticky; top: 0; z-index: 100; background: linear-gradient(135deg, #1a1a2e, #16213e); border-bottom: 2px solid rgba(120, 119, 198, 0.3); padding: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            <div class="save-status">
+                <span id="saveStatus" style="color: #aaa; font-size: 0.9rem;">
+                    <span id="saveStatusIcon">💾</span>
+                    <span id="saveStatusText">Alle Änderungen gespeichert</span>
+                </span>
+            </div>
+            <div class="save-actions">
+                <button id="saveAllButton" class="btn-primary" onclick="saveAllSettings()" style="background: linear-gradient(135deg, #00b2c8, #0097a7); padding: 0.7rem 1.5rem; border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0, 178, 200, 0.3);">
+                    💾 Einstellungen speichern
+                </button>
+            </div>
+        </div>
+        
+        <!-- Tab Content: Bot erstellen -->
+        <div id="tab-create" class="tab-content active">
+            <div class="settings-card">
+                <h2>🤖 Neuen Trading Bot erstellen</h2>
+                <p class="card-description">Konfigurieren Sie Ihren automatisierten Trading-Bot mit individuellen Strategien</p>
+                
+                <!-- Info Box -->
+                <div class="info-box" style="background: rgba(0, 178, 200, 0.1); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 10px; padding: 1rem; margin-bottom: 2rem;">
+                    <h3 style="color: #00b2c8; margin-bottom: 0.5rem;">📋 Was Sie benötigen:</h3>
+                    <ul style="list-style: none; padding-left: 0; margin: 0;">
+                        <li style="padding: 0.3rem 0; color: #ddd;">✅ Eine konfigurierte Exchange-Verbindung (API-Keys)</li>
+                        <li style="padding: 0.3rem 0; color: #ddd;">✅ Startkapital für den Bot</li>
+                        <li style="padding: 0.3rem 0; color: #ddd;">✅ Eine Trading-Strategie (wird nach Erstellung konfiguriert)</li>
+                    </ul>
+                </div>
+                
+                <form id="botCreateForm">
+                    <!-- Grundeinstellungen -->
+                    <div class="form-section" style="margin-bottom: 2rem;">
+                        <h3 style="color: #00b2c8; font-size: 1.3rem; margin-bottom: 1rem; border-bottom: 2px solid rgba(0, 178, 200, 0.3); padding-bottom: 0.5rem;">⚙️ Grundeinstellungen</h3>
+                        
+                        <div class="form-group">
+                            <label for="newBotName">Bot Name *</label>
+                            <input type="text" id="newBotName" name="newBotName" placeholder="z.B. BTC Scalper Bot" required>
+                            <small class="help-text">Geben Sie Ihrem Bot einen eindeutigen Namen</small>
+                        </div>
+                        
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="form-group">
+                                <label for="botExchange">Exchange *</label>
+                                <select id="botExchange" name="botExchange" required>
+                                    <option value="">Wählen Sie eine Exchange</option>
+                                    <option value="binance">Binance</option>
+                                    <option value="bybit">Bybit</option>
+                                    <option value="okx">OKX</option>
+                                    <option value="kraken">Kraken</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="botTradingPair">Trading Pair *</label>
+                                <select id="botTradingPair" name="botTradingPair" required>
+                                    <option value="">Wählen Sie ein Trading Pair</option>
+                                    <option value="BTCEUR">BTC/EUR</option>
+                                    <option value="ETHEUR">ETH/EUR</option>
+                                    <option value="BTCUSDT">BTC/USDT</option>
+                                    <option value="ETHUSDT">ETH/USDT</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Entfernt: Startkapital und Max. gleichzeitige Trades -->
+                    </div>
+                    
+                    <!-- Strategy Selection with Redirect -->
+                    <div class="form-section" style="margin-bottom: 2rem;">
+                        <h3 style="color: #00b2c8; font-size: 1.3rem; margin-bottom: 1rem; border-bottom: 2px solid rgba(0, 178, 200, 0.3); padding-bottom: 0.5rem;">🎯 Trading Strategie wählen</h3>
+                        
+                        <p style="color: #999; margin-bottom: 1.5rem;">Wählen Sie eine Strategie für Ihren Bot. Sie werden zur Strategie-Konfiguration weitergeleitet.</p>
+                        
+                        <div class="strategy-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                            <!-- Simple Grid - LIVE ✅ -->
+                            <a href="/bot-strategies" class="strategy-card" style="background: linear-gradient(135deg, rgba(46, 204, 113, 0.15), rgba(46, 204, 113, 0.05)); border: 2px solid #2ecc71; border-radius: 12px; padding: 1.5rem; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: block; position: relative;">
+                                <div style="position: absolute; top: 10px; right: 10px; background: #2ecc71; color: #000; padding: 4px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700;">✅ LIVE</div>
+                                <h4 style="color: #2ecc71; margin-bottom: 0.5rem;">🟢 Simple Grid</h4>
+                                <p style="color: #ddd; font-size: 0.9rem; margin: 0; font-weight: 500;">Kauft in festen Abständen vom ATH. Einfach und effektiv.</p>
+                                <small style="color: #888; font-size: 0.75rem; display: block; margin-top: 0.5rem;">✨ Jetzt nutzbar - Vorkonfiguriert</small>
+                            </a>
+                            
+                            <!-- Folgende Strategien: Bald verfügbar -->
+                            <a href="/bot-strategies" class="strategy-card" style="background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: block; opacity: 0.6;">
+                                <h4 style="color: #00b2c8; margin-bottom: 0.5rem;">⚡ Scalping</h4>
+                                <p style="color: #999; font-size: 0.9rem; margin: 0;">Schnelle Trades mit kleinen Gewinnen. Viele Trades pro Tag.</p>
+                                <small style="color: #888; font-size: 0.75rem; display: block; margin-top: 0.5rem;">🚧 In Entwicklung</small>
+                            </a>
+                            
+                            <a href="/bot-strategies" class="strategy-card" style="background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: block; opacity: 0.6;">
+                                <h4 style="color: #00b2c8; margin-bottom: 0.5rem;">📊 Grid Trading</h4>
+                                <p style="color: #999; font-size: 0.9rem; margin: 0;">Kauft und verkauft in festgelegten Preisintervallen.</p>
+                                <small style="color: #888; font-size: 0.75rem; display: block; margin-top: 0.5rem;">🚧 In Entwicklung</small>
+                            </a>
+                            
+                            <a href="/bot-strategies" class="strategy-card" style="background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: block; opacity: 0.6;">
+                                <h4 style="color: #00b2c8; margin-bottom: 0.5rem;">💰 DCA (Dollar Cost Average)</h4>
+                                <p style="color: #999; font-size: 0.9rem; margin: 0;">Regelmäßige Käufe zu festgelegten Zeitpunkten.</p>
+                                <small style="color: #888; font-size: 0.75rem; display: block; margin-top: 0.5rem;">🚧 In Entwicklung</small>
+                            </a>
+                            
+                            <a href="/bot-strategies" class="strategy-card" style="background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: block; opacity: 0.6;">
+                                <h4 style="color: #00b2c8; margin-bottom: 0.5rem;">🚀 Momentum Trading</h4>
+                                <p style="color: #999; font-size: 0.9rem; margin: 0;">Folgt starken Kursbewegungen und Trends.</p>
+                                <small style="color: #888; font-size: 0.75rem; display: block; margin-top: 0.5rem;">🚧 In Entwicklung</small>
+                            </a>
+                        </div>
+                        
+                        <small class="help-text" style="display: block; margin-top: 1rem; color: #888;">💡 Klicken Sie auf eine Strategie um zur detaillierten Konfiguration zu gelangen</small>
+                    </div>
+                    
+                    <!-- Advanced Settings -->
+                    <div class="form-section" style="margin-bottom: 2rem;">
+                        <h3 style="color: #00b2c8; font-size: 1.3rem; margin-bottom: 1rem; border-bottom: 2px solid rgba(0, 178, 200, 0.3); padding-bottom: 0.5rem;">🔧 Erweiterte Einstellungen</h3>
+                        
+                        <div class="form-group">
+                            <label for="botDescription">Bot-Beschreibung (optional)</label>
+                            <textarea id="botDescription" name="botDescription" rows="3" placeholder="Beschreiben Sie die Ziele und Besonderheiten dieses Bots..." style="width: 100%; padding: 0.8rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #fff; font-size: 1rem; font-family: inherit;"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="autoStart" name="autoStart" style="width: auto; margin-right: 0.5rem;">
+                                <span>Bot nach Erstellung automatisch starten</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="notifications" name="notifications" checked style="width: auto; margin-right: 0.5rem;">
+                                <span>Email-Benachrichtigungen bei Trades aktivieren</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">🚀 Bot erstellen</button>
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('botCreateForm').reset(); document.getElementById('botStrategy').value = ''; document.querySelectorAll('.strategy-card').forEach(c => c.classList.remove('selected'));">Formular zurücksetzen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Tab Content: Strategie (nur für bestehende Bots) -->
+        <div id="tab-strategy" class="tab-content" th:if="${botId != null}" th:attr="data-bot-id=${botId}">
+            <div class="settings-card">
+                <h2>🎯 Bot Strategie verwalten</h2>
+                <p class="card-description">Konfigurieren Sie die Handelsstrategie für diesen Bot</p>
+                
+                <!-- Aktuelle Strategie anzeigen -->
+                <div th:if="${botStrategy != null}" class="info-box" style="background: rgba(0, 178, 200, 0.1); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 10px; padding: 1.5rem; margin-bottom: 2rem;">
+                    <h3 style="color: #00b2c8; margin-bottom: 1rem;">📊 Aktuelle Strategie</h3>
+                    <div style="display: grid; grid-template-columns: 150px 1fr; gap: 0.8rem; color: #ddd;">
+                        <div style="font-weight: 600; color: #888;">Strategie:</div>
+                        <div style="font-family: monospace; color: #00b2c8;" th:text="${botStrategy.strategyName}">-</div>
+                        
+                        <div style="font-weight: 600; color: #888;">Erstellt am:</div>
+                        <div th:text="${#temporals.format(botStrategy.createdAt, 'dd.MM.yyyy HH:mm')}">-</div>
+                        
+                        <div style="font-weight: 600; color: #888;">Parameter:</div>
+                        <div style="font-family: monospace; font-size: 0.9rem; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 5px; overflow-x: auto;" th:text="${botStrategy.parameters}">-</div>
+                    </div>
+                    
+                    <button type="button" class="btn-secondary" onclick="showEditStrategyForm()" style="margin-top: 1.5rem; background: linear-gradient(135deg, #7877c6, #6366d1); padding: 0.7rem 1.5rem; border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        ✏️ Strategie ändern
+                    </button>
+                </div>
+                
+                <!-- Keine Strategie vorhanden -->
+                <div th:if="${botStrategy == null}" class="info-box" style="background: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3); border-radius: 10px; padding: 1.5rem; margin-bottom: 2rem;">
+                    <h3 style="color: #ff9800; margin-bottom: 0.8rem;">⚠️ Keine Strategie zugewiesen</h3>
+                    <p style="color: #ddd; margin-bottom: 1rem;">Dieser Bot hat noch keine Trading-Strategie. Wählen Sie eine Strategie aus, um mit dem automatisierten Trading zu beginnen.</p>
+                    <a th:href="@{/bot-strategies(botId=${botId})}" class="btn-primary" style="display: inline-block; padding: 0.8rem 1.5rem; text-decoration: none; background: linear-gradient(135deg, #00b2c8, #0097a7); border-radius: 8px; color: #fff; font-weight: 600;">
+                        🎯 Strategie wählen
+                    </a>
+                </div>
+                
+                <!-- Strategie-Formular (ausgeblendet bis "Ändern" geklickt wird) -->
+                <div id="strategyFormContainer" style="display: none;">
+                    <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 2rem 0;">
+                    
+                    <form id="strategyForm">
+                        <h3 style="color: #00b2c8; margin-bottom: 1.5rem;">🛠️ Neue Strategie konfigurieren</h3>
+                        <!-- Hidden current values for prefill -->
+                        <input type="hidden" id="currentStrategyName" th:value="${botStrategy != null ? botStrategy.strategyName : ''}">
+                        <textarea id="currentStrategyParameters" style="display:none;" th:text="${botStrategy != null ? botStrategy.parameters : ''}"></textarea>
+                        
+                        <div class="form-group">
+                            <label for="strategyName">Strategie auswählen</label>
+                            <select id="strategyName" name="strategyName" required onchange="updateStrategyParameters()">
+                                <option value="">-- Bitte wählen --</option>
+                                <option value="simple_grid">Simple Grid</option>
+                                <option value="dca">DCA (Dollar Cost Averaging)</option>
+                                <option value="grid">Grid Trading</option>
+                                <option value="custom_grid">Custom Grid (Erweitert)</option>
+                                <option value="scalping">Scalping</option>
+                                <option value="swing">Swing Trading</option>
+                                <option value="hodl">HODL (Buy & Hold)</option>
+                            </select>
+                            <small class="help-text">Die Handelsstrategie, die der Bot verwenden soll</small>
+                        </div>
+                        
+                        <!-- Dynamische Parameter-Felder (abhängig von gewählter Strategie) -->
+                        <div id="strategyParameters" style="margin-top: 1.5rem;">
+                            <p style="color: #888; font-style: italic;">Wählen Sie zuerst eine Strategie aus...</p>
+                        </div>
+                        
+                        <!-- Auto-Save Info statt Buttons -->
+                        <div style="margin-top: 2rem; padding: 1rem; background: rgba(0, 178, 200, 0.1); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 8px; text-align: center;">
+                            <span style="color: #00b2c8; font-size: 0.9rem;">
+                                💾 <strong>Auto-Save aktiviert</strong> – Änderungen werden automatisch nach 0.5s gespeichert
+                            </span>
+                        </div>
+                        
+                        <div class="form-actions" style="margin-top: 1rem;">
+                            <button type="button" class="btn-secondary" onclick="cancelStrategyEdit()" style="background: rgba(255,255,255,0.1);">❌ Abbrechen</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Hilfe-Bereich -->
+                <div class="info-box" style="background: rgba(120, 119, 198, 0.1); border: 1px solid rgba(120, 119, 198, 0.3); border-radius: 10px; padding: 1.5rem; margin-top: 2rem;">
+                    <h3 style="color: #7877c6; margin-bottom: 1rem;">💡 Strategie-Tipps</h3>
+                    <ul style="color: #ddd; padding-left: 1.5rem; margin: 0; line-height: 1.8;">
+                        <li><strong>DCA:</strong> Kauft regelmäßig kleine Mengen, ideal für langfristige Investitionen</li>
+                        <li><strong>Grid Trading:</strong> Setzt Kauf-/Verkaufs-Orders in festgelegten Preisabständen</li>
+                        <li><strong>Custom Grid:</strong> Erweiterte Grid-Strategie mit individuellen Parametern</li>
+                        <li><strong>Scalping:</strong> Viele kleine Trades mit geringem Gewinn pro Trade</li>
+                        <li><strong>Swing Trading:</strong> Nutzt mittelfristige Preisschwankungen</li>
+                        <li><strong>HODL:</strong> Kauft einmalig und hält langfristig</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab Content: Key -->
+        <div id="tab-key" class="tab-content" th:attr="data-bot-id=${botId}">
+            <div class="settings-card">
+                <h2>🔑 Exchange Settings</h2>
+                <p class="card-description">Verbinden Sie Ihre Börsen-Konten sicher über API-Keys</p>
+                
+                <!-- Wichtige Informationen -->
+                <div class="info-box" style="background: rgba(0, 178, 200, 0.1); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 10px; padding: 1.5rem; margin-bottom: 2rem;">
+                    <h3 style="color: #00b2c8; margin-bottom: 1rem;">ℹ️ Wichtige Informationen</h3>
+                    <p style="color: #ddd; margin-bottom: 0.8rem;">Ihre API-Keys werden verschlüsselt in der Datenbank gespeichert. Stellen Sie sicher, dass Sie:</p>
+                    <ul style="color: #ddd; padding-left: 1.5rem; margin: 0;">
+                        <li style="margin-bottom: 0.5rem;">Nur API-Keys mit <strong>Handelsrechten</strong> (keine Withdrawal-Rechte) erstellen</li>
+                        <li style="margin-bottom: 0.5rem;">IP-Whitelist in Ihren Exchange-Einstellungen aktivieren</li>
+                        <li style="margin-bottom: 0.5rem;">Niemals Ihre API-Keys mit anderen teilen</li>
+                    </ul>
+                </div>
+                
+                <!-- Sicherheitshinweis -->
+                <div class="info-box" style="background: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3); border-radius: 10px; padding: 1.2rem; margin-bottom: 2.5rem;">
+                    <h4 style="color: #ff9800; margin-bottom: 0.5rem;">⚠️ Sicherheitshinweis</h4>
+                    <p style="color: #ddd; margin: 0; font-size: 0.95rem;">
+                        Aktivieren Sie in den API-Einstellungen Ihrer Börse <strong>KEINE Withdrawal-Rechte</strong>. 
+                        Für Trading-Bots werden nur <strong>Lese- und Handelsrechte</strong> benötigt.
+                    </p>
+                </div>
+                
+                <!-- Exchange Konfigurationsformular -->
+                <form id="exchangeForm" onsubmit="event.preventDefault();">
+                    <h3 style="color: #00b2c8; font-size: 1.4rem; margin-bottom: 1.5rem; padding-bottom: 0.8rem; border-bottom: 2px solid rgba(0, 178, 200, 0.3);">⚙️ Exchange konfigurieren</h3>
+                    
+                    <div class="form-group">
+                        <label for="exchangeName">Börse auswählen</label>
+                        <select id="exchangeName" name="exchangeName" required onchange="togglePassphraseField()">
+                            <option value="">-- Börse auswählen --</option>
+                            <option value="Binance">🟡 Binance</option>
+                            <option value="Bybit">🟠 Bybit</option>
+                            <option value="OKX">🔵 OKX (Passphrase erforderlich)</option>
+                            <option value="Kraken">🟣 Kraken</option>
+                            <option value="Coinbase">🔴 Coinbase Pro (Passphrase erforderlich)</option>
+                            <option value="KuCoin">🟢 KuCoin</option>
+                            <option value="Bitfinex">⚫ Bitfinex</option>
+                            <option value="Huobi">🔴 Huobi</option>
+                        </select>
+                        <small class="help-text">Wählen Sie die Börse aus, mit der Sie sich verbinden möchten</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="connectionName">Verbindungsname (optional)</label>
+                        <input type="text" id="connectionName" name="connectionName" placeholder="z.B. Mein Trading Account">
+                        <small class="help-text">Geben Sie dieser Verbindung einen eigenen Namen (z.B. "Mein Haupt-Account")</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apiKey">API Key</label>
+                        <input type="text" id="apiKey" name="apiKey" placeholder="Ihr API Key" required>
+                        <small class="help-text">Geben Sie Ihren öffentlichen API-Key ein</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="secretKey">Secret Key</label>
+                        <div style="position: relative;">
+                            <input type="password" id="secretKey" name="secretKey" placeholder="Ihr Secret Key" required style="padding-right: 3rem;">
+                            <button type="button" onclick="toggleSecretVisibility()" style="position: absolute; right: 0.8rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0.3rem;">👁️</button>
+                        </div>
+                        <small class="help-text">Geben Sie Ihren geheimen API Secret Key ein</small>
+                    </div>
+                    
+                    <div class="form-group" id="passphraseGroup" style="display: none;">
+                        <label for="passphrase">Passphrase (optional)</label>
+                        <div style="position: relative;">
+                            <input type="password" id="passphrase" name="passphrase" placeholder="Passphrase (falls erforderlich)" style="padding-right: 3rem;">
+                            <button type="button" onclick="togglePassphraseVisibility()" style="position: absolute; right: 0.8rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0.3rem;">👁️</button>
+                        </div>
+                        <small class="help-text">Nur für bestimmte Börsen wie OKX oder Coinbase erforderlich</small>
+                    </div>
+                </form>
+                
+                <!-- Buttons außerhalb des Forms -->
+                <div class="form-actions" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 2rem;">
+                    <button type="button" class="btn-primary" onclick="testConnection();" style="flex: 1; min-width: 200px;">🔌 Verbindung testen</button>
+                    <button type="button" class="btn-secondary" onclick="resetExchangeForm()" style="flex: 0;">Abbrechen</button>
+                </div>
+                <div style="margin-top: 1rem; padding: 0.8rem; background: rgba(0, 178, 200, 0.1); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 8px;">
+                    <small style="color: #00b2c8;">
+                        � <strong>Auto-Save aktiviert:</strong> Exchange-Einstellungen werden automatisch nach 0.5s Pause gespeichert. Nach dem Speichern können Sie die Verbindung testen.
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab Content: Currency -->
+        <div id="tab-currency" class="tab-content">
+            <div class="settings-card">
+                <h2>💱 Handelbare Währungspaare</h2>
+                <p class="card-description">Wählen Sie die Währungspaare aus, mit denen Ihr Bot handeln soll</p>
+                
+                <!-- Connection Status Box -->
+                <div id="connection-status-box" class="info-box" style="background: rgba(0, 178, 200, 0.1); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 10px; padding: 1rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <div style="flex: 1;">
+                            <h4 style="color: #00b2c8; margin-bottom: 0.5rem;">🔗 API-Verbindung</h4>
+                            <p id="connection-status-text" style="color: #888; margin: 0;">
+                                Teste deine Binance-Verbindung bevor du Trading-Pairs auswählst
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button id="test-connection-btn" onclick="testSavedConnection()" class="btn-secondary" style="white-space: nowrap;">
+                                🔌 Verbindung testen
+                            </button>
+                            <button onclick="switchTab('key')" class="btn-primary" style="white-space: nowrap;">
+                                🔑 API-Keys bearbeiten
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Loading State -->
+                <div id="pairs-loading" class="loading-state" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Lade verfügbare Währungspaare von Binance...</p>
+                </div>
+                
+                <!-- Error State -->
+                <div id="pairs-error" class="error-state" style="display: none;">
+                    <p class="error-message">❌ Fehler beim Laden der Währungspaare</p>
+                    <p id="pairs-error-message" style="margin: 1rem 0; line-height: 1.6;"></p>
+                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="loadAvailablePairs()" class="btn-secondary">🔄 Erneut versuchen</button>
+                        <button id="pairs-error-fix-btn" onclick="switchTab('key')" class="btn-primary" style="display: none;">
+                            🔑 API-Keys konfigurieren
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filter-Leiste -->
+                <div id="pairs-filter-bar" class="pairs-filter-bar" style="display: none;">
+                    <div class="filter-buttons">
+                        <button onclick="filterByQuote('ALL')" class="filter-btn active" data-quote="ALL">
+                            🌐 Alle <span class="count" id="count-all">0</span>
+                        </button>
+                        <button onclick="filterByQuote('EUR')" class="filter-btn" data-quote="EUR">
+                            🟡 EUR <span class="count" id="count-eur">0</span>
+                        </button>
+                        <button onclick="filterByQuote('USDT')" class="filter-btn" data-quote="USDT">
+                            🟣 USDT <span class="count" id="count-usdt">0</span>
+                        </button>
+                        <button onclick="filterByQuote('USDC')" class="filter-btn" data-quote="USDC">
+                            🔵 USDC <span class="count" id="count-usdc">0</span>
+                        </button>
+                    </div>
+                    
+                    <div class="search-box">
+                        <input type="text" id="pairs-search" placeholder="🔍 Suche (z.B. BTC, ETH)..." 
+                               oninput="searchPairs(this.value)">
+                    </div>
+                </div>
+                
+                <!-- Status Bar -->
+                <div id="pairs-status" class="pairs-status" style="display: none;">
+                    <span id="selected-count">0 von 0 Paaren ausgewählt</span>
+                </div>
+                
+                <!-- Checkbox-Grid -->
+                <div id="pairs-grid" class="pairs-grid" style="display: none;">
+                    <!-- Wird dynamisch mit JavaScript gefüllt -->
+                </div>
+                
+                <!-- Quick-Actions -->
+                <div id="pairs-actions" class="pairs-actions" style="display: none;">
+                    <button onclick="selectAll()" class="btn-secondary">✅ Alle auswählen</button>
+                    <button onclick="deselectAll()" class="btn-secondary">❌ Alle abwählen</button>
+                    <button onclick="selectTop10()" class="btn-secondary">⭐ Top 10</button>
+                    <button onclick="saveTradingPairs()" class="btn-primary">💾 Auswahl speichern</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab Content: Profit -->
+        <div id="tab-profit" class="tab-content">
+            <div class="settings-card">
+                <h2>💰 Profit & Risikomanagement</h2>
+                <p class="card-description">Definieren Sie Ihre Gewinnziele, Stop-Loss und Risikomanagement-Regeln</p>
+                
+                <form id="profitForm">
+                    <!-- Risikomanagement Section -->
+                    <div class="form-section" style="margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 2px solid rgba(255, 255, 255, 0.1);">
+                        <h3 style="color: #ff9800; font-size: 1.3rem; margin-bottom: 1rem; border-bottom: 2px solid rgba(255, 152, 0, 0.3); padding-bottom: 0.5rem;">🛡️ Risikomanagement</h3>
+                        
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="form-group">
+                                <label for="riskStopLoss">Stop Loss (%) *</label>
+                                <input type="number" id="riskStopLoss" name="riskStopLoss" placeholder="2" min="0.1" max="50" step="0.1" value="2" required>
+                                <small class="help-text">Maximaler Verlust pro Trade</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="riskTakeProfit">Take Profit (%) *</label>
+                                <input type="number" id="riskTakeProfit" name="riskTakeProfit" placeholder="3" min="0.1" max="100" step="0.1" value="3" required>
+                                <small class="help-text">Zielgewinn pro Trade</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="riskTradeSize">Trade-Größe (% vom Kapital) *</label>
+                            <input type="number" id="riskTradeSize" name="riskTradeSize" placeholder="10" min="1" max="100" step="1" value="10" required>
+                            <small class="help-text">Wie viel Kapital pro Trade nutzen?</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Trailing Stop (Toggle-Schalter) -->
+                    <div class="form-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label">Trailing Stop aktivieren</label>
+                                <small class="help-text">Stop Loss folgt dem Preis automatisch nach oben (ersetzt Gewinnziel)</small>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableTrailingStop" name="enableTrailingStop" onchange="toggleTrailingStopSettings()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Trailing Stop Einstellungen (nur sichtbar wenn aktiviert) -->
+                    <div id="trailingStopSettings" style="display: none; margin-left: 2rem; padding: 1rem; background: rgba(0, 178, 200, 0.05); border-left: 3px solid #00b2c8; border-radius: 8px; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label for="trailingStopActivation">TSL Aktivierung (%) *</label>
+                            <input type="number" id="trailingStopActivation" name="trailingStopActivation" placeholder="5" min="0.1" max="100" step="0.1" value="5">
+                            <small class="help-text">Gewinn ab dem der Trailing Stop aktiv wird</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="trailingStopDistance">TSL Trailing-Abstand (%) *</label>
+                            <input type="number" id="trailingStopDistance" name="trailingStopDistance" placeholder="2" min="0.1" max="50" step="0.1" value="2">
+                            <small class="help-text">Rückgang ab dem verkauft wird</small>
+                        </div>
+                        
+                        <div class="info-box" style="background: rgba(0, 178, 200, 0.1); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 8px; padding: 0.8rem; margin-top: 1rem;">
+                            <p style="color: #ddd; font-size: 0.9rem; margin: 0;">
+                                <strong style="color: #00b2c8;">💡 Beispiel:</strong> Bei 5% Aktivierung und 2% Trailing-Abstand: Steigt der Preis um 8%, wird bei 6% (8% - 2%) verkauft.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="profit-calculator">
+                        <h3>Profit-Rechner</h3>
+                        <div class="calculator-result">
+                            <div class="result-item">
+                                <span class="result-label">Erwarteter Gewinn:</span>
+                                <span class="result-value" id="expectedProfit">+20.00 EUR</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Max. Verlust:</span>
+                                <span class="result-value danger" id="maxLoss">-10.00 EUR</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Risk/Reward Ratio:</span>
+                                <span class="result-value" id="riskReward">2.0</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Tab Content: Settings -->
+        <div id="tab-settings" class="tab-content">
+            <div class="settings-card">
+                <h2>⚙️ Allgemeine Einstellungen</h2>
+                <p class="card-description">Bot-Verhalten und erweiterte Optionen</p>
+                
+                <!-- Neue Sektion: Exchange-Order-Sync -->
+                <div class="settings-section">
+                    <h3>🔗 Order-Synchronisation</h3>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label class="setting-title">Externe Orders synchronisieren</label>
+                            <p class="setting-description">
+                                Zeige auch Orders an, die du direkt an der Börse (z.B. Binance App oder Website) erstellt hast. 
+                                Diese erscheinen dann in deinen "Offenen Orders" und können auch über die App verwaltet werden.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="syncExchangeOrders" onchange="toggleExchangeOrderSync()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <hr class="settings-divider">
+                
+                <form id="settingsForm">
+                    <div class="form-group">
+                        <label for="positionDifference">Differenz zwischen Positionen (%)</label>
+                        <input type="number" id="positionDifference" name="positionDifference" placeholder="1.0" min="0.1" max="100" step="0.1" value="1.0">
+                        <small class="help-text">Preisabstand zwischen einzelnen Bot-Positionen</small>
+                    </div>
+                    
+                    <!-- Bot aktivieren Toggle -->
+                    <div class="form-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label">Bot aktivieren</label>
+                                <small class="help-text">Bot startet/stoppt automatisches Trading</small>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableBot" name="enableBot" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Benachrichtigungen Toggle -->
+                    <div class="form-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label">Benachrichtigungen aktivieren</label>
+                                <small class="help-text">Erhalten Sie Updates über Trades und Fehler</small>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableNotifications" name="enableNotifications" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Test-Modus Toggle -->
+                    <div class="form-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label">Test-Modus (Paper Trading)</label>
+                                <small class="help-text">Bot handelt mit virtuellem Geld zum Testen</small>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableTestMode" name="enableTestMode">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="maxDailyTrades">Maximale Trades pro Tag</label>
+                        <input type="number" id="maxDailyTrades" name="maxDailyTrades" min="1" max="1000" value="50" required>
+                        <small class="help-text">Verhindert übermäßiges Trading</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Speichern</button>
+                        <button type="button" class="btn-danger" onclick="resetSettings()">Zurücksetzen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ===== GLOBALE VARIABLEN =====
+        let currentEditingExchangeId = null;
+        
+        // Tab-Switching Funktion
+        function switchTab(tabName) {
+            // Alle Tabs deaktivieren
+            const allTabs = document.querySelectorAll('.tab-button');
+            const allContents = document.querySelectorAll('.tab-content');
+            
+            allTabs.forEach(tab => tab.classList.remove('active'));
+            allContents.forEach(content => content.classList.remove('active'));
+            
+            // Aktiven Tab aktivieren
+            const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
+            const activeContent = document.getElementById(`tab-${tabName}`);
+            
+            if (activeButton && activeContent) {
+                activeButton.classList.add('active');
+                activeContent.classList.add('active');
+            }
+            
+            // 🔥 NEU: Lade Trading-Pairs wenn Currency-Tab geöffnet wird
+            if (tabName === 'currency') {
+                console.log('[switchTab] Currency-Tab geöffnet - lade Trading-Pairs...');
+                loadAvailablePairs();
+            }
+        }
+        
+        // Trading-Pair Display aktualisieren
+        document.getElementById('baseCurrency')?.addEventListener('change', updateTradingPair);
+        document.getElementById('quoteCurrency')?.addEventListener('change', updateTradingPair);
+        
+        function updateTradingPair() {
+            const base = document.getElementById('baseCurrency').value;
+            const quote = document.getElementById('quoteCurrency').value;
+            const display = document.getElementById('tradingPairDisplay');
+            
+            if (base && quote) {
+                display.textContent = `${base}/${quote}`;
+                display.style.color = '#00b2c8';
+                display.style.fontWeight = 'bold';
+            } else {
+                display.textContent = 'Bitte Währungen auswählen';
+                display.style.color = '#888';
+                display.style.fontWeight = 'normal';
+            }
+        }
+        
+        // Trailing Stop Settings Toggle
+        function toggleTrailingStopSettings() {
+            const checkbox = document.getElementById('enableTrailingStop');
+            const settings = document.getElementById('trailingStopSettings');
+            
+            if (checkbox.checked) {
+                // Trailing Stop ist aktiv
+                settings.style.display = 'block';
+                
+                // TSL-Felder als required markieren
+                document.getElementById('trailingStopActivation').required = true;
+                document.getElementById('trailingStopDistance').required = true;
+            } else {
+                // Trailing Stop ist deaktiviert
+                settings.style.display = 'none';
+                
+                // TSL-Felder nicht mehr required
+                document.getElementById('trailingStopActivation').required = false;
+                document.getElementById('trailingStopDistance').required = false;
+            }
+        }
+        
+        // Initial State setzen
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleTrailingStopSettings();
+        });
+        
+        // Verbindung testen
+        function testConnection() {
+            alert('Verbindungstest wird durchgeführt...');
+            // TODO: Backend API-Call
+        }
+        
+        // Key bearbeiten
+        function editKey(id) {
+            alert('Key bearbeiten: ' + id);
+            // TODO: Implementierung
+        }
+        
+        // Key löschen
+        function deleteKey(id) {
+            if (confirm('Möchten Sie diesen API-Key wirklich löschen?')) {
+                alert('Key gelöscht: ' + id);
+                // TODO: Backend API-Call
+            }
+        }
+        
+        // Einstellungen zurücksetzen
+        function resetSettings() {
+            if (confirm('Möchten Sie alle Einstellungen auf Standard zurücksetzen?')) {
+                document.getElementById('settingsForm').reset();
+                alert('Einstellungen zurückgesetzt');
+            }
+        }
+        
+        // Logout Funktion
+        function logout() {
+            localStorage.removeItem('isLoggedIn');
+            window.location.href = '/logout';
+        }
+        
+        // ========================================
+        // EXCHANGE ORDER SYNC FUNCTIONS (NEU)
+        // ========================================
+        
+        // Toggle Exchange-Order-Sync
+        async function toggleExchangeOrderSync() {
+            const enabled = document.getElementById('syncExchangeOrders').checked;
+            
+            try {
+                const response = await fetch('/api/user/settings/sync-exchange-orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                } else {
+                    showNotification(result.error || 'Fehler beim Speichern', 'error');
+                    // Toggle zurücksetzen bei Fehler
+                    document.getElementById('syncExchangeOrders').checked = !enabled;
+                }
+                
+            } catch (error) {
+                console.error('Fehler beim Speichern:', error);
+                showNotification('Fehler beim Speichern der Einstellung', 'error');
+                // Toggle zurücksetzen bei Fehler
+                document.getElementById('syncExchangeOrders').checked = !enabled;
+            }
+        }
+        
+        // Lade User-Einstellungen beim Laden der Seite
+        async function loadUserSettings() {
+            try {
+                const response = await fetch('/api/user/settings');
+                const settings = await response.json();
+                
+                // Setze Toggle-Status
+                document.getElementById('syncExchangeOrders').checked = settings.syncExchangeOrders || false;
+                
+            } catch (error) {
+                console.error('Fehler beim Laden der Einstellungen:', error);
+            }
+        }
+        
+        // ✅ NEU: Lade Bot-Strategy beim Laden der Seite
+        async function loadBotStrategy() {
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) {
+                console.log('[loadBotStrategy] Keine Bot-ID gefunden, überspringe Laden');
+                return;
+            }
+            
+            try {
+                console.log('[loadBotStrategy] Lade Strategy für Bot:', botId);
+                const response = await fetch(`/api/bots/${botId}/strategy`);
+                
+                if (!response.ok) {
+                    console.log('[loadBotStrategy] Keine Strategy gefunden oder Fehler beim Laden');
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.strategy) {
+                    const strategy = data.strategy;
+                    console.log('[loadBotStrategy] Strategy geladen:', strategy);
+                    
+                    // Parse parameters wenn es ein JSON String ist
+                    let params = {};
+                    if (typeof strategy.parameters === 'string') {
+                        try {
+                            params = JSON.parse(strategy.parameters);
+                        } catch (e) {
+                            console.error('[loadBotStrategy] Fehler beim Parsen der Parameter:', e);
+                        }
+                    } else {
+                        params = strategy.parameters || {};
+                    }
+                    
+                    // Befülle Standard-Felder
+                    if (params.tradingPair) document.getElementById('tradingPair').value = params.tradingPair;
+                    if (params.investmentAmount) document.getElementById('investmentAmount').value = params.investmentAmount;
+                    if (params.profitTarget) document.getElementById('profitTarget').value = params.profitTarget;
+                    if (params.stopLoss) document.getElementById('stopLoss').value = params.stopLoss;
+                    if (params.maxTradesPerDay) document.getElementById('maxTrades').value = params.maxTradesPerDay;
+                    
+                    // ✅ NEU: Befülle Trailing-Stop Felder
+                    const enableTrailingStop = strategy.enableTrailingStop || false;
+                    const trailingStopActivation = strategy.trailingStopActivation || 5.0;
+                    const trailingStopDistance = strategy.trailingStopDistance || 2.0;
+                    
+                    document.getElementById('enableTrailingStop').checked = enableTrailingStop;
+                    document.getElementById('trailingStopActivation').value = trailingStopActivation;
+                    document.getElementById('trailingStopDistance').value = trailingStopDistance;
+                    
+                    // Zeige/Verstecke Trailing-Stop Settings basierend auf Checkbox
+                    toggleTrailingStopSettings();
+                    
+                    console.log('[loadBotStrategy] Strategy-Felder befüllt', {
+                        enableTrailingStop,
+                        trailingStopActivation,
+                        trailingStopDistance
+                    });
+                }
+                
+            } catch (error) {
+                console.error('[loadBotStrategy] Fehler beim Laden der Strategy:', error);
+            }
+        }
+        
+        // Notification-System
+        function showNotification(message, type = 'info') {
+            // Erstelle Notification Element
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+            
+            // Füge zu Body hinzu
+            document.body.appendChild(notification);
+            
+            // Animiere Einblenden
+            setTimeout(() => notification.classList.add('show'), 10);
+            
+            // Entferne nach 3 Sekunden
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // ========================================
+        // ZENTRALE SAVE-FUNKTION
+        // ========================================
+        
+        let hasUnsavedChanges = false;
+        let autoSaveInterval = null;
+        
+        // Update Save Status
+        function updateSaveStatus(status, text, icon) {
+            const statusElement = document.getElementById('saveStatus');
+            const iconElement = document.getElementById('saveStatusIcon');
+            const textElement = document.getElementById('saveStatusText');
+            
+            if (!statusElement || !iconElement || !textElement) return;
+            
+            iconElement.textContent = icon;
+            textElement.textContent = text;
+            
+            if (status === 'saving') {
+                statusElement.style.color = '#00b2c8';
+            } else if (status === 'saved') {
+                statusElement.style.color = '#4caf50';
+            } else if (status === 'error') {
+                statusElement.style.color = '#f44336';
+            } else {
+                statusElement.style.color = '#aaa';
+            }
+        }
+        
+        // Auto-Save starten
+        function startAutoSave() {
+            // Auto-Save alle 5 Sekunden
+            autoSaveInterval = setInterval(() => {
+                if (hasUnsavedChanges) {
+                    console.log('[AutoSave] Ungespeicherte Änderungen gefunden - speichere automatisch...');
+                    saveAllSettings();
+                }
+            }, 5000); // 5 Sekunden
+            
+            console.log('[AutoSave] Auto-Save aktiviert (alle 5 Sek.)');
+        }
+        
+        // Auto-Save stoppen
+        function stopAutoSave() {
+            if (autoSaveInterval) {
+                clearInterval(autoSaveInterval);
+                autoSaveInterval = null;
+                console.log('[AutoSave] Auto-Save deaktiviert');
+            }
+        }
+        
+        // Zentrale Save-Funktion für alle Einstellungen
+        async function saveAllSettings() {
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) {
+                console.warn('[saveAllSettings] Keine botId gefunden - Bot wurde noch nicht erstellt');
+                // Kein Alert bei Auto-Save, nur bei manuellem Speichern
+                if (event && event.type !== 'interval') {
+                    showNotification('⚠️ Bitte erstellen Sie zuerst einen Bot!', 'error');
+                }
+                return;
+            }
+            
+            console.log('[saveAllSettings] Speichere alle Einstellungen für Bot:', botId);
+            updateSaveStatus('saving', 'Speichere...', '⏳');
+            
+            try {
+                // 1. Exchange Settings speichern (falls ausgefüllt)
+                const exchangeName = document.getElementById('exchangeName')?.value;
+                const apiKey = document.getElementById('apiKey')?.value;
+                const secretKey = document.getElementById('secretKey')?.value;
+                
+                if (exchangeName && apiKey && secretKey) {
+                    console.log('[saveAllSettings] Speichere Exchange Settings...');
+                    const connectionName = document.getElementById('connectionName')?.value || null;
+                    const passphrase = document.getElementById('passphrase')?.value || null;
+                    
+                    const exchangeData = {
+                        botId: botId,
+                        exchangeName: exchangeName,
+                        connectionName: connectionName,
+                        apiKey: apiKey,
+                        secretKey: secretKey,
+                        passphrase: passphrase,
+                        active: true
+                    };
+                    
+                    const exchangeResponse = await fetch('/api/exchange-settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(exchangeData)
+                    });
+                    
+                    if (!exchangeResponse.ok) {
+                        throw new Error('Exchange Settings konnten nicht gespeichert werden');
+                    }
+                    
+                    console.log('[saveAllSettings] Exchange Settings gespeichert');
+                }
+                
+                // 2. Bot Strategy speichern (falls ausgefüllt)
+                const tradingPair = document.getElementById('tradingPair')?.value;
+                
+                if (tradingPair) {
+                    console.log('[saveAllSettings] Speichere Bot Strategy...');
+                    
+                    // Trailing Stop Werte auslesen
+                    const enableTrailingStop = document.getElementById('enableTrailingStop')?.checked || false;
+                    const trailingStopActivation = enableTrailingStop ? (parseFloat(document.getElementById('trailingStopActivation')?.value) || 5.0) : 5.0;
+                    const trailingStopDistance = enableTrailingStop ? (parseFloat(document.getElementById('trailingStopDistance')?.value) || 2.0) : 2.0;
+                    
+                    const strategyData = {
+                        botId: botId,
+                        strategyName: 'Grid Trading', // Default Strategie
+                        tradingPair: tradingPair,
+                        investmentAmount: parseFloat(document.getElementById('investmentAmount')?.value) || 100,
+                        profitTarget: parseFloat(document.getElementById('profitTarget')?.value) || 1.5,
+                        stopLoss: parseFloat(document.getElementById('stopLoss')?.value) || 2.0,
+                        maxTradesPerDay: parseInt(document.getElementById('maxTrades')?.value) || 10,
+                        enableTrailingStop: enableTrailingStop,
+                        trailingStopActivation: trailingStopActivation,
+                        trailingStopDistance: trailingStopDistance,
+                        active: true
+                    };
+                    
+                    console.log('[saveAllSettings] Strategy Data:', strategyData);
+                    
+                    const strategyResponse = await fetch('/api/bot-strategies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(strategyData)
+                    });
+                    
+                    if (!strategyResponse.ok) {
+                        throw new Error('Bot Strategy konnte nicht gespeichert werden');
+                    }
+                    
+                    console.log('[saveAllSettings] Bot Strategy gespeichert');
+                }
+                
+                // Erfolg
+                updateSaveStatus('saved', 'Alle Änderungen gespeichert', '✅');
+                hasUnsavedChanges = false;
+                // showNotification('✅ Einstellungen erfolgreich gespeichert', 'success'); // Entfernt: Auto-Save ohne Popup
+                
+            } catch (error) {
+                console.error('[saveAllSettings] Fehler beim Speichern:', error);
+                updateSaveStatus('error', 'Fehler beim Speichern', '❌');
+                showNotification('❌ Fehler beim Speichern: ' + error.message, 'error');
+            }
+        }
+        
+        // Unsaved Changes Warning beim Verlassen der Seite
+        window.addEventListener('beforeunload', (e) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = 'Sie haben ungespeicherte Änderungen. Möchten Sie die Seite wirklich verlassen?';
+                return e.returnValue;
+            }
+        });
+        
+        // Initial Load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUserSettings();
+            loadBotExchangeSettings(); // ✅ NEU: Lade Exchange-Settings beim Seitenladen
+            loadBotStrategy(); // ✅ NEU: Lade Bot-Strategy beim Seitenladen (inkl. Trailing-Stop)
+            
+            // Auto-Save alle 5 Sekunden starten
+            startAutoSave();
+            
+            // Unsaved Changes Tracking
+            const formInputs = document.querySelectorAll('input, select, textarea');
+            formInputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    hasUnsavedChanges = true;
+                    updateSaveStatus('unsaved', 'Ungespeicherte Änderungen', '⚠️');
+                });
+            });
+            
+            // ✅ NEU: Auto-Save für Exchange-Felder (speichert sofort wenn alle Pflichtfelder ausgefüllt)
+            const exchangeInputs = ['exchangeName', 'apiKey', 'secretKey', 'passphrase', 'connectionName'];
+            let exchangeAutoSaveTimer = null;
+            
+            exchangeInputs.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', () => {
+                        // Clear previous timer
+                        if (exchangeAutoSaveTimer) {
+                            clearTimeout(exchangeAutoSaveTimer);
+                        }
+                        
+                        // Set new timer: Save after 500ms of inactivity (statt 100ms)
+                        exchangeAutoSaveTimer = setTimeout(() => {
+                            autoSaveExchangeSettings();
+                        }, 500); // 500ms Debounce - verhindert zu häufiges Speichern beim Tippen
+                    });
+                }
+            });
+        });
+        
+        // ✅ NEU: Auto-Save für Exchange-Settings (speichert auch unvollständige Eingaben als Draft)
+        async function autoSaveExchangeSettings() {
+            const exchangeName = document.getElementById('exchangeName')?.value;
+            const apiKey = document.getElementById('apiKey')?.value;
+            const secretKey = document.getElementById('secretKey')?.value;
+            
+            // ✅ WICHTIG: Nur speichern wenn MINDESTENS Exchange-Name UND API-Key vorhanden sind
+            // Draft-Mode erlaubt unvollständige Eingaben, aber Exchange + API-Key sind Minimum
+            if (!exchangeName) {
+                console.log('[AutoSave Exchange] Exchange-Name fehlt, überspringe...');
+                return;
+            }
+            
+            // Wenn Exchange ausgewählt, aber KEINE Keys eingegeben → nicht speichern
+            if (!apiKey && !secretKey) {
+                console.log('[AutoSave Exchange] Keine API-Keys eingegeben, überspringe...');
+                return;
+            }
+            
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) {
+                console.warn('[AutoSave Exchange] Keine botId gefunden');
+                return;
+            }
+            
+            console.log('[AutoSave Exchange] Speichere Exchange-Settings...', {
+                exchangeName,
+                hasApiKey: !!apiKey,
+                hasSecretKey: !!secretKey
+            });
+            
+            try {
+                const connectionName = document.getElementById('connectionName')?.value || null;
+                const passphrase = document.getElementById('passphrase')?.value || null;
+                
+                const exchangeData = {
+                    botId: botId,
+                    exchangeName: exchangeName,
+                    connectionName: connectionName,
+                    apiKey: apiKey,
+                    secretKey: secretKey,
+                    passphrase: passphrase,
+                    active: true
+                };
+                
+                const response = await fetch('/api/exchange-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(exchangeData)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('[AutoSave Exchange] ✅ Erfolgreich gespeichert', result);
+                    showNotification('✅ Exchange-Einstellungen automatisch gespeichert', 'success');
+                } else {
+                    const error = await response.json();
+                    console.error('[AutoSave Exchange] ❌ Fehler beim Speichern', error);
+                    showNotification('❌ Fehler: ' + (error.message || 'Unbekannter Fehler'), 'error');
+                }
+            } catch (error) {
+                console.error('[AutoSave Exchange] Fehler:', error);
+                showNotification('❌ Verbindungsfehler beim Speichern', 'error');
+            }
+        }
+        
+        /**
+         * ✅ NEU: Lädt Exchange-Settings für diesen Bot beim Seitenladen
+         * Füllt das Formular automatisch mit gespeicherten Werten
+         */
+        let hasExistingExchangeSettings = false; // ✅ Flag: Gibt an ob bereits Settings vorhanden sind
+        
+        async function loadBotExchangeSettings() {
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) {
+                console.log('[LoadBotExchange] Keine Bot-ID gefunden');
+                return;
+            }
+            
+            try {
+                console.log('[LoadBotExchange] Lade Exchange-Settings für Bot', botId);
+                
+                // API-Call: Hole Exchange-Settings für diesen Bot
+                const response = await fetch(`/api/exchange-settings/bot/${botId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        console.log('[LoadBotExchange] Keine Exchange-Settings für diesen Bot gefunden');
+                        hasExistingExchangeSettings = false; // ✅ Keine Settings vorhanden
+                        return; // Kein Fehler - Bot hat einfach noch keine Exchange-Settings
+                    }
+                    throw new Error('Fehler beim Laden: ' + response.status);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const exchange = data.data;
+                    console.log('[LoadBotExchange] ✅ Exchange-Settings geladen:', exchange.exchangeName);
+                    
+                    hasExistingExchangeSettings = true; // ✅ Settings vorhanden!
+                    
+                    // Fülle Formular-Felder
+                    document.getElementById('exchangeName').value = exchange.exchangeName || '';
+                    document.getElementById('connectionName').value = exchange.connectionName || '';
+                    
+                    // API-Key anzeigen (verschlüsselt aus DB)
+                    document.getElementById('apiKey').value = exchange.apiKey || '';
+                    
+                    // Secret-Key NICHT anzeigen (Sicherheit!)
+                    // User muss Secret-Key neu eingeben beim Bearbeiten
+                    document.getElementById('secretKey').value = '';
+                    document.getElementById('secretKey').placeholder = 'Secret Key (bereits gespeichert - zum Ändern neu eingeben)';
+                    document.getElementById('secretKey').required = false; // ✅ Optional bei bestehenden Settings!
+                    
+                    // Passphrase NICHT anzeigen
+                    document.getElementById('passphrase').value = '';
+                    
+                    // Zeige Passphrase-Feld wenn nötig
+                    togglePassphraseField();
+                    
+                    // Zeige Info-Nachricht
+                    showNotification('✅ Exchange-Verbindung geladen: ' + exchange.exchangeName, 'success');
+                } else {
+                    console.log('[LoadBotExchange] Keine Exchange-Settings vorhanden');
+                    hasExistingExchangeSettings = false; // ✅ Keine Settings vorhanden
+                }
+                
+            } catch (error) {
+                console.error('[LoadBotExchange] Fehler:', error);
+                hasExistingExchangeSettings = false; // ✅ Bei Fehler: Keine Settings
+                // Kein Error-Notification - ist optional ob Bot Exchange-Settings hat
+            }
+        }
+        
+        // ========================================
+        // BOT CREATION FUNCTIONS (NEU)
+        // ========================================
+        
+        // Add hover effects for strategy cards (falls noch vorhanden)
+        document.addEventListener('DOMContentLoaded', function() {
+            const strategyCards = document.querySelectorAll('.strategy-card');
+            strategyCards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    if (!this.classList.contains('selected')) {
+                        this.style.border = '2px solid #00b2c8';
+                        this.style.background = 'rgba(0, 178, 200, 0.1)';
+                        this.style.transform = 'translateY(-3px)';
+                    }
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    if (!this.classList.contains('selected')) {
+                        this.style.border = '2px solid rgba(255, 255, 255, 0.1)';
+                        this.style.background = 'rgba(255, 255, 255, 0.05)';
+                        this.style.transform = 'translateY(0)';
+                    }
+                });
+            });
+        });
+        
+        // Bot Create Form Submit
+        document.getElementById('botCreateForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (!selectedStrategy) {
+                showNotification('⚠️ Bitte wählen Sie eine Trading-Strategie aus!', 'error');
+                return;
+            }
+            
+            // Collect form data
+            const formData = {
+                botName: document.getElementById('newBotName').value,
+                exchange: document.getElementById('botExchange').value,
+                tradingPair: document.getElementById('botTradingPair').value,
+                startCapital: document.getElementById('startCapital').value,
+                maxTrades: document.getElementById('maxTrades').value,
+                strategy: selectedStrategy,
+                stopLoss: document.getElementById('stopLoss').value,
+                takeProfit: document.getElementById('takeProfit').value,
+                maxLossPerDay: document.getElementById('maxLossPerDay').value || null,
+                tradeSize: document.getElementById('tradeSize').value,
+                description: document.getElementById('botDescription').value,
+                autoStart: document.getElementById('autoStart').checked,
+                notifications: document.getElementById('notifications').checked
+            };
+            
+            console.log('Bot Configuration:', formData);
+            
+            // TODO: Send to backend API
+            // fetch('/api/trading-bot/create', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify(formData)
+            // })
+            // .then(response => response.json())
+            // .then(data => {
+            //     if (data.success) {
+            //         showNotification('✅ Bot erfolgreich erstellt!', 'success');
+            //         setTimeout(() => window.location.href = '/trading-dashboard', 1500);
+            //     }
+            // });
+            
+            // Temporary success message
+            showNotification('✅ Bot-Konfiguration erstellt! (Backend-Integration folgt)', 'success');
+            
+            // Zeige Details
+            const details = `
+Bot Name: ${formData.botName}
+Exchange: ${formData.exchange}
+Trading Pair: ${formData.tradingPair}
+Strategie: ${formData.strategy}
+Startkapital: €${formData.startCapital}
+            `.trim();
+            
+            setTimeout(() => {
+                if (confirm(`Bot erstellt!\n\n${details}\n\nZum Trading Dashboard wechseln?`)) {
+                    window.location.href = '/trading-dashboard';
+                }
+            }, 500);
+        });
+        
+        // ===== EXCHANGE SETTINGS FUNKTIONEN =====
+        
+        // Toggle Passphrase Field based on Exchange Selection
+        function togglePassphraseField() {
+            const exchangeName = document.getElementById('exchangeName').value;
+            const passphraseGroup = document.getElementById('passphraseGroup');
+            const passphraseInput = document.getElementById('passphrase');
+            
+            // OKX und Coinbase benötigen Passphrase
+            if (exchangeName === 'OKX' || exchangeName === 'Coinbase') {
+                passphraseGroup.style.display = 'block';
+                passphraseInput.required = true;
+            } else {
+                passphraseGroup.style.display = 'none';
+                passphraseInput.required = false;
+                passphraseInput.value = ''; // Clear value
+            }
+        }
+        
+        // Toggle Secret Key Visibility
+        function toggleSecretVisibility() {
+            const secretInput = document.getElementById('secretKey');
+            const button = event.target;
+            
+            if (secretInput.type === 'password') {
+                secretInput.type = 'text';
+                button.textContent = '🙈';
+            } else {
+                secretInput.type = 'password';
+                button.textContent = '👁️';
+            }
+        }
+        
+        // Toggle Passphrase Visibility
+        function togglePassphraseVisibility() {
+            const passphraseInput = document.getElementById('passphrase');
+            const button = event.target;
+            
+            if (passphraseInput.type === 'password') {
+                passphraseInput.type = 'text';
+                button.textContent = '🙈';
+            } else {
+                passphraseInput.type = 'password';
+                button.textContent = '👁️';
+            }
+        }
+        
+        // Save Exchange Settings
+        function saveExchangeSettings(event) {
+            event.preventDefault();
+            
+            const formData = {
+                exchangeName: document.getElementById('exchangeName').value,
+                connectionName: document.getElementById('connectionName').value || null,
+                apiKey: document.getElementById('apiKey').value,
+                secretKey: document.getElementById('secretKey').value,
+                passphrase: document.getElementById('passphrase').value || null,
+                active: true
+            };
+            
+            // Edit mode
+            if (currentEditingExchangeId !== null) {
+                formData.id = currentEditingExchangeId;
+            }
+            
+            console.log('Saving Exchange Settings:', formData);
+            
+            // API Call
+            fetch('/api/exchange-settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json();
+            })
+            .then(data => {
+                // showNotification('✅ Exchange-Verbindung erfolgreich gespeichert!', 'success'); // Entfernt: Auto-Save ohne Popup
+                console.log('[Exchange] Erfolgreich gespeichert');
+                resetExchangeForm();
+                loadExchangeList();
+            })
+            .catch(error => {
+                console.error('Error saving exchange settings:', error);
+                showNotification('❌ Fehler beim Speichern: ' + (error.message || 'Unbekannter Fehler'), 'error');
+            });
+        }
+        
+        // Test Exchange Connection and Auto-Save on Success (Bot-spezifisch)
+        // NUR Verbindung testen (ohne Speichern)
+        async function testConnection() {
+            console.log('[testConnection] Funktion wurde aufgerufen');
+            
+            const exchangeName = document.getElementById('exchangeName')?.value;
+            const apiKey = document.getElementById('apiKey')?.value;
+            const secretKey = document.getElementById('secretKey')?.value;
+            const passphrase = document.getElementById('passphrase')?.value || null;
+            
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            console.log('[testConnection] Eingabedaten:', {
+                exchangeName: exchangeName,
+                apiKey: apiKey ? apiKey.substring(0,8)+'...' : 'LEER',
+                hasSecret: !!secretKey,
+                hasPassphrase: !!passphrase,
+                hasExisting: hasExistingExchangeSettings,
+                botId: botId
+            });
+            
+            // Validierung: Exchange ist Pflicht
+            if (!exchangeName) {
+                console.error('[testConnection] Exchange-Name fehlt');
+                showNotification('⚠️ Bitte wählen Sie eine Börse aus', 'error');
+                return;
+            }
+            
+            // Button während des Tests deaktivieren
+            const testBtn = event?.target;
+            let originalText = '';
+            if (testBtn) {
+                originalText = testBtn.innerHTML;
+                testBtn.disabled = true;
+                testBtn.innerHTML = '🔄 Teste Verbindung...';
+            }
+            
+            try {
+                let testResponse;
+                
+                // ✅ INTELLIGENTE ENTSCHEIDUNG: Welcher Test-Weg?
+                if (hasExistingExchangeSettings && !secretKey) {
+                    // VARIANTE 1: Test mit gespeicherten Keys (Backend holt aus DB)
+                    console.log('[testConnection] 📦 Teste mit gespeicherten Keys (Backend-Test)');
+                    
+                    if (!botId) {
+                        throw new Error('Bot-ID nicht gefunden');
+                    }
+                    
+                    testResponse = await fetch(`/api/exchange-settings/test-saved/${botId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                } else {
+                    // VARIANTE 2: Test mit neu eingegebenen Keys (Frontend sendet Keys)
+                    console.log('[testConnection] 🔑 Teste mit neu eingegebenen Keys (Frontend-Test)');
+                    
+                    // Validierung für neu eingegebene Keys
+                    if (!apiKey || !secretKey) {
+                        console.error('[testConnection] API-Key oder Secret-Key fehlt');
+                        showNotification('⚠️ Bitte füllen Sie API-Key und Secret-Key aus', 'error');
+                        if (testBtn) {
+                            testBtn.disabled = false;
+                            testBtn.innerHTML = originalText;
+                        }
+                        return;
+                    }
+                    
+                    // Passphrase-Validierung für OKX und Coinbase
+                    if ((exchangeName === 'OKX' || exchangeName === 'Coinbase') && !passphrase) {
+                        console.error('[testConnection] Passphrase fehlt für', exchangeName);
+                        showNotification('⚠️ Passphrase ist für ' + exchangeName + ' erforderlich!', 'error');
+                        if (testBtn) {
+                            testBtn.disabled = false;
+                            testBtn.innerHTML = originalText;
+                        }
+                        return;
+                    }
+                    
+                    testResponse = await fetch('/api/exchange-settings/test', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            exchangeName: exchangeName,
+                            apiKey: apiKey,
+                            secretKey: secretKey,
+                            passphrase: passphrase
+                        })
+                    });
+                }
+                
+                const testResult = await testResponse.json();
+                console.log('[testConnection] Test Response:', testResult);
+                
+                if (testResult.success) {
+                    showNotification(testResult.message || '✅ Verbindung erfolgreich getestet!', 'success');
+                } else {
+                    showNotification(testResult.message || '❌ Verbindung fehlgeschlagen', 'error');
+                }
+                
+            } catch (error) {
+                console.error('[testConnection] FEHLER:', error);
+                showNotification('❌ Fehler beim Testen: ' + error.message, 'error');
+            } finally {
+                // Button wieder aktivieren
+                if (testBtn) {
+                    testBtn.disabled = false;
+                    testBtn.innerHTML = originalText;
+                }
+            }
+        }
+        
+        // Test Exchange Connection (kept for compatibility)
+        function testExchangeConnection() {
+            const exchangeName = document.getElementById('exchangeName').value;
+            const apiKey = document.getElementById('apiKey').value;
+            const secretKey = document.getElementById('secretKey').value;
+            const passphrase = document.getElementById('passphrase').value || null;
+            
+            if (!exchangeName || !apiKey || !secretKey) {
+                showNotification('⚠️ Bitte füllen Sie alle Pflichtfelder aus!', 'error');
+                return;
+            }
+            
+            showNotification('🔄 Verbindung wird getestet...', 'info');
+            
+            // API Call zum Testen
+            fetch('/api/exchange-settings/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    exchangeName: exchangeName,
+                    apiKey: apiKey,
+                    secretKey: secretKey,
+                    passphrase: passphrase
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Verbindung erfolgreich! API-Keys sind gültig.', 'success');
+                } else {
+                    showNotification('❌ Verbindung fehlgeschlagen: ' + (data.message || 'Ungültige API-Keys'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error testing connection:', error);
+                showNotification('❌ Fehler beim Verbindungstest: ' + error.message, 'error');
+            });
+        }
+        
+        // Load Exchange List
+        function loadExchangeList() {
+            fetch('/api/exchange-settings/list')
+            .then(response => response.json())
+            .then(data => {
+                const exchangeList = document.getElementById('exchangeList');
+                const noExchangesMessage = document.getElementById('noExchangesMessage');
+                
+                // ✅ Safety Check: Elemente existieren nur im Key-Tab
+                if (!exchangeList || !noExchangesMessage) {
+                    console.log('[loadExchangeList] Elemente nicht gefunden (wahrscheinlich nicht im Key-Tab)');
+                    return;
+                }
+                
+                if (data.length === 0) {
+                    noExchangesMessage.style.display = 'block';
+                    // Remove all exchange cards
+                    document.querySelectorAll('.exchange-card').forEach(card => card.remove());
+                } else {
+                    noExchangesMessage.style.display = 'none';
+                    
+                    // Remove old cards
+                    document.querySelectorAll('.exchange-card').forEach(card => card.remove());
+                    
+                    // Add new cards
+                    data.forEach(exchange => {
+                        const card = createExchangeCard(exchange);
+                        exchangeList.insertBefore(card, noExchangesMessage);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading exchanges:', error);
+                showNotification('❌ Fehler beim Laden der Exchange-Liste', 'error');
+            });
+        }
+        
+        // Create Exchange Card HTML
+        function createExchangeCard(exchange) {
+            const card = document.createElement('div');
+            card.className = 'exchange-card';
+            card.style.cssText = 'background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s ease;';
+            
+            const statusColor = exchange.active ? '#0f0' : '#888';
+            const statusText = exchange.active ? '✓ Aktiv' : '⏸ Inaktiv';
+            
+            const exchangeEmoji = {
+                'Binance': '🟡',
+                'Bybit': '🟠',
+                'OKX': '🔵',
+                'Kraken': '🟣',
+                'Coinbase': '🔴',
+                'KuCoin': '🟢',
+                'Bitfinex': '⚫',
+                'Huobi': '🔴'
+            };
+            
+            card.innerHTML = `
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.5rem;">
+                        <span style="font-size: 1.5rem;">${exchangeEmoji[exchange.exchangeName] || '🔗'}</span>
+                        <h4 style="color: #00b2c8; margin: 0; font-size: 1.2rem;">${exchange.exchangeName}</h4>
+                        <span style="color: ${statusColor}; font-size: 0.9rem; padding: 0.2rem 0.6rem; background: rgba(0,0,0,0.3); border-radius: 5px;">${statusText}</span>
+                    </div>
+                    <div style="color: #ddd; font-size: 0.95rem; margin-bottom: 0.3rem;">
+                        ${exchange.connectionName ? '<strong>Name:</strong> ' + exchange.connectionName : '<span style="color: #888;">Kein Name vergeben</span>'}
+                    </div>
+                    <div style="color: #888; font-size: 0.85rem;">
+                        <strong>API-Key:</strong> ${exchange.apiKey.substring(0, 8)}••••••••
+                    </div>
+                    <div style="color: #666; font-size: 0.8rem; margin-top: 0.3rem;">
+                        Erstellt: ${new Date(exchange.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.8rem; align-items: center;">
+                    <button onclick="toggleExchangeActive(${exchange.id}, ${!exchange.active})" class="btn-icon" style="background: rgba(0, 178, 200, 0.2); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(0, 178, 200, 0.3); color: #00b2c8; cursor: pointer; transition: all 0.3s;" title="${exchange.active ? 'Deaktivieren' : 'Aktivieren'}">
+                        ${exchange.active ? '⏸' : '▶️'}
+                    </button>
+                    <button onclick="editExchange(${exchange.id})" class="btn-icon" style="background: rgba(255, 152, 0, 0.2); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255, 152, 0, 0.3); color: #ff9800; cursor: pointer; transition: all 0.3s;" title="Bearbeiten">
+                        ✏️
+                    </button>
+                    <button onclick="deleteExchange(${exchange.id})" class="btn-icon" style="background: rgba(255, 0, 0, 0.2); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255, 0, 0, 0.3); color: #f00; cursor: pointer; transition: all 0.3s;" title="Löschen">
+                        🗑️
+                    </button>
+                </div>
+            `;
+            
+            // Hover effects
+            card.addEventListener('mouseenter', function() {
+                this.style.background = 'rgba(255, 255, 255, 0.08)';
+                this.style.borderColor = 'rgba(0, 178, 200, 0.4)';
+                this.style.transform = 'translateX(5px)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.background = 'rgba(255, 255, 255, 0.05)';
+                this.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                this.style.transform = 'translateX(0)';
+            });
+            
+            return card;
+        }
+        
+        // Edit Exchange
+        function editExchange(id) {
+            fetch('/api/exchange-settings/' + id)
+            .then(response => response.json())
+            .then(exchange => {
+                // Fill form
+                document.getElementById('exchangeName').value = exchange.exchangeName;
+                document.getElementById('connectionName').value = exchange.connectionName || '';
+                document.getElementById('apiKey').value = exchange.apiKey;
+                document.getElementById('secretKey').value = ''; // Don't show decrypted secret
+                document.getElementById('passphrase').value = ''; // Don't show decrypted passphrase
+                
+                // Show passphrase field if needed
+                togglePassphraseField();
+                
+                // Set edit mode
+                currentEditingExchangeId = id;
+                
+                // Scroll to form
+                document.getElementById('exchangeForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                showNotification('✏️ Bearbeite Exchange-Verbindung (Secret Key muss neu eingegeben werden)', 'info');
+            })
+            .catch(error => {
+                console.error('Error loading exchange for edit:', error);
+                showNotification('❌ Fehler beim Laden der Exchange-Daten', 'error');
+            });
+        }
+        
+        // Delete Exchange
+        function deleteExchange(id) {
+            if (!confirm('Möchten Sie diese Exchange-Verbindung wirklich löschen?')) {
+                return;
+            }
+            
+            fetch('/api/exchange-settings/' + id, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (response.ok) {
+                    showNotification('✅ Exchange-Verbindung gelöscht', 'success');
+                    loadExchangeList();
+                } else {
+                    return response.json().then(err => Promise.reject(err));
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting exchange:', error);
+                showNotification('❌ Fehler beim Löschen: ' + (error.message || 'Unbekannter Fehler'), 'error');
+            });
+        }
+        
+        // Toggle Exchange Active Status
+        function toggleExchangeActive(id, newStatus) {
+            fetch('/api/exchange-settings/' + id + '/toggle', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ active: newStatus })
+            })
+            .then(response => {
+                if (response.ok) {
+                    showNotification(newStatus ? '✅ Exchange aktiviert' : '⏸ Exchange deaktiviert', 'success');
+                    loadExchangeList();
+                } else {
+                    return response.json().then(err => Promise.reject(err));
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling exchange status:', error);
+                showNotification('❌ Fehler beim Statuswechsel', 'error');
+            });
+        }
+        
+        // Reset Exchange Form
+        function resetExchangeForm() {
+            document.getElementById('exchangeForm').reset();
+            document.getElementById('passphraseGroup').style.display = 'none';
+            document.getElementById('passphrase').required = false;
+            currentEditingExchangeId = null;
+            
+            // Reset secret visibility
+            document.getElementById('secretKey').type = 'password';
+            document.getElementById('passphrase').type = 'password';
+        }
+        
+        // Load exchanges on page load (if on Key tab)
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're on the Key tab
+            const urlParams = new URLSearchParams(window.location.search);
+            const tab = urlParams.get('tab');
+            
+            if (tab === 'key' || document.querySelector('.tab-button[data-tab="key"]').classList.contains('active')) {
+                loadExchangeList();
+            }
+        });
+        
+        // Reload exchanges when switching to Key tab
+        const originalSwitchTab = window.switchTab;
+        window.switchTab = function(tabName) {
+            originalSwitchTab(tabName);
+            
+            if (tabName === 'key') {
+                loadExchangeList();
+            }
+        };
+        
+        // ===== STRATEGIE-VERWALTUNG =====
+        
+        // Zeigt das Strategie-Formular an
+        function showEditStrategyForm() {
+            document.getElementById('strategyFormContainer').style.display = 'block';
+            
+            // Scroll zum Formular
+            document.getElementById('strategyFormContainer').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+
+            // Prefill: set current strategy selection and parameters if available
+            try {
+                const currentNameEl = document.getElementById('currentStrategyName');
+                const currentParamsEl = document.getElementById('currentStrategyParameters');
+                const select = document.getElementById('strategyName');
+                if (currentNameEl && currentNameEl.value) {
+                    // Falls die aktuelle Strategie nicht als Option existiert, Option dynamisch hinzufügen
+                    if (![...select.options].some(o => o.value === currentNameEl.value)) {
+                        const opt = document.createElement('option');
+                        opt.value = currentNameEl.value;
+                        opt.textContent = currentNameEl.value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                        select.appendChild(opt);
+                    }
+                    select.value = currentNameEl.value;
+                    updateStrategyParameters();
+
+                    // Parameter befüllen
+                    if (currentParamsEl && currentParamsEl.textContent.trim()) {
+                        try {
+                            const params = JSON.parse(currentParamsEl.textContent.trim());
+                            const form = document.getElementById('strategyForm');
+                            Object.keys(params).forEach(key => {
+                                const input = form.querySelector(`#${key}`);
+                                if (input) {
+                                    input.value = params[key];
+                                }
+                            });
+                            // Auto-Save Listeners nach dem Füllen
+                            setupAutoSave();
+                        } catch(e) {
+                            console.warn('[Strategy Prefill] Konnte Parameter nicht parsen:', e);
+                        }
+                    }
+                }
+            } catch(e) {
+                console.warn('[Strategy Prefill] Fehler bei Prefill:', e);
+            }
+        }
+        
+        // Blendet das Strategie-Formular aus
+        function cancelStrategyEdit() {
+            document.getElementById('strategyFormContainer').style.display = 'none';
+            document.getElementById('strategyForm').reset();
+            document.getElementById('strategyParameters').innerHTML = '<p style="color: #888; font-style: italic;">Wählen Sie zuerst eine Strategie aus...</p>';
+        }
+        
+        // Aktualisiert die Parameter-Felder basierend auf gewählter Strategie
+        function updateStrategyParameters() {
+            const strategy = document.getElementById('strategyName').value;
+            const container = document.getElementById('strategyParameters');
+            
+            if (!strategy) {
+                container.innerHTML = '<p style="color: #888; font-style: italic;">Wählen Sie zuerst eine Strategie aus...</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            switch(strategy) {
+                case 'simple_grid':
+                    html = `
+                        <div class="form-group">
+                            <label for="gridSpacing">Grid-Abstand (%)</label>
+                            <input type="number" id="gridSpacing" name="gridSpacing" min="0.1" max="10" step="0.1" value="1" required>
+                            <small class="help-text">Prozentuale Abstände zwischen Grid-Levels</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="targetProfit">Zielgewinn pro Grid (%)</label>
+                            <input type="number" id="targetProfit" name="targetProfit" min="0.1" max="50" step="0.1" value="5" required>
+                            <small class="help-text">Gewinn-Prozentsatz pro Grid-Schritt</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="maxTrades">Max. gleichzeitige Trades</label>
+                            <input type="number" id="maxTrades" name="maxTrades" min="1" max="50" step="1" value="2" required>
+                            <small class="help-text">Begrenzt parallele Positionen</small>
+                        </div>
+                    `;
+                    break;
+                case 'dca':
+                    html = `
+                        <div class="form-group">
+                            <label for="dcaAmount">Investitionsbetrag pro Intervall (EUR)</label>
+                            <input type="number" id="dcaAmount" name="dcaAmount" min="1" step="0.01" value="50" required>
+                            <small class="help-text">Betrag, der in jedem Intervall investiert wird</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="dcaInterval">Intervall</label>
+                            <select id="dcaInterval" name="dcaInterval" required>
+                                <option value="1h">Stündlich</option>
+                                <option value="4h">Alle 4 Stunden</option>
+                                <option value="1d" selected>Täglich</option>
+                                <option value="1w">Wöchentlich</option>
+                            </select>
+                            <small class="help-text">Wie oft soll investiert werden?</small>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'grid':
+                    html = `
+                        <div class="form-group">
+                            <label for="gridLevels">Anzahl Grid-Level</label>
+                            <input type="number" id="gridLevels" name="gridLevels" min="3" max="50" value="10" required>
+                            <small class="help-text">Anzahl der Kauf-/Verkaufs-Orders</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="gridRange">Preisspanne (%)</label>
+                            <input type="number" id="gridRange" name="gridRange" min="1" max="100" step="0.1" value="5" required>
+                            <small class="help-text">Prozentuale Preisspanne für Grid (z.B. 5% = ±2.5%)</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="gridInvestment">Gesamtinvestition (EUR)</label>
+                            <input type="number" id="gridInvestment" name="gridInvestment" min="10" step="0.01" value="100" required>
+                            <small class="help-text">Gesamtbetrag, der auf Grid verteilt wird</small>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'custom_grid':
+                    html = `
+                        <div class="form-group">
+                            <label for="minBuyAmount">Minimale Kaufmenge (EUR)</label>
+                            <input type="number" id="minBuyAmount" name="minBuyAmount" min="1" step="0.1" value="5.5" required>
+                            <small class="help-text">Minimaler Betrag pro Kauf-Order</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="compoundPositions">Compound Positionen</label>
+                            <input type="number" id="compoundPositions" name="compoundPositions" min="1" max="100" value="23" required>
+                            <small class="help-text">Anzahl der Positionen für Compounding</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="downside">Downside-Schutz (%)</label>
+                            <input type="number" id="downside" name="downside" min="0" max="100" step="0.1" value="50" required>
+                            <small class="help-text">Prozentuale Absicherung nach unten</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="gridSpacing">Grid-Abstand (%)</label>
+                            <input type="number" id="gridSpacing" name="gridSpacing" min="0.1" max="10" step="0.1" value="0.5" required>
+                            <small class="help-text">Prozentuale Abstände zwischen Grid-Levels</small>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'scalping':
+                    html = `
+                        <div class="form-group">
+                            <label for="scalpProfit">Gewinnziel pro Trade (%)</label>
+                            <input type="number" id="scalpProfit" name="scalpProfit" min="0.1" max="5" step="0.1" value="0.5" required>
+                            <small class="help-text">Gewinn-Prozentsatz pro Trade</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="scalpLoss">Stop-Loss (%)</label>
+                            <input type="number" id="scalpLoss" name="scalpLoss" min="0.1" max="5" step="0.1" value="0.3" required>
+                            <small class="help-text">Maximaler Verlust pro Trade</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="scalpAmount">Trade-Größe (EUR)</label>
+                            <input type="number" id="scalpAmount" name="scalpAmount" min="10" step="0.01" value="100" required>
+                            <small class="help-text">Betrag pro einzelnem Trade</small>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'swing':
+                    html = `
+                        <div class="form-group">
+                            <label for="swingProfit">Gewinnziel (%)</label>
+                            <input type="number" id="swingProfit" name="swingProfit" min="1" max="50" step="0.5" value="10" required>
+                            <small class="help-text">Gewinn-Prozentsatz für Take-Profit</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="swingLoss">Stop-Loss (%)</label>
+                            <input type="number" id="swingLoss" name="swingLoss" min="1" max="30" step="0.5" value="5" required>
+                            <small class="help-text">Stop-Loss Prozentsatz</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="swingTimeframe">Timeframe</label>
+                            <select id="swingTimeframe" name="swingTimeframe" required>
+                                <option value="1h">1 Stunde</option>
+                                <option value="4h" selected>4 Stunden</option>
+                                <option value="1d">1 Tag</option>
+                            </select>
+                            <small class="help-text">Chart-Timeframe für Analyse</small>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'hodl':
+                    html = `
+                        <div class="form-group">
+                            <label for="hodlAmount">Einmalige Investition (EUR)</label>
+                            <input type="number" id="hodlAmount" name="hodlAmount" min="10" step="0.01" value="1000" required>
+                            <small class="help-text">Betrag für einmaligen Kauf</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="hodlDuration">Haltezeit (Tage)</label>
+                            <input type="number" id="hodlDuration" name="hodlDuration" min="1" value="365" required>
+                            <small class="help-text">Mindest-Haltezeit in Tagen</small>
+                        </div>
+                    `;
+                    break;
+            }
+            
+            container.innerHTML = html;
+            
+            // Auto-Save für neue Parameter-Felder aktivieren
+            setupAutoSave();
+        }
+        
+        // Auto-Save Setup - wird auf allen Input-Feldern aktiviert
+        let autoSaveTimer = null;
+        let isSaving = false;
+        
+        function setupAutoSave() {
+            const form = document.getElementById('strategyForm');
+            if (!form) return;
+            
+            const inputs = form.querySelectorAll('input, select');
+            
+            inputs.forEach(input => {
+                // Entferne alte Listener (falls vorhanden)
+                input.removeEventListener('input', triggerAutoSave);
+                input.removeEventListener('change', triggerAutoSave);
+                
+                // Füge neue Listener hinzu
+                input.addEventListener('input', triggerAutoSave);
+                input.addEventListener('change', triggerAutoSave);
+            });
+            
+            console.log('[AutoSave] Auto-Save aktiviert für', inputs.length, 'Felder');
+        }
+        
+        function triggerAutoSave() {
+            // Verhindere mehrfache gleichzeitige Saves
+            if (isSaving) {
+                console.log('[AutoSave] Save läuft bereits, überspringe...');
+                return;
+            }
+            
+            // Vorherigen Timer abbrechen
+            if (autoSaveTimer) {
+                clearTimeout(autoSaveTimer);
+            }
+            
+            // Neuer Timer: Speichere nach 500ms Inaktivität
+            autoSaveTimer = setTimeout(() => {
+                console.log('[AutoSave] 500ms Pause erkannt, speichere jetzt...');
+                saveStrategyQuiet();
+            }, 500);
+        }
+        
+        // Speichert die Strategie OHNE Notification und Reload
+        function getCurrentBotId() {
+            // 1) Query Param
+            const qp = new URLSearchParams(window.location.search).get('botId');
+            if (qp) return qp;
+            // 2) Data-Attribut irgendwo im DOM
+            const elWithData = document.querySelector('#tab-strategy[data-bot-id], [data-bot-id]');
+            if (elWithData && elWithData.getAttribute('data-bot-id')) {
+                return elWithData.getAttribute('data-bot-id');
+            }
+            // 3) Aus Pfad extrahieren (/bots/{id})
+            const m = window.location.pathname.match(/\/bots\/(\d+)/);
+            if (m && m[1]) return m[1];
+            return null;
+        }
+
+        async function saveStrategyQuiet() {
+            if (isSaving) return;
+            isSaving = true;
+            
+            const botId = getCurrentBotId();
+            
+            if (!botId) {
+                console.error('[AutoSave] Keine Bot-ID gefunden');
+                isSaving = false;
+                return;
+            }
+            
+            const strategyName = document.getElementById('strategyName').value;
+            
+            if (!strategyName) {
+                console.log('[AutoSave] Keine Strategie ausgewählt, überspringe Save');
+                isSaving = false;
+                return;
+            }
+            
+            // Sammle alle Parameter basierend auf Strategie
+            const parameters = {};
+            const form = document.getElementById('strategyForm');
+            const inputs = form.querySelectorAll('input, select');
+            
+            inputs.forEach(input => {
+                if (input.id !== 'strategyName' && input.value) {
+                    parameters[input.id] = parseFloat(input.value) || input.value;
+                }
+            });
+            
+            console.log('[AutoSave] Speichere still im Hintergrund:', { strategyName, parameters });
+            
+            try {
+                const response = await fetch(`/api/bots/${botId}/strategy`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        strategyName: strategyName,
+                        parameters: JSON.stringify(parameters)
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('[AutoSave] ✅ Erfolgreich gespeichert (still)');
+                    // KEINE Notification, KEIN Reload
+                } else {
+                    console.error('[AutoSave] ❌ Fehler:', data.message);
+                    // Nur bei Fehler eine Notification zeigen
+                    showNotification('Auto-Save Fehler: ' + (data.message || 'Unbekannter Fehler'), 'error');
+                }
+            } catch (error) {
+                console.error('[AutoSave] Verbindungsfehler:', error);
+                showNotification('Auto-Save: Verbindungsfehler', 'error');
+            } finally {
+                isSaving = false;
+            }
+        }
+        
+        // Alte Speicher-Funktion (für manuellen Save-Button, falls gewünscht)
+        async function saveStrategy() {
+            const botId = getCurrentBotId();
+            
+            if (!botId) {
+                showNotification('Fehler: Keine Bot-ID gefunden', 'error');
+                return;
+            }
+            
+            const strategyName = document.getElementById('strategyName').value;
+            
+            if (!strategyName) {
+                showNotification('Bitte wählen Sie eine Strategie aus', 'error');
+                return;
+            }
+            
+            // Sammle alle Parameter basierend auf Strategie
+            const parameters = {};
+            const form = document.getElementById('strategyForm');
+            const inputs = form.querySelectorAll('input, select');
+            
+            inputs.forEach(input => {
+                if (input.id !== 'strategyName' && input.value) {
+                    parameters[input.id] = parseFloat(input.value) || input.value;
+                }
+            });
+            
+            console.log('[Strategy] Speichere Strategie:', { strategyName, parameters });
+            
+            try {
+                const response = await fetch(`/api/bots/${botId}/strategy`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        strategyName: strategyName,
+                        parameters: JSON.stringify(parameters)
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Strategie erfolgreich gespeichert! Seite wird neu geladen...', 'success');
+                    
+                    // Seite nach 1.5 Sekunden neu laden
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showNotification('Fehler: ' + (data.message || 'Unbekannter Fehler'), 'error');
+                }
+            } catch (error) {
+                console.error('[Strategy] Fehler beim Speichern:', error);
+                showNotification('Verbindungsfehler beim Speichern der Strategie', 'error');
+            }
+        }
+        
+        // ========================================
+        // TRADING-PAIRS MANAGEMENT (Currency Tab)
+        // ========================================
+        
+        let allTradingPairs = [];  // Alle verfügbaren Pairs von Binance
+        let filteredPairs = [];    // Gefilterte Pairs (nach Quote-Currency)
+        let currentQuoteFilter = 'ALL';  // Aktueller Filter
+        
+        /**
+         * Lädt verfügbare Trading-Pairs von Binance via API
+         * Wird automatisch aufgerufen beim Öffnen des Currency-Tabs
+         */
+        async function loadAvailablePairs() {
+            console.log('[TradingPairs] Lade verfügbare Pairs...');
+            
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) {
+                console.error('[TradingPairs] Keine Bot-ID gefunden!');
+                showNotification('Fehler: Bot-ID nicht gefunden', 'error');
+                return;
+            }
+            
+            // Zeige Loading State
+            document.getElementById('pairs-loading').style.display = 'block';
+            document.getElementById('pairs-error').style.display = 'none';
+            document.getElementById('pairs-filter-bar').style.display = 'none';
+            document.getElementById('pairs-status').style.display = 'none';
+            document.getElementById('pairs-grid').style.display = 'none';
+            document.getElementById('pairs-actions').style.display = 'none';
+            
+            try {
+                // API-Call zum Backend
+                const response = await fetch(`/api/bot/${botId}/available-pairs`);
+                const data = await response.json();
+                
+                // Prüfe auf Fehler (auch bei HTTP 200 kann success=false sein)
+                if (!data.success) {
+                    console.error('[TradingPairs] Backend-Fehler:', data);
+                    console.error('[TradingPairs] Error-Code:', data.errorCode);
+                    console.error('[TradingPairs] Message:', data.message);
+                    console.error('[TradingPairs] Debug-Info:', data.debugInfo);
+                    console.error('[TradingPairs] Data:', data.data);
+                    
+                    // Werfe Error mit strukturierten Daten
+                    const error = new Error(data.message || 'Fehler beim Laden der Trading-Pairs');
+                    error.errorCode = data.errorCode;
+                    error.debugInfo = data.debugInfo;
+                    error.data = data;
+                    throw error;
+                }
+                
+                if (data.data && data.data.length > 0) {
+                    allTradingPairs = data.data;
+                    console.log(`[TradingPairs] ${allTradingPairs.length} Pairs geladen`);
+                    
+                    // Lade gespeicherte Auswahl
+                    await loadSavedSelection();
+                    
+                    // Zähle Pairs pro Quote-Currency
+                    updateFilterCounts();
+                    
+                    // Zeige UI
+                    document.getElementById('pairs-loading').style.display = 'none';
+                    document.getElementById('pairs-filter-bar').style.display = 'flex';
+                    document.getElementById('pairs-status').style.display = 'block';
+                    document.getElementById('pairs-grid').style.display = 'grid';
+                    document.getElementById('pairs-actions').style.display = 'flex';
+                    
+                    // Initialer Filter: Alle anzeigen
+                    filterByQuote('ALL');
+                    
+                } else {
+                    const error = new Error(data.message || 'Keine Trading-Pairs gefunden');
+                    error.errorCode = data.errorCode || 'NO_PAIRS_FOUND';
+                    error.data = data;
+                    throw error;
+                }
+                
+            } catch (error) {
+                console.error('[TradingPairs] Fehler:', error);
+                document.getElementById('pairs-loading').style.display = 'none';
+                document.getElementById('pairs-error').style.display = 'block';
+                
+                // Zeige hilfreiche Fehlermeldung
+                const errorMessageEl = document.getElementById('pairs-error-message');
+                const fixButton = document.getElementById('pairs-error-fix-btn');
+                
+                // Standardmäßig Fix-Button verstecken
+                fixButton.style.display = 'none';
+                
+                // Verwende strukturierte Error-Daten falls vorhanden
+                if (error.errorCode) {
+                    errorMessageEl.innerHTML = error.message || error.debugInfo || 'Unbekannter Fehler';
+                    
+                    // Zeige Fix-Button für konfigurierbare Fehler
+                    if (['NO_EXCHANGE_SETTINGS', 'INVALID_API_KEY', 'INVALID_SECRET_KEY', 'NO_TRADING_PERMISSIONS'].includes(error.errorCode)) {
+                        fixButton.style.display = 'inline-block';
+                    }
+                    
+                    // Zeige Debug-Info in Console
+                    if (error.debugInfo) {
+                        console.error('[TradingPairs] Debug-Info:', error.debugInfo);
+                    }
+                } else {
+                    // Fallback für unstrukturierte Fehler
+                    errorMessageEl.textContent = error.message || 'Keine Trading-Pairs gefunden. Bitte prüfe die Exchange-Settings.';
+                }
+            }
+        }
+        
+        /**
+         * Lädt gespeicherte Trading-Pair-Auswahl für diesen Bot
+         */
+        async function loadSavedSelection() {
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) return;
+            
+            try {
+                const response = await fetch(`/api/bot/${botId}/trading-pairs`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    // Markiere gespeicherte Pairs als ausgewählt
+                    const savedSymbols = data.data
+                        .filter(pair => pair.active)
+                        .map(pair => pair.symbol);
+                    
+                    allTradingPairs.forEach(pair => {
+                        pair.selected = savedSymbols.includes(pair.symbol);
+                    });
+                    
+                    console.log(`[TradingPairs] ${savedSymbols.length} gespeicherte Pairs geladen`);
+                }
+            } catch (error) {
+                console.error('[TradingPairs] Fehler beim Laden gespeicherter Auswahl:', error);
+            }
+        }
+        
+        /**
+         * Aktualisiert die Zähler in den Filter-Buttons
+         */
+        function updateFilterCounts() {
+            const counts = {
+                'ALL': allTradingPairs.length,
+                'EUR': allTradingPairs.filter(p => p.quoteAsset === 'EUR').length,
+                'USDT': allTradingPairs.filter(p => p.quoteAsset === 'USDT').length,
+                'USDC': allTradingPairs.filter(p => p.quoteAsset === 'USDC').length
+            };
+            
+            document.getElementById('count-all').textContent = counts.ALL;
+            document.getElementById('count-eur').textContent = counts.EUR;
+            document.getElementById('count-usdt').textContent = counts.USDT;
+            document.getElementById('count-usdc').textContent = counts.USDC;
+        }
+        
+        /**
+         * Filtert Trading-Pairs nach Quote-Currency (EUR, USDT, USDC, ALL)
+         */
+        function filterByQuote(quoteAsset) {
+            currentQuoteFilter = quoteAsset;
+            
+            // Update Filter-Button UI
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.getAttribute('data-quote') === quoteAsset) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            // Filter Pairs
+            if (quoteAsset === 'ALL') {
+                filteredPairs = [...allTradingPairs];
+            } else {
+                filteredPairs = allTradingPairs.filter(pair => pair.quoteAsset === quoteAsset);
+            }
+            
+            // Wende Suchfilter an (falls vorhanden)
+            const searchValue = document.getElementById('pairs-search').value;
+            if (searchValue) {
+                searchPairs(searchValue);
+            } else {
+                renderPairsGrid();
+            }
+        }
+        
+        /**
+         * Sucht Trading-Pairs nach Symbol oder Base-Asset
+         */
+        function searchPairs(searchValue) {
+            const search = searchValue.toLowerCase().trim();
+            
+            if (!search) {
+                // Keine Suche → Zeige alle gefilterten Pairs
+                renderPairsGrid();
+                return;
+            }
+            
+            // Filtere nach Suchbegriff
+            const searchFiltered = filteredPairs.filter(pair => 
+                pair.symbol.toLowerCase().includes(search) ||
+                pair.baseAsset.toLowerCase().includes(search) ||
+                pair.quoteAsset.toLowerCase().includes(search)
+            );
+            
+            renderPairsGrid(searchFiltered);
+        }
+        
+        /**
+         * Rendert das Checkbox-Grid mit Trading-Pairs
+         */
+        function renderPairsGrid(pairs = filteredPairs) {
+            const grid = document.getElementById('pairs-grid');
+            grid.innerHTML = '';
+            
+            if (pairs.length === 0) {
+                grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: rgba(255,255,255,0.5);">Keine Währungspaare gefunden</p>';
+                updateSelectedCount();
+                return;
+            }
+            
+            pairs.forEach(pair => {
+                const label = document.createElement('label');
+                label.className = 'pair-checkbox';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = pair.symbol;
+                checkbox.checked = pair.selected || false;
+                checkbox.onchange = () => {
+                    pair.selected = checkbox.checked;
+                    updateSelectedCount();
+                };
+                
+                const pairLabel = document.createElement('span');
+                pairLabel.className = 'pair-label';
+                pairLabel.innerHTML = `
+                    <strong>${pair.baseAsset}</strong>/${pair.quoteAsset}
+                    <small>${pair.symbol}</small>
+                `;
+                
+                label.appendChild(checkbox);
+                label.appendChild(pairLabel);
+                grid.appendChild(label);
+            });
+            
+            updateSelectedCount();
+        }
+        
+        /**
+         * Aktualisiert die Anzeige "X von Y Paaren ausgewählt"
+         */
+        function updateSelectedCount() {
+            const selectedCount = allTradingPairs.filter(p => p.selected).length;
+            const totalCount = allTradingPairs.length;
+            document.getElementById('selected-count').textContent = 
+                `${selectedCount} von ${totalCount} Paaren ausgewählt`;
+        }
+        
+        /**
+         * Wählt alle aktuell gefilterten Pairs aus
+         */
+        function selectAll() {
+            filteredPairs.forEach(pair => {
+                pair.selected = true;
+            });
+            renderPairsGrid();
+            showNotification('✅ Alle sichtbaren Pairs ausgewählt', 'success');
+        }
+        
+        /**
+         * Wählt alle aktuell gefilterten Pairs ab
+         */
+        function deselectAll() {
+            filteredPairs.forEach(pair => {
+                pair.selected = false;
+            });
+            renderPairsGrid();
+            showNotification('❌ Alle sichtbaren Pairs abgewählt', 'success');
+        }
+        
+        /**
+         * Wählt Top 10 Pairs nach Marktkapitalisierung (hardcoded für jetzt)
+         */
+        function selectTop10() {
+            const top10 = ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'DOT', 'MATIC', 'LTC'];
+            
+            allTradingPairs.forEach(pair => {
+                pair.selected = top10.includes(pair.baseAsset) && pair.quoteAsset === 'EUR';
+            });
+            
+            renderPairsGrid();
+            showNotification('⭐ Top 10 EUR-Pairs ausgewählt', 'success');
+        }
+        
+        /**
+         * Speichert ausgewählte Trading-Pairs in Datenbank
+         */
+        async function saveTradingPairs() {
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) {
+                showNotification('Fehler: Bot-ID nicht gefunden', 'error');
+                return;
+            }
+            
+            const selectedSymbols = allTradingPairs
+                .filter(pair => pair.selected)
+                .map(pair => pair.symbol);
+            
+            if (selectedSymbols.length === 0) {
+                showNotification('⚠️ Bitte wählen Sie mindestens ein Währungspaar aus', 'error');
+                return;
+            }
+            
+            console.log(`[TradingPairs] Speichere ${selectedSymbols.length} Pairs...`);
+            
+            try {
+                const response = await fetch(`/api/bot/${botId}/trading-pairs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols: selectedSymbols })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`✅ ${selectedSymbols.length} Währungspaare erfolgreich gespeichert`, 'success');
+                } else {
+                    throw new Error(data.message || 'Fehler beim Speichern');
+                }
+                
+            } catch (error) {
+                console.error('[TradingPairs] Fehler beim Speichern:', error);
+                showNotification('❌ Fehler beim Speichern: ' + error.message, 'error');
+            }
+        }
+        
+        // ========================================
+        // ========================================
+        // CONNECTION-TEST FÜR CURRENCY-TAB
+        // ========================================
+        
+        /**
+         * Testet die gespeicherte Binance-Verbindung für diesen Bot
+         */
+        async function testSavedConnection() {
+            const botIdElement = document.querySelector('[data-bot-id]');
+            const botId = botIdElement ? botIdElement.getAttribute('data-bot-id') : null;
+            
+            if (!botId) {
+                showNotification('❌ Bot-ID nicht gefunden', 'error');
+                return;
+            }
+            
+            const testButton = document.getElementById('test-connection-btn');
+            const statusText = document.getElementById('connection-status-text');
+            
+            // Zeige Loading State
+            testButton.disabled = true;
+            testButton.textContent = '⏳ Teste Verbindung...';
+            statusText.textContent = 'Verbindung zu Binance wird getestet...';
+            statusText.style.color = '#888';
+            
+            try {
+                const response = await fetch(`/api/exchange-settings/test-saved/${botId}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Erfolgreich
+                    statusText.innerHTML = '✅ <strong>Verbindung erfolgreich!</strong> Deine Binance API-Keys funktionieren.';
+                    statusText.style.color = '#4caf50';
+                    showNotification('✅ Binance-Verbindung erfolgreich getestet', 'success');
+                    
+                    // Optional: Automatisch Trading-Pairs laden
+                    if (allTradingPairs.length === 0) {
+                        setTimeout(() => loadAvailablePairs(), 1000);
+                    }
+                } else {
+                    // Fehlgeschlagen
+                    statusText.innerHTML = '❌ <strong>Verbindung fehlgeschlagen:</strong> ' + (result.message || 'Unbekannter Fehler');
+                    statusText.style.color = '#f44336';
+                    showNotification('❌ Verbindungstest fehlgeschlagen', 'error');
+                }
+                
+            } catch (error) {
+                console.error('[testSavedConnection] Fehler:', error);
+                statusText.innerHTML = '❌ <strong>Fehler beim Verbindungstest:</strong> ' + error.message;
+                statusText.style.color = '#f44336';
+                showNotification('❌ Fehler beim Verbindungstest', 'error');
+            } finally {
+                // Restore Button
+                testButton.disabled = false;
+                testButton.textContent = '🔌 Verbindung testen';
+            }
+        }
+        
+        // ========================================
+        // EVENT-LISTENERS FÜR CURRENCY-TAB
+        // ========================================
+        
+        // Lade Trading-Pairs automatisch beim Öffnen des Currency-Tabs
+        document.addEventListener('DOMContentLoaded', function() {
+            const currencyTab = document.querySelector('[onclick="openTab(\'currency\')"]');
+            if (currencyTab) {
+                currencyTab.addEventListener('click', function() {
+                    // Lade Pairs nur wenn noch nicht geladen
+                    if (allTradingPairs.length === 0) {
+                        setTimeout(() => loadAvailablePairs(), 300);
+                    }
+                });
+            }
+            
+        });
+    </script>
+</body>
+</html>

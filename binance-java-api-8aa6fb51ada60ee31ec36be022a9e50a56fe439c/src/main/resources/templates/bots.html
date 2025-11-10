@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bots Verwaltung - oneofx.app</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/bots.css">
+    
+    <script>
+        // Session-Status prüfen
+        (function() {
+            localStorage.setItem('isLoggedIn', 'true');
+        })();
+    </script>
+</head>
+<body class="dashboard-bg">
+    <!-- Beta Banner -->
+    <div class="beta-banner">
+        ⚠️ Beta-Version – Projekt im Aufbau
+    </div>
+    
+    <nav class="navbar-dashboard">
+        <div class="logo">oneofx.app - Bots</div>
+        <div class="user-info">
+            <div class="user-avatar" th:text="${username != null ? username.substring(0,1).toUpperCase() : 'U'}">U</div>
+            <span th:text="${username}">Benutzer</span>
+            <button class="logout-btn" onclick="logout()">Abmelden</button>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="page-header">
+            <div class="header-content">
+                <h1>🤖 Meine Trading Bots</h1>
+                <p>Erstellen und verwalten Sie Ihre automatisierten Trading-Bots</p>
+            </div>
+            <div class="header-actions">
+                <a href="/dashboard" class="btn-secondary">← Zurück zum Dashboard</a>
+                <button class="btn-primary" onclick="openCreateBotModal()">+ Neuen Bot erstellen</button>
+            </div>
+        </div>
+        
+        <!-- Bot-Statistiken -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🤖</div>
+                <div class="stat-content">
+                    <div class="stat-value" id="totalBots">0</div>
+                    <div class="stat-label">Gesamt Bots</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-content">
+                    <div class="stat-value" id="activeBots">0</div>
+                    <div class="stat-label">Aktive Bots</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💰</div>
+                <div class="stat-content">
+                    <div class="stat-value">+€0.00</div>
+                    <div class="stat-label">Gesamtgewinn</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-content">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Trades heute</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bots Liste -->
+        <div class="bots-section">
+            <div class="section-header">
+                <h2>Ihre Bots</h2>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterBots('all')">Alle</button>
+                    <button class="filter-btn" onclick="filterBots('active')">Aktiv</button>
+                    <button class="filter-btn" onclick="filterBots('inactive')">Inaktiv</button>
+                </div>
+            </div>
+            
+            <div class="bots-grid" id="botsGrid">
+                <!-- Platzhalter wenn keine Bots vorhanden -->
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">🤖</div>
+                    <h3>Noch keine Bots erstellt</h3>
+                    <p>Erstellen Sie Ihren ersten Trading-Bot, um automatisiert zu handeln.</p>
+                    <button class="btn-primary" onclick="openCreateBotModal()">Ersten Bot erstellen</button>
+                </div>
+                
+                <!-- Beispiel Bot Card (wird dynamisch generiert) -->
+                <!-- 
+                <div class="bot-card" data-status="active">
+                    <div class="bot-header">
+                        <div class="bot-status active">
+                            <span class="status-dot"></span>
+                            Aktiv
+                        </div>
+                        <div class="bot-actions">
+                            <button class="btn-icon" title="Bearbeiten">✏️</button>
+                            <button class="btn-icon" title="Löschen">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="bot-body">
+                        <h3 class="bot-name">BTC Scalper</h3>
+                        <p class="bot-description">Scalping-Strategie für Bitcoin mit 1% Gewinnziel</p>
+                        <div class="bot-info">
+                            <div class="info-item">
+                                <span class="info-label">Paar:</span>
+                                <span class="info-value">BTC/USDT</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Strategie:</span>
+                                <span class="info-value">Scalping</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Gewinn:</span>
+                                <span class="info-value positive">+€125.50</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Trades:</span>
+                                <span class="info-value">47</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bot-footer">
+                        <button class="btn-toggle active" onclick="toggleBot(1)" style="width: 100%;">
+                            <span class="toggle-text">Bot stoppen</span>
+                        </button>
+                    </div>
+                </div>
+                -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal: Bot erstellen (vereinfacht) -->
+    <div class="modal" id="createBotModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🤖 Neuen Bot erstellen</h2>
+                <button class="modal-close" onclick="closeCreateBotModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="createBotForm" onsubmit="createBot(event)">
+                    <div class="form-group">
+                        <label for="botName">Bot Name *</label>
+                        <input type="text" id="botName" name="botName" required 
+                               placeholder="z.B. BTC Scalper" class="form-input" maxlength="100">
+                        <small style="color: #aaa; display: block; margin-top: 0.5rem;">
+                            Geben Sie Ihrem Bot einen eindeutigen Namen. Alle weiteren Einstellungen können Sie später konfigurieren.
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="botDescription">Beschreibung (optional)</label>
+                        <textarea id="botDescription" name="botDescription" rows="3" 
+                                  placeholder="z.B. Scalping-Strategie für Bitcoin..." class="form-input"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeCreateBotModal()">Abbrechen</button>
+                        <button type="submit" class="btn-primary">Bot erstellen & konfigurieren</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="footer">
+        <div class="container" style="text-align: center;">
+            <nav class="footer-nav">
+                <a href="/">Home</a>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/bots" style="color: #7877c6; font-weight: bold;">Bots</a>
+                <a href="/about">Über uns</a>
+                <a href="/impressum">Impressum</a>
+            </nav>
+        </div>
+    </footer>
+    
+    <script>
+        // Logout-Funktion
+        function logout() {
+            fetch('/logout', {
+                method: 'GET',
+                credentials: 'same-origin'
+            })
+            .then(() => {
+                localStorage.removeItem('isLoggedIn');
+                window.location.href = '/?logout=true';
+            })
+            .catch(error => {
+                console.error('Logout-Fehler:', error);
+                localStorage.removeItem('isLoggedIn');
+                window.location.href = '/';
+            });
+        }
+        
+        // Bots-Daten (später aus Backend)
+        let bots = [];
+        
+        // Seite laden
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBots();
+        });
+        
+        // Bots laden vom Backend
+        function loadBots() {
+            console.log('[loadBots] Starte Laden der Bots...');
+            
+            fetch('/api/bots')
+                .then(response => {
+                    console.log('[loadBots] Response Status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('[loadBots] Response Data:', data);
+                    
+                    if (data.success) {
+                        bots = data.bots || [];
+                        console.log('[loadBots] Erfolgreich geladen:', bots.length, 'Bots');
+                        renderBots();
+                        updateStats();
+                    } else {
+                        console.error('[loadBots] Fehler beim Laden der Bots:', data.message);
+                        showNotification('❌ Fehler beim Laden der Bots', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('[loadBots] API-Call Fehler:', error);
+                    showNotification('❌ Verbindungsfehler', 'error');
+                    // Zeige leeren Zustand
+                    bots = [];
+                    renderBots();
+                    updateStats();
+                });
+        }
+        
+        // Bots rendern
+        function renderBots(filter = 'all') {
+            console.log('[renderBots] Starte Rendering mit', bots.length, 'Bots');
+            
+            const grid = document.getElementById('botsGrid');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (!grid || !emptyState) {
+                console.error('[renderBots] Grid oder EmptyState Element nicht gefunden!');
+                return;
+            }
+            
+            let filteredBots = bots;
+            if (filter === 'active') {
+                filteredBots = bots.filter(b => b.status === 'ACTIVE');
+            } else if (filter === 'inactive') {
+                filteredBots = bots.filter(b => b.status === 'INACTIVE' || b.status === 'PAUSED' || b.status === 'ERROR');
+            }
+            
+            console.log('[renderBots] Gefilterte Bots:', filteredBots.length);
+            
+            // Entferne alle Bot-Cards, aber behalte emptyState
+            const existingBotCards = grid.querySelectorAll('.bot-card');
+            existingBotCards.forEach(card => card.remove());
+            
+            if (filteredBots.length === 0) {
+                console.log('[renderBots] Keine Bots, zeige Empty State');
+                emptyState.style.display = 'flex';
+                return;
+            }
+            
+            // Verstecke Empty State
+            emptyState.style.display = 'none';
+            
+            // Füge Bot-Cards VOR emptyState ein
+            const botCardsHTML = filteredBots.map(bot => `
+                <div class="bot-card" data-status="${bot.status.toLowerCase()}">
+                    <div class="bot-header">
+                        <div class="bot-status ${bot.status.toLowerCase()}">
+                            <span class="status-dot"></span>
+                            ${bot.status === 'ACTIVE' ? 'Aktiv' : bot.status === 'PAUSED' ? 'Pausiert' : 'Inaktiv'}
+                        </div>
+                        <div class="bot-actions">
+                            <button class="btn-icon" title="Bearbeiten" onclick="editBot(${bot.id})">✏️</button>
+                            <button class="btn-icon" title="Löschen" onclick="deleteBot(${bot.id})">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="bot-body">
+                        <h3 class="bot-name">${bot.name}</h3>
+                        <p class="bot-description">${bot.description || 'Keine Beschreibung vorhanden'}</p>
+                        <div class="bot-info">
+                            <div class="info-item">
+                                <span class="info-label">Startkapital:</span>
+                                <span class="info-value">€${bot.startCapital ? Number(bot.startCapital).toFixed(2) : '0.00'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Max. Trades:</span>
+                                <span class="info-value">${bot.maxTrades || 'N/A'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Grid Spacing:</span>
+                                <span class="info-value">${bot.gridSpacing || 'N/A'}%</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Target Profit:</span>
+                                <span class="info-value">${bot.targetProfit || 'N/A'}%</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">📊 Total Trades:</span>
+                                <span class="info-value" style="font-weight: bold;">${bot.totalTrades || 0}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">💰 Total Profit:</span>
+                                <span class="info-value" style="font-weight: bold; color: ${(bot.totalProfit || 0) >= 0 ? '#2ecc71' : '#e74c3c'};">
+                                    ${(bot.totalProfit || 0) >= 0 ? '+' : ''}€${bot.totalProfit ? Number(bot.totalProfit).toFixed(2) : '0.00'}
+                                </span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Erstellt:</span>
+                                <span class="info-value">${bot.createdAt ? new Date(bot.createdAt).toLocaleDateString('de-DE') : 'N/A'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Auto-Start:</span>
+                                <span class="info-value">${bot.autoStart ? '✅ Ja' : '❌ Nein'}</span>
+                            </div>
+                        </div>
+                        ${bot.errorMessage ? `<div class="error-message" style="margin-top: 10px; padding: 8px; background: rgba(231, 76, 60, 0.1); border-left: 3px solid #e74c3c; border-radius: 4px; color: #e74c3c; font-size: 0.9em;">⚠️ ${bot.errorMessage}</div>` : ''}
+                    </div>
+                    <div class="bot-footer">
+                        <button class="btn-toggle ${bot.status.toLowerCase()}" onclick="toggleBot(${bot.id})" style="width: 100%;">
+                            <span class="toggle-text">${bot.status === 'ACTIVE' ? 'Bot stoppen' : 'Bot starten'}</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Füge alle Bot-Cards vor dem emptyState ein
+            emptyState.insertAdjacentHTML('beforebegin', botCardsHTML);
+            
+            console.log('[renderBots] Rendering abgeschlossen,', filteredBots.length, 'Bots angezeigt');
+        }
+        
+        // Statistiken aktualisieren
+        function updateStats() {
+            document.getElementById('totalBots').textContent = bots.length;
+            document.getElementById('activeBots').textContent = bots.filter(b => b.status === 'ACTIVE').length;
+        }
+        
+        // Filter-Funktionen
+        function filterBots(filter) {
+            // Filter-Buttons aktualisieren
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            renderBots(filter);
+        }
+        
+        // Modal öffnen/schließen
+        function openCreateBotModal() {
+            document.getElementById('createBotModal').style.display = 'flex';
+        }
+        
+        function closeCreateBotModal() {
+            document.getElementById('createBotModal').style.display = 'none';
+            document.getElementById('createBotForm').reset();
+        }
+        
+        // Bot erstellen
+        async function createBot(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const botName = formData.get('botName');
+            const botDescription = formData.get('botDescription') || '';
+            
+            // Validierung: Name darf nicht leer sein
+            if (!botName || botName.trim() === '') {
+                alert('⚠️ Bitte geben Sie einen Bot-Namen ein!');
+                return;
+            }
+            
+            const newBotData = {
+                name: botName.trim(),
+                description: botDescription.trim(),
+                startCapital: null,
+                maxTrades: 3,
+                autoStart: false,
+                notificationsEnabled: true
+            };
+            
+            try {
+                // API-Call zum Backend
+                const response = await fetch('/api/bots', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newBotData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Bot konnte nicht erstellt werden');
+                }
+                
+                const createdBot = await response.json();
+                console.log('[createBot] Bot erfolgreich erstellt:', createdBot);
+                
+                // Erfolgsmeldung
+                closeCreateBotModal();
+                
+                // Redirect zu Bot-Einstellungen mit der neuen botId
+                window.location.href = `/bots/${createdBot.id}`;
+                
+            } catch (error) {
+                console.error('[createBot] Fehler beim Erstellen des Bots:', error);
+                alert('❌ Fehler beim Erstellen des Bots. Bitte versuchen Sie es erneut.');
+            }
+        }
+        
+        // Bot umschalten (Start/Stop)
+        async function toggleBot(botId) {
+            console.log('[toggleBot] Funktion aufgerufen mit botId:', botId);
+            
+            const bot = bots.find(b => b.id === botId);
+            if (!bot) {
+                console.error('[toggleBot] Bot nicht gefunden:', botId);
+                return;
+            }
+            
+            console.log('[toggleBot] Aktueller Bot-Status:', bot.status);
+            const isStarting = bot.status !== 'ACTIVE';
+            const endpoint = isStarting ? `/api/bots/${botId}/start` : `/api/bots/${botId}/stop`;
+            console.log('[toggleBot] Endpoint:', endpoint);
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                console.log('[toggleBot] Response:', data);
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    
+                    // Aktualisiere Bot-Status lokal
+                    const botIndex = bots.findIndex(b => b.id === botId);
+                    if (botIndex !== -1) {
+                        bots[botIndex].status = data.status;
+                        console.log('[toggleBot] Bot-Status lokal aktualisiert zu:', data.status);
+                    }
+                    
+                    // Rendere nur neu, ohne kompletten Reload
+                    renderBots();
+                    updateStats();
+                } else {
+                    showNotification('❌ ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('[toggleBot] Fehler beim Start/Stop:', error);
+                showNotification('❌ Verbindungsfehler', 'error');
+            }
+        }
+        
+        // Bot bearbeiten
+        function editBot(botId) {
+            window.location.href = '/bots/' + botId;
+        }
+        
+        // Bot löschen
+        async function deleteBot(botId) {
+            console.log('[deleteBot] Funktion aufgerufen mit botId:', botId);
+            
+            if (!confirm('Möchten Sie diesen Bot wirklich löschen? Alle zugehörigen Exchange-Settings werden ebenfalls gelöscht.')) {
+                console.log('[deleteBot] Abbruch durch User');
+                return;
+            }
+            
+            console.log('[deleteBot] Löschvorgang bestätigt, starte API-Call...');
+            
+            try {
+                const response = await fetch(`/api/bots/${botId}`, {
+                    method: 'DELETE'
+                });
+                
+                console.log('[deleteBot] Response Status:', response.status);
+                
+                const data = await response.json();
+                console.log('[deleteBot] Response Data:', data);
+                
+                if (data.success) {
+                    showNotification('✅ Bot gelöscht', 'success');
+                    loadBots(); // Neu laden
+                } else {
+                    showNotification('❌ Fehler: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('[deleteBot] FEHLER:', error);
+                showNotification('❌ Verbindungsfehler: ' + error.message, 'error');
+            }
+        }
+        
+        // Notification System
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                background: ${type === 'success' ? '#0f0' : type === 'error' ? '#f44' : '#00b2c8'};
+                color: #000;
+                border-radius: 8px;
+                font-weight: 600;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

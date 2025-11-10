@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistiken - oneofx.app</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/stats-dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="dark-bg">
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="/" style="text-decoration: none; color: inherit;">
+                    <span style="background: linear-gradient(45deg, #00b2c8, #7877c6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">oneofx</span>.app
+                </a>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/dashboard">Dashboard</a></li>
+                <li><a href="/trading-dashboard">Trading</a></li>
+                <li><a href="/stats-dashboard" class="active">Statistiken</a></li>
+                <li><a href="/about">About</a></li>
+                <li><a href="/logout">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Stats Container -->
+    <div class="stats-container">
+        <!-- Header -->
+        <div class="stats-header">
+            <div class="header-left">
+                <h1>Trading Statistiken</h1>
+                <p class="subtitle">Analysiere deine Performance und optimiere deine Strategie</p>
+            </div>
+            <div class="header-right">
+                <div class="time-range-selector">
+                    <button class="time-btn" onclick="changeTimeRange('24h')">24h</button>
+                    <button class="time-btn active" onclick="changeTimeRange('7d')">7 Tage</button>
+                    <button class="time-btn" onclick="changeTimeRange('30d')">30 Tage</button>
+                    <button class="time-btn" onclick="changeTimeRange('90d')">90 Tage</button>
+                    <button class="time-btn" onclick="changeTimeRange('all')">Gesamt</button>
+                </div>
+                <button class="btn-refresh" onclick="refreshStats()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <path d="M23 4V10H17" stroke="currentColor" stroke-width="2"/>
+                        <path d="M1 20V14H7" stroke="currentColor" stroke-width="2"/>
+                        <path d="M3.51 9A9 9 0 0 1 20.49 15" stroke="currentColor" stroke-width="2"/>
+                        <path d="M20.49 15A9 9 0 0 1 3.51 9" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Beta-Hinweis -->
+        <div class="beta-notice" style="background: linear-gradient(135deg, rgba(0, 178, 200, 0.1), rgba(120, 119, 198, 0.1)); border: 1px solid rgba(0, 178, 200, 0.3); border-radius: 12px; padding: 15px 20px; margin-bottom: 25px; text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span style="font-size: 20px;">🚧</span>
+                <span style="color: #00b2c8; font-weight: 600; font-size: 16px;">Beta-Version – Projekt im Aufbau</span>
+                <span style="font-size: 20px;">🚧</span>
+            </div>
+            <p style="color: rgba(255, 255, 255, 0.6); font-size: 13px; margin: 8px 0 0 0;">Diese Statistiken befinden sich in der Entwicklung. Features werden kontinuierlich hinzugefügt.</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="stats-tabs">
+            <button class="tab-btn active" onclick="switchTab('personal')">Deine Statistiken</button>
+            <button class="tab-btn" onclick="switchTab('global')">Globale Statistiken</button>
+        </div>
+
+        <!-- Personal Stats Tab -->
+        <div id="personal-stats-tab" class="tab-content active">
+            <!-- Chart Grid Row 1 -->
+            <div class="chart-grid">
+                <!-- Käufe und Verkäufe -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Käufe und Verkäufe</h3>
+                        <div class="chart-legend">
+                            <span class="legend-item"><span class="legend-dot buy"></span>Käufe</span>
+                            <span class="legend-item"><span class="legend-dot sell"></span>Verkäufe</span>
+                        </div>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="buySellChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Kapitalverteilung -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Kapitalverteilung</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="allocationChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gewinnstatistik -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Gewinnstatistik</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <div class="profit-stats-grid">
+                            <div class="stat-box">
+                                <span class="stat-label">Gewinn-Trades</span>
+                                <span class="stat-value positive" id="profitTrades">67%</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Verlust-Trades</span>
+                                <span class="stat-value negative" id="lossTrades">33%</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Gesamt Trades</span>
+                                <span class="stat-value" id="totalTrades">156</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Durchschn. Gewinn</span>
+                                <span class="stat-value positive" id="avgProfit">+2.4%</span>
+                            </div>
+                        </div>
+                        <canvas id="profitStatsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Grid Row 2 -->
+            <div class="chart-grid">
+                <!-- Verkaufs-Trigger -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Gewinne nach Verkaufs-Trigger</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="sellTriggerChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Kauf-Trigger -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Gewinne nach Kauf-Trigger</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="buyTriggerChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Tägliche Gewinne -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Tägliche Gewinne</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="dailyProfitsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Grid Row 3 -->
+            <div class="chart-grid">
+                <!-- Durchschnittliche Haltedauer -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Durchschnittliche Haltedauer</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="holdingTimeChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Durchschnittlicher Gewinn pro Coin -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Durchschnittlicher Gewinn pro Coin</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="avgProfitCoinChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Meistgehandelte Coins -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Meistgehandelte Coins</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="mostTradedChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio Performance Chart (Full Width) -->
+            <div class="chart-card full-width">
+                <div class="chart-card-header">
+                    <h3>Portfolio Entwicklung</h3>
+                    <div class="chart-legend">
+                        <span class="legend-item"><span class="legend-dot eur"></span>EUR in Assets</span>
+                        <span class="legend-item"><span class="legend-dot usd"></span>USD in Assets</span>
+                    </div>
+                </div>
+                <div class="chart-card-body">
+                    <canvas id="portfolioEvolutionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Stats Tab -->
+        <div id="global-stats-tab" class="tab-content">
+            <div class="info-banner">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 16V12M12 8H12.01" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span>Diese Statistiken werden täglich aktualisiert und basieren auf aggregierten Daten aller Nutzer der Plattform.</span>
+            </div>
+
+            <!-- Global Chart Grid -->
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Globale Käufe & Verkäufe</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="globalBuySellChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Globale Verkaufs-Trigger</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="globalSellTriggerChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Globale Kauf-Trigger</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="globalBuyTriggerChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Durchschnittliche Haltedauer (Global)</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="globalHoldingTimeChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Beliebteste Coins</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="globalMostTradedChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3>Durchschnittlicher ROI</h3>
+                    </div>
+                    <div class="chart-card-body">
+                        <canvas id="globalAvgProfitChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer style="background: rgba(34, 34, 34, 0.8); padding: 2rem 0; margin-top: 3rem; text-align: center; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="max-width: 1200px; margin: 0 auto; color: #888;">
+            <p>&copy; 2024 oneofx.app - Statistik Dashboard</p>
+        </div>
+    </footer>
+
+    <script>
+        // Chart.js Default Config
+        Chart.defaults.color = '#888';
+        Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+        Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+        // Initialize all charts on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializePersonalCharts();
+            loadPersonalStats();
+        });
+
+        // Personal Stats Charts
+        function initializePersonalCharts() {
+            // Buy/Sell Chart
+            createBuySellChart();
+            createAllocationChart();
+            createProfitStatsChart();
+            createSellTriggerChart();
+            createBuyTriggerChart();
+            createDailyProfitsChart();
+            createHoldingTimeChart();
+            createAvgProfitCoinChart();
+            createMostTradedChart();
+            createPortfolioEvolutionChart();
+        }
+
+        // 1. Buy/Sell Chart
+        function createBuySellChart() {
+            const ctx = document.getElementById('buySellChart');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+                    datasets: [{
+                        label: 'Käufe',
+                        data: [12, 19, 15, 17, 14, 10, 8],
+                        backgroundColor: '#4caf50',
+                    }, {
+                        label: 'Verkäufe',
+                        data: [8, 15, 12, 14, 11, 9, 6],
+                        backgroundColor: '#f44336',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 2. Allocation Chart
+        function createAllocationChart() {
+            const ctx = document.getElementById('allocationChart');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['In Positionen', 'Verfügbar', 'Reserviert'],
+                    datasets: [{
+                        data: [45, 35, 20],
+                        backgroundColor: ['#00b2c8', '#7877c6', '#ff9800'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // 3. Profit Stats Chart
+        function createProfitStatsChart() {
+            const ctx = document.getElementById('profitStatsChart');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Gewinn', 'Verlust'],
+                    datasets: [{
+                        data: [67, 33],
+                        backgroundColor: ['#4caf50', '#f44336'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // 4. Sell Trigger Chart
+        function createSellTriggerChart() {
+            const ctx = document.getElementById('sellTriggerChart');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Take Profit', 'Stop Loss', 'Manual', 'AI', 'Strategie'],
+                    datasets: [{
+                        data: [45, -15, 12, 28, 8],
+                        backgroundColor: function(context) {
+                            const value = context.parsed.y;
+                            return value >= 0 ? '#4caf50' : '#f44336';
+                        }
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 5. Buy Trigger Chart
+        function createBuyTriggerChart() {
+            const ctx = document.getElementById('buyTriggerChart');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Signal', 'Manual', 'AI', 'Strategie', 'DCA'],
+                    datasets: [{
+                        data: [35, 18, 22, -8, 15],
+                        backgroundColor: function(context) {
+                            const value = context.parsed.y;
+                            return value >= 0 ? '#4caf50' : '#f44336';
+                        }
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 6. Daily Profits Chart
+        function createDailyProfitsChart() {
+            const ctx = document.getElementById('dailyProfitsChart');
+            const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(76, 175, 80, 0.5)');
+            gradient.addColorStop(1, 'rgba(76, 175, 80, 0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+                    datasets: [{
+                        data: [45, 52, 48, 65, 58, 70, 85],
+                        borderColor: '#4caf50',
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 7. Holding Time Chart
+        function createHoldingTimeChart() {
+            const ctx = document.getElementById('holdingTimeChart');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['BTC', 'ETH', 'BNB', 'SOL', 'XRP'],
+                    datasets: [{
+                        label: 'Stunden',
+                        data: [48, 36, 24, 18, 12],
+                        backgroundColor: '#7877c6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 8. Average Profit per Coin
+        function createAvgProfitCoinChart() {
+            const ctx = document.getElementById('avgProfitCoinChart');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['BTC', 'ETH', 'BNB', 'SOL', 'XRP'],
+                    datasets: [{
+                        data: [5.2, 3.8, 4.5, 2.1, -1.2],
+                        backgroundColor: function(context) {
+                            const value = context.parsed.y;
+                            return value >= 0 ? '#4caf50' : '#f44336';
+                        }
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 9. Most Traded Chart
+        function createMostTradedChart() {
+            const ctx = document.getElementById('mostTradedChart');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA'],
+                    datasets: [{
+                        data: [85, 72, 68, 45, 38, 25],
+                        backgroundColor: '#00b2c8'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 10. Portfolio Evolution Chart
+        function createPortfolioEvolutionChart() {
+            const ctx = document.getElementById('portfolioEvolutionChart');
+            const gradient1 = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400);
+            gradient1.addColorStop(0, 'rgba(0, 178, 200, 0.3)');
+            gradient1.addColorStop(1, 'rgba(0, 178, 200, 0)');
+
+            const gradient2 = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400);
+            gradient2.addColorStop(0, 'rgba(120, 119, 198, 0.3)');
+            gradient2.addColorStop(1, 'rgba(120, 119, 198, 0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Woche 1', 'Woche 2', 'Woche 3', 'Woche 4', 'Woche 5', 'Woche 6', 'Woche 7'],
+                    datasets: [{
+                        label: 'EUR',
+                        data: [10000, 10500, 10200, 11000, 10800, 11500, 12000],
+                        borderColor: '#00b2c8',
+                        backgroundColor: gradient1,
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2
+                    }, {
+                        label: 'USD',
+                        data: [10800, 11300, 11000, 11900, 11700, 12400, 13000],
+                        borderColor: '#7877c6',
+                        backgroundColor: gradient2,
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // Tab Switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            
+            if (tab === 'personal') {
+                document.getElementById('personal-stats-tab').classList.add('active');
+            } else {
+                document.getElementById('global-stats-tab').classList.add('active');
+                if (!window.globalChartsInitialized) {
+                    initializeGlobalCharts();
+                    window.globalChartsInitialized = true;
+                }
+            }
+        }
+
+        // Global Charts Initialization
+        function initializeGlobalCharts() {
+            // Similar to personal charts but with global data
+            const charts = ['globalBuySellChart', 'globalSellTriggerChart', 'globalBuyTriggerChart', 
+                          'globalHoldingTimeChart', 'globalMostTradedChart', 'globalAvgProfitChart'];
+            
+            charts.forEach(chartId => {
+                const ctx = document.getElementById(chartId);
+                if (ctx) {
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Sample 1', 'Sample 2', 'Sample 3'],
+                            datasets: [{ data: [10, 20, 15], backgroundColor: '#00b2c8' }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                }
+            });
+        }
+
+        // Helper Functions
+        function changeTimeRange(range) {
+            document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            loadPersonalStats(range);
+        }
+
+        function refreshStats() {
+            const btn = event.target.closest('.btn-refresh');
+            btn.style.transform = 'rotate(360deg)';
+            setTimeout(() => {
+                btn.style.transform = 'rotate(0deg)';
+                loadPersonalStats();
+            }, 500);
+        }
+
+        function loadPersonalStats(range = '7d') {
+            // TODO: API call to backend
+            console.log('Loading stats for range:', range);
+        }
+    </script>
+</body>
+</html>

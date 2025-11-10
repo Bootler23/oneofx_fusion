@@ -75,7 +75,7 @@ public class ATHSQL {
     public static double CalcNewLPP(String currencyPair) {
         double LastPossiblePrice = getLPP(currencyPair);
 
-        double AllTimeHighMinus80Percent = (ATHSQL.getAllTimeHigh(currencyPair) / 100) * 20;
+        double AllTimeHighMinus80Percent = (ATHSQL.getAllTimeHigh(currencyPair) / 100) * 9;
 
         if (AllTimeHighMinus80Percent > LastPossiblePrice) {
             LastPossiblePrice += 0.01;
@@ -139,32 +139,5 @@ public class ATHSQL {
         } catch (SQLException err) {
             System.out.println(err.getMessage());
         }
-    }
-
-    public static double getMinBuyAmount(String currencyPair) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-                Statement query = con.createStatement();
-                ResultSet rs = query
-                        .executeQuery("SELECT MinBuyAmount FROM ATH WHERE `Währung` = '" + currencyPair + "'")) {
-            return round.two(rs.getDouble("MinBuyAmount"));
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-            return 5.5;
-        }
-    }
-
-    public static void setMinBuyAmount(String currency, double BuyAmount) {
-        String sql = "UPDATE ATH SET MinBuyAmount = ? WHERE Währung = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setDouble(1, round.two(BuyAmount));
-            ps.setString(2, currency);
-
-            ps.executeUpdate();
-
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
-    }   
+    }    
 }

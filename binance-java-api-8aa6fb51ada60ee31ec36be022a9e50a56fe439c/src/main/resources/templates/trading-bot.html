@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot erstellen - oneofx.app</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+        
+        /* Navbar */
+        .navbar-dashboard {
+            background: rgba(34, 34, 34, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .navbar-dashboard .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        
+        .back-btn, .logout-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            text-decoration: none;
+        }
+        
+        .back-btn:hover, .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        /* Container */
+        .bot-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+        
+        .page-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .page-header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #00b2c8, #7877c6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .page-header p {
+            color: #999;
+            font-size: 1.1rem;
+        }
+        
+        /* Bot Creation Form */
+        .bot-form {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .form-section {
+            margin-bottom: 2rem;
+        }
+        
+        .form-section h2 {
+            color: #00b2c8;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid rgba(0, 178, 200, 0.3);
+            padding-bottom: 0.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #ddd;
+            font-weight: 500;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.8rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #00b2c8;
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .form-group small {
+            display: block;
+            margin-top: 0.3rem;
+            color: #999;
+            font-size: 0.85rem;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        /* Strategy Cards */
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .strategy-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .strategy-card:hover {
+            border-color: #00b2c8;
+            background: rgba(0, 178, 200, 0.1);
+            transform: translateY(-3px);
+        }
+        
+        .strategy-card.selected {
+            border-color: #00b2c8;
+            background: rgba(0, 178, 200, 0.15);
+        }
+        
+        .strategy-card h3 {
+            color: #00b2c8;
+            margin-bottom: 0.5rem;
+        }
+        
+        .strategy-card p {
+            color: #999;
+            font-size: 0.9rem;
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background: linear-gradient(135deg, #00b2c8, #7877c6);
+            color: #fff;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(0, 178, 200, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 0.8rem 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Info Box */
+        .info-box {
+            background: rgba(0, 178, 200, 0.1);
+            border: 1px solid rgba(0, 178, 200, 0.3);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .info-box h3 {
+            color: #00b2c8;
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-box ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .info-box ul li {
+            padding: 0.3rem 0;
+            color: #ddd;
+        }
+        
+        .info-box ul li::before {
+            content: "✅ ";
+            margin-right: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .strategy-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar-dashboard" style="display: flex; justify-content: space-between; align-items: center;">
+        <!-- Logo Links -->
+        <a href="/" class="logo" style="text-decoration: none;">
+            <span style="background: linear-gradient(45deg, #00b2c8, #7877c6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold;">oneofx</span><span style="color: #fff; font-weight: bold;">.app</span>
+        </a>
+        
+        <!-- Mitte: Trading Bot + User Avatar -->
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <h2 style="color: #fff; font-size: 1.2rem; margin: 0;">🤖 Trading Bot</h2>
+            <div class="user-avatar">
+                <span th:text="${#strings.substring(username, 0, 1).toUpperCase()}">U</span>
+            </div>
+        </div>
+        
+        <!-- Rechts: Dashboard + Logout -->
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="/dashboard" class="back-btn">← Dashboard</a>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="bot-container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1>🤖 Trading Bot erstellen</h1>
+            <p>Konfigurieren Sie Ihren automatisierten Trading-Bot mit individuellen Strategien</p>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <h3>📋 Was Sie benötigen:</h3>
+            <ul>
+                <li>Eine konfigurierte Exchange-Verbindung (API-Keys)</li>
+                <li>Startkapital für den Bot</li>
+                <li>Eine Trading-Strategie</li>
+                <li>Risikomanagement-Einstellungen</li>
+            </ul>
+        </div>
+
+        <!-- Bot Creation Form -->
+        <form class="bot-form" id="botForm">
+            <!-- Basic Settings -->
+            <div class="form-section">
+                <h2>⚙️ Grundeinstellungen</h2>
+                
+                <div class="form-group">
+                    <label for="botName">Bot Name *</label>
+                    <input type="text" id="botName" name="botName" placeholder="z.B. BTC Scalper Bot" required>
+                    <small>Geben Sie Ihrem Bot einen eindeutigen Namen</small>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="exchange">Exchange *</label>
+                        <select id="exchange" name="exchange" required>
+                            <option value="">Wählen Sie eine Exchange</option>
+                            <option value="binance">Binance</option>
+                            <option value="bybit">Bybit</option>
+                            <option value="okx">OKX</option>
+                            <option value="kraken">Kraken</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tradingPair">Trading Pair *</label>
+                        <select id="tradingPair" name="tradingPair" required>
+                            <option value="">Wählen Sie ein Trading Pair</option>
+                            <option value="BTCEUR">BTC/EUR</option>
+                            <option value="ETHEUR">ETH/EUR</option>
+                            <option value="BTCUSDT">BTC/USDT</option>
+                            <option value="ETHUSDT">ETH/USDT</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="startCapital">Startkapital (€) *</label>
+                        <input type="number" id="startCapital" name="startCapital" placeholder="1000" min="10" step="0.01" required>
+                        <small>Mindestens 10€ erforderlich</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="maxTrades">Max. gleichzeitige Trades *</label>
+                        <input type="number" id="maxTrades" name="maxTrades" placeholder="3" min="1" max="20" value="3" required>
+                        <small>Empfohlen: 3-5 Trades</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategy Selection -->
+            <div class="form-section">
+                <h2>🎯 Trading Strategie wählen</h2>
+                
+                <div class="strategy-grid">
+                    <div class="strategy-card" onclick="selectStrategy('scalping')">
+                        <h3>⚡ Scalping</h3>
+                        <p>Schnelle Trades mit kleinen Gewinnen. Viele Trades pro Tag.</p>
+                    </div>
+                    
+                    <div class="strategy-card" onclick="selectStrategy('grid')">
+                        <h3>📊 Grid Trading</h3>
+                        <p>Kauft und verkauft in festgelegten Preisintervallen.</p>
+                    </div>
+                    
+                    <div class="strategy-card" onclick="selectStrategy('dca')">
+                        <h3>💰 DCA (Dollar Cost Average)</h3>
+                        <p>Regelmäßige Käufe zu festgelegten Zeitpunkten.</p>
+                    </div>
+                    
+                    <div class="strategy-card" onclick="selectStrategy('momentum')">
+                        <h3>🚀 Momentum Trading</h3>
+                        <p>Folgt starken Kursbewegungen und Trends.</p>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="strategy" name="strategy" required>
+                <small style="display: block; margin-top: 1rem; color: #999;">Klicken Sie auf eine Strategie um sie auszuwählen</small>
+            </div>
+
+            <!-- Risk Management -->
+            <div class="form-section">
+                <h2>🛡️ Risikomanagement</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="stopLoss">Stop Loss (%) *</label>
+                        <input type="number" id="stopLoss" name="stopLoss" placeholder="2" min="0.1" max="50" step="0.1" value="2" required>
+                        <small>Maximaler Verlust pro Trade</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="takeProfit">Take Profit (%) *</label>
+                        <input type="number" id="takeProfit" name="takeProfit" placeholder="3" min="0.1" max="100" step="0.1" value="3" required>
+                        <small>Zielgewinn pro Trade</small>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="maxLossPerDay">Max. Tagesverlust (€)</label>
+                        <input type="number" id="maxLossPerDay" name="maxLossPerDay" placeholder="50" min="0" step="0.01">
+                        <small>Bot stoppt bei Erreichen des Limits</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tradeSize">Trade-Größe (% vom Kapital) *</label>
+                        <input type="number" id="tradeSize" name="tradeSize" placeholder="10" min="1" max="100" step="1" value="10" required>
+                        <small>Wie viel Kapital pro Trade nutzen?</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="form-section">
+                <h2>🔧 Erweiterte Einstellungen</h2>
+                
+                <div class="form-group">
+                    <label for="description">Bot-Beschreibung (optional)</label>
+                    <textarea id="description" name="description" rows="3" placeholder="Beschreiben Sie die Ziele und Besonderheiten dieses Bots..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="autoStart" name="autoStart" style="width: auto; margin-right: 0.5rem;">
+                        Bot nach Erstellung automatisch starten
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="notifications" name="notifications" checked style="width: auto; margin-right: 0.5rem;">
+                        Email-Benachrichtigungen bei Trades aktivieren
+                    </label>
+                </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button type="submit" class="btn-primary">🚀 Bot erstellen</button>
+                <button type="button" class="btn-secondary" onclick="window.location.href='/dashboard'">Abbrechen</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let selectedStrategy = null;
+
+        function selectStrategy(strategy) {
+            // Remove previous selection
+            document.querySelectorAll('.strategy-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Add selection to clicked card
+            event.currentTarget.classList.add('selected');
+            selectedStrategy = strategy;
+            document.getElementById('strategy').value = strategy;
+        }
+
+        document.getElementById('botForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            if (!selectedStrategy) {
+                alert('⚠️ Bitte wählen Sie eine Trading-Strategie aus!');
+                return;
+            }
+
+            // Collect form data
+            const formData = {
+                botName: document.getElementById('botName').value,
+                exchange: document.getElementById('exchange').value,
+                tradingPair: document.getElementById('tradingPair').value,
+                startCapital: document.getElementById('startCapital').value,
+                maxTrades: document.getElementById('maxTrades').value,
+                strategy: selectedStrategy,
+                stopLoss: document.getElementById('stopLoss').value,
+                takeProfit: document.getElementById('takeProfit').value,
+                maxLossPerDay: document.getElementById('maxLossPerDay').value || null,
+                tradeSize: document.getElementById('tradeSize').value,
+                description: document.getElementById('description').value,
+                autoStart: document.getElementById('autoStart').checked,
+                notifications: document.getElementById('notifications').checked
+            };
+
+            console.log('Bot Configuration:', formData);
+
+            // TODO: Send to backend API
+            // fetch('/api/trading-bot/create', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify(formData)
+            // })
+            // .then(response => response.json())
+            // .then(data => {
+            //     if (data.success) {
+            //         alert('✅ Bot erfolgreich erstellt!');
+            //         window.location.href = '/trading-dashboard';
+            //     }
+            // });
+
+            // Temporary success message
+            alert('✅ Bot-Konfiguration erstellt!\n\nBot Name: ' + formData.botName + '\nStrategie: ' + formData.strategy + '\n\n(Backend-Integration folgt)');
+            window.location.href = '/trading-dashboard';
+        });
+    </script>
+</body>
+</html>

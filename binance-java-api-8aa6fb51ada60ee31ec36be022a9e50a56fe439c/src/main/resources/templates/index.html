@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="oneofx.app - Professional trading for everyone. Automatisierte Crypto Trading Bot Plattform">
+    <meta name="keywords" content="crypto, trading bot, bitcoin, ethereum, automatischer handel, professional trading">
+    <meta name="author" content="Stefan Klaeck">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="oneofx.app - Professional trading for everyone">
+    <meta property="og:description" content="Professionelle Trading Bot Plattform für Kryptowährungen">
+    <meta property="og:url" content="https://oneofx.app">
+    
+    <title>oneofx.app - Professional trading for everyone</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .navbar {
+            background: rgba(34, 34, 34, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 2rem;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            color: #00b2c8;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            font-size: 1rem;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: #00b2c8;
+        }
+
+        .login-btn {
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            border: none;
+            color: #fff;
+            padding: 0.6rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 178, 200, 0.4);
+        }
+
+        /* Beta Banner */
+        .beta-banner {
+            background: rgba(255, 152, 0, 0.15);
+            border: 1px solid rgba(255, 152, 0, 0.4);
+            border-left: 4px solid #ff9800;
+            padding: 0.8rem 1.5rem;
+            text-align: center;
+            color: #ffb74d;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-top: 80px;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            min-height: 90vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .hero-content {
+            max-width: 900px;
+            animation: fadeIn 1.5s ease-in;
+        }
+
+        .hero-tagline {
+            font-size: 1.2rem;
+            color: #888;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .hero-title {
+            font-size: 4.5rem;
+            margin-bottom: 2rem;
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.2;
+        }
+
+        .hero-slogan {
+            font-size: 2rem;
+            color: #fff;
+            margin-bottom: 3rem;
+            font-weight: 300;
+        }
+
+        .hero-description {
+            font-size: 1.2rem;
+            color: #888;
+            margin-bottom: 3rem;
+            line-height: 1.8;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .cta-primary {
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            border: none;
+            color: #fff;
+            padding: 1rem 3rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .cta-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 178, 200, 0.4);
+        }
+
+        .cta-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 1rem 3rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .cta-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Features Section */
+        .features-section {
+            padding: 5rem 2rem;
+            background: rgba(34, 34, 34, 0.5);
+        }
+
+        .features-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .features-title {
+            font-size: 3rem;
+            text-align: center;
+            margin-bottom: 4rem;
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(0, 178, 200, 0.1);
+            border: 1px solid rgba(0, 178, 200, 0.3);
+            padding: 2rem;
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 178, 200, 0.3);
+            border-color: rgba(0, 178, 200, 0.5);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            color: #00b2c8;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card p {
+            color: #888;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        /* Stats Section */
+        .stats-section {
+            padding: 5rem 2rem;
+            text-align: center;
+        }
+
+        .stats-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 3rem;
+        }
+
+        .stat-item {
+            padding: 2rem;
+        }
+
+        .stat-number {
+            font-size: 3.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        /* Footer */
+        .footer {
+            background: rgba(34, 34, 34, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3rem 2rem;
+            margin-top: 5rem;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .footer-nav {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .footer-nav a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-nav a:hover {
+            color: #00b2c8;
+        }
+
+        .footer-text {
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .nav-container {
+                padding: 0;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .hero-slogan {
+                font-size: 1.5rem;
+            }
+
+            .hero-description {
+                font-size: 1rem;
+            }
+
+            .features-title {
+                font-size: 2rem;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+            }
+
+            .stat-number {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" role="navigation" aria-label="Hauptnavigation">
+        <div class="nav-container">
+            <h1 class="nav-logo">oneofx.app</h1>
+            <div class="nav-right">
+                <div class="nav-links">
+                    <a href="#features">Features</a>
+                    <a href="/about">Über uns</a>
+                    <a href="/impressum">Impressum</a>
+                </div>
+                <a href="/login" class="login-btn">Login</a>
+                        </div>
+                            </div>
+    </nav>
+
+    <!-- Beta Banner -->
+    <div class="beta-banner">
+        ⚠️ Beta-Version – Projekt im Aufbau
+                            </div>
+                            
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <div class="hero-tagline">Welcome to the future</div>
+            <h1 class="hero-title">oneofx.app</h1>
+            <h2 class="hero-slogan">Professional trading for everyone</h2>
+            <p class="hero-description">
+                Nutze fortschrittliche Trading-Bots, um automatisiert und professionell mit Kryptowährungen zu handeln.
+                Egal ob Anfänger oder Experte – unsere Plattform macht professionelles Trading für jeden zugänglich.
+            </p>
+            <div class="cta-buttons">
+                <a href="/login" class="cta-primary">Jetzt starten</a>
+                <a href="#features" class="cta-secondary">Mehr erfahren</a>
+                                </div>
+                            </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features-section">
+        <div class="features-container">
+            <h2 class="features-title">Warum oneofx.app?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>Automatisierte Bots</h3>
+                    <p>Intelligente Trading-Bots, die 24/7 für dich arbeiten. Konfiguriere deine Strategie und lass den Bot die Arbeit machen.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Live-Marktdaten</h3>
+                    <p>Echtzeit-Preise und Charts für alle wichtigen Kryptowährungen. Treffe informierte Entscheidungen basierend auf aktuellen Daten.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>Sichere API-Integration</h3>
+                    <p>Deine API-Schlüssel werden verschlüsselt gespeichert. Maximale Sicherheit für deine Börsen-Verbindungen.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>Performance-Tracking</h3>
+                    <p>Verfolge deine Trades und analysiere deine Performance. Detaillierte Statistiken und Historie für jeden Bot.</p>
+                    </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚙️</div>
+                    <h3>Individuelle Strategien</h3>
+                    <p>Erstelle mehrere Bots mit unterschiedlichen Einstellungen. Teste verschiedene Strategien parallel.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Multi-Exchange Support</h3>
+                    <p>Verbinde dich mit verschiedenen Börsen. Eine Plattform für all deine Trading-Aktivitäten.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats-section">
+        <div class="stats-container">
+            <div class="stat-item">
+                <div class="stat-number">24/7</div>
+                <div class="stat-label">Verfügbarkeit</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">100+</div>
+                <div class="stat-label">Trading-Paare</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">∞</div>
+                <div class="stat-label">Möglichkeiten</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="footer-content">
+            <nav class="footer-nav" aria-label="Footer Navigation">
+                <a href="/">Home</a>
+                <a href="/about">Über uns</a>
+                <a href="/impressum">Impressum</a>
+                <a href="/login">Login</a>
+            </nav>
+            <p class="footer-text">&copy; 2025 oneofx.app - Professional trading for everyone</p>
+        </div>
+    </footer>
+</body>
+</html>
