@@ -30,9 +30,32 @@ public class ATHSQL {
         }
     }
 
+     public static double getAllTimeHighoneOfX(String Currency) {
+        ensureCurrencyPairExists(dbUrl.getoneofxString(), Currency);
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneofxString());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT ATH FROM ATH WHERE `Währung` = '" + Currency + "'")) {
+            if (rs.next()) {
+                return RoundCurrency.forTickerPrice(rs.getDouble("ATH"), Currency);
+            } else {
+                return 0.0;
+            }
+        } catch (SQLException err) {
+            System.out.println("Fehler beim holen der ATH Preis " + err.getMessage());
+            return 0.0;
+        }
+    }
+
     public static void CheckForNewAllTimeHigh(String currency, List<Double> LivePrice) {
         if (LivePrice.get(0) > getAllTimeHigh(currency)) {
             setAllTimeHigh(currency, dbUrl.getATH(), LivePrice.get(0));
+            System.out.println("New ATH small function");
+        }
+    }
+
+      public static void CheckForNewAllTimeHighOneOfX(String currency, List<Double> LivePrice) {
+        if (LivePrice.get(0) > getAllTimeHighoneOfX(currency)) {
+            setAllTimeHigh(currency, dbUrl.getoneofxString(), LivePrice.get(0));
             System.out.println("New ATH small function");
         }
     }

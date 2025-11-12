@@ -40,9 +40,28 @@ import org.ta4j.core.Indicator;
 import java.util.ArrayList;
 
 public class LTC_EUR_Live {
+    
+    private static volatile boolean running = true;
+    
+    /**
+     * Stoppt den Trading Bot.
+     */
+    public static void stop() {
+        running = false;
+    }
+    
+    /**
+     * Prüft ob der Bot läuft.
+     */
+    public static boolean isRunning() {
+        return running;
+    }
+    
     public static void main(String[] args) {
+        
+        running = true;
 
-        while (true) {
+        while (running) {
             try {
 
                 String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
@@ -60,7 +79,7 @@ public class LTC_EUR_Live {
                 // Jeden Tag 5€ DCA auf gebunde Assets -> 5€ über Sparplan aus Datenbank jeden
                 // Tag 5e holen.
 
-                while (true) {
+                while (running) {
 
                     state = set.Currency(BuyCurrencies, state);
                     currency = BuyCurrencies[state];
@@ -70,10 +89,12 @@ public class LTC_EUR_Live {
                     Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
+                    //ATHSQL.CheckForNewAllTimeHighOneOfX(currency, LivePrice);
 
                     BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
 
                     ATHSQL.updateLPP(currency);
+
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 

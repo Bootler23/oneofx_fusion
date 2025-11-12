@@ -58,20 +58,20 @@ public class BuyAmountFunktion {
                 }
             }
 
-            count_20 = (int) (count_PositionToBottom * 0.23);
+            // count_20 = (int) (count_PositionToBottom * 0.23);
 
-            restPosition = count_PositionToBottom - count_20;
+            // restPosition = count_PositionToBottom - count_20;
 
-            freeBalance = (freeBalance - (restPosition * minBuyAmount));
+            // freeBalance = (freeBalance - (restPosition * minBuyAmount));
 
-            getBuyAmount = freeBalance / count_20;
+            // getBuyAmount = freeBalance / count_20;
 
-            if (getBuyAmount >= (minBuyAmount / (1 - 0.30))) {
-                SETSQL.setMinBuyAmount(minBuyAmount + 0.1);
-                getBuyAmount = minBuyAmount;
-            }
+            // if (getBuyAmount >= (minBuyAmount / (1 - 0.30))) {
+            //     SETSQL.setMinBuyAmount(minBuyAmount + 0.1);
+            //     getBuyAmount = minBuyAmount;
+            // }
 
-            getBuyAmount = (freeBalance2 / count_PositionToBottom);
+            getBuyAmount = (freeBalance / count_PositionToBottom);
 
             Loop1 = false;
         }

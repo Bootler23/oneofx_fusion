@@ -81,7 +81,6 @@ public class Update {
     public static void NewCounterPosition() {
         int count = SETSQL.getCount();
         count++;
-        SETSQL.updateCount(count);
-        System.out.println("Neuer Count für Positionen: " + count);
+        SETSQL.updateCount(count);       
     }
 }

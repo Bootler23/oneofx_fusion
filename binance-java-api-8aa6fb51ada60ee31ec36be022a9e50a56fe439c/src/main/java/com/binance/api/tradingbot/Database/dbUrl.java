@@ -25,4 +25,7 @@ public class dbUrl {
     public static String getExpo() {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ExpoTag.db";
     }
+    public static String getoneofxString() {
+        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/oneofx/oneofx.db";
+    }
 }
