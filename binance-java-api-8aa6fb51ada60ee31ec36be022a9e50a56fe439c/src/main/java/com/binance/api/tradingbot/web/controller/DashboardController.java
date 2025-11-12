@@ -76,6 +76,12 @@ public class DashboardController {
         return "test-currencies";
     }
 
+    @GetMapping("/bot-control")
+    public String botControl(Model model) {
+        model.addAttribute("title", "Bot Control");
+        return "bot-control";
+    }
+
     @GetMapping("/about")
     public String about(Model model) {
         model.addAttribute("title", "About");
