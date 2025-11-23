@@ -37,15 +37,15 @@ public class SETSQL {
         }
     }
 
-    public static double getUSDCBalance(BinanceApiRestClient client) {
-        try {
-            double USDC_Balance = Asset.getFreeCalced_Balance("USDC", client);
-            return round.two(USDC_Balance);
-        } catch (BinanceApiException e) {
-            System.out.println("Fehler beim Abrufen des USDC-Saldos: " + e.getMessage());
-            return 0.0;
-        }
-    }
+    // public static double getUSDCBalance(BinanceApiRestClient client) {
+    //     try {
+    //         double USDC_Balance = Asset.getFreeCalced_Balance("USDC", client);
+    //         return round.two(USDC_Balance);
+    //     } catch (BinanceApiException e) {
+    //         System.out.println("Fehler beim Abrufen des USDC-Saldos: " + e.getMessage());
+    //         return 0.0;
+    //     }
+    // }
 
     public static double getBalance_SQL() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
