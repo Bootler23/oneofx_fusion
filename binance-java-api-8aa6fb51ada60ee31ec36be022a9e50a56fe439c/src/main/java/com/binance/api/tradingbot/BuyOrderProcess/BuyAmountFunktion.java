@@ -23,29 +23,22 @@ public class BuyAmountFunktion {
         }
 
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
-        double unten = POSSQL.getLastPrice(currencyPair, LivePrice);
-        double minBuyAmount = SETSQL.getMinBuyAmount();
+        double unten = POSSQL.getLastPrice(currencyPair, LivePrice);      
 
         double LPP = ATHSQL.getLPP(currencyPair);
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
         int count_PositionToBottom = 0;
-        int count_20 = 0;
-        int count_all = 0;
-        int restPosition = 0;
+      
 
         double Tax = HISTSQL.getTaxe();
-        double freeBalance = SETSQL.getBalance_SQL();
-        double freeBalance2 = 0.0;
+        double freeBalance = SETSQL.getBalance_SQL();      
 
-        freeBalance = (freeBalance - Tax);
-        freeBalance2 = freeBalance;
+        freeBalance = (freeBalance - Tax);    
 
         while (Loop1) {
-            while (Loop2) {
-
-                count_all++;
+            while (Loop2) {             
 
                 BuyPrice = BuyPrice - ((BuyPrice / 100) / grid);
                 if (((LivePrice.get(0) >= BuyPrice)) && (unten > BuyPrice)) {
@@ -70,6 +63,8 @@ public class BuyAmountFunktion {
             //     SETSQL.setMinBuyAmount(minBuyAmount + 0.1);
             //     getBuyAmount = minBuyAmount;
             // }
+            //freeBalance = freeBalance - (32 * count_PositionToBottom);
+           
 
             getBuyAmount = (freeBalance / count_PositionToBottom);
 

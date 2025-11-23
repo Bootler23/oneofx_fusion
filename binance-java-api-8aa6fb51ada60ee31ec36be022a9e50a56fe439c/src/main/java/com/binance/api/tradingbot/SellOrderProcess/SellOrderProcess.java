@@ -32,7 +32,7 @@ public class SellOrderProcess {
             percent = 1.0;
         }
 
-        percent = 1.31;
+        percent = 1.37;
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
