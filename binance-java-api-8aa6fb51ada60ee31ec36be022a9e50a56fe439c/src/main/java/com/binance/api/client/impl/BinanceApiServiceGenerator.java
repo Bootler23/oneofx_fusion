@@ -30,9 +30,15 @@ public class BinanceApiServiceGenerator {
         Dispatcher dispatcher = new Dispatcher();
         dispatcher.setMaxRequestsPerHost(500);
         dispatcher.setMaxRequests(500);
+        
+        // RateLimitInterceptor MUSS VOR AuthenticationInterceptor registriert werden!
+        // Grund: Wir wollen die Original-URL tracken, bevor Parameter hinzugefügt werden
+        RateLimitInterceptor rateLimitInterceptor = new RateLimitInterceptor();
+        
         sharedClient = new OkHttpClient.Builder()
                 .dispatcher(dispatcher)
                 .pingInterval(20, TimeUnit.SECONDS)
+                .addInterceptor(rateLimitInterceptor)  // Rate-Limit-Tracking
                 .build();
     }
 
