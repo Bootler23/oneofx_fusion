@@ -94,6 +94,17 @@ public class SETSQL {
         }
     }
 
+    public static double getPercentToSell() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT PercentToSell FROM SETTING")) {
+            return round.three(rs.getDouble("PercentToSell"));
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 0.0;
+        }
+    }
+
     public static double getDCA_Amount() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();

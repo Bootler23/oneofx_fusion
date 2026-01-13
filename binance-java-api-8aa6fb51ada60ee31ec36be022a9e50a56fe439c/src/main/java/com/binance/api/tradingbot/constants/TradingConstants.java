@@ -40,6 +40,27 @@ public final class TradingConstants {
     // ========= ROI & Split =================
     
     public static final double MIN_SPLIT_VALUE = 0.01; // Minimaler Split-Wert in EUR
+    
+    // ========= Rate-Limit-Konfiguration =================
+    
+    /**
+     * Intervall für Rate-Limit-Statusausgabe in Sekunden.
+     * Alle 5 Sekunden wird eine Übersicht über die API-Auslastung ausgegeben.
+     */
+    public static final int RATE_LIMIT_REPORT_INTERVAL_SECONDS = 5;
+    
+    /**
+     * Warnschwelle für Rate-Limit-Auslastung (0.0 - 1.0).
+     * Bei Überschreitung wird eine Warnung auf System.err ausgegeben.
+     * Standard: 0.80 = 80% von 6000 Weight = 4800 Weight
+     */
+    public static final double RATE_LIMIT_WARNING_THRESHOLD = 0.80;
+    
+    /**
+     * Aktiviert/Deaktiviert das Rate-Limit-Tracking.
+     * Bei true werden alle API-Calls überwacht und alle 5 Sekunden ein Report ausgegeben.
+     */
+    public static final boolean RATE_LIMIT_TRACKING_ENABLED = true;
 
     // Verhindern von Instanziierung (Utility-Klasse)
     private TradingConstants() {

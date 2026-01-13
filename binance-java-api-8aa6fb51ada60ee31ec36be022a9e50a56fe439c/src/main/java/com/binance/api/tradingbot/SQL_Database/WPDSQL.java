@@ -19,7 +19,7 @@ public class WPDSQL {
     // OrigPrice wird nicht mehr gebraucht
 
     public static void getGewinnAfterTax() {
-        String startDate = "01.01.2024";
+        String startDate = "01.01.2026";
         SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
 
         try {

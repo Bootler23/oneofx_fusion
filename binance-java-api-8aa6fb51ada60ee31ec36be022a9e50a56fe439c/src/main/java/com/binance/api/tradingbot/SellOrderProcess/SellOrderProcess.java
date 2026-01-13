@@ -20,19 +20,20 @@ import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class SellOrderProcess {
 
     public static void setSellOrder(String currency, BinanceApiRestClient client,
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
-        double percent = CalcPercenToSell.PercentToSell(currency);
+        double percent = CalcPercenToSell.PercentToSell(currency); // Dynamische Berechnung
        
         if (percent <= 0) {
             percent = 1.0;
-        }
+        }       
 
-        percent = 1.37;
+        percent = SETSQL.getPercentToSell();
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
@@ -128,7 +129,6 @@ public class SellOrderProcess {
 
         List<String> BuyAmountRecord = new ArrayList<String>();
 
-        // nicht die größte Position sondern die, die am weitesten im Minus ist
         POSSQL.getPositionWithMaxInMinus(BuyAmountRecord, currency, client);
 
         String record = BuyAmountRecord.get(0);

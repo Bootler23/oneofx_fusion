@@ -32,6 +32,7 @@ import com.binance.api.tradingbot.Settings.CurrencyConfig;
 import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.domain.OrderStatus;
 import com.binance.api.tradingbot.Database.dbUrl;
+import com.binance.api.tradingbot.service.RateLimitTracker;
 
 import java.util.List;
 
@@ -48,6 +49,11 @@ public class LTC_EUR_Live {
      */
     public static void stop() {
         running = false;
+        
+        // Rate-Limit-Tracker stoppen
+        if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
+            RateLimitTracker.getInstance().stopTracking();
+        }
     }
     
     /**
@@ -60,6 +66,27 @@ public class LTC_EUR_Live {
     public static void main(String[] args) {
         
         running = true;
+        
+        // ========== Rate-Limit-Tracking starten ==========
+        // 
+        // Der RateLimitTracker überwacht alle Binance API-Calls und gibt
+        // alle 5 Sekunden eine Statusmeldung auf der Console aus.
+        //
+        // Diese zeigt:
+        // - Aktuelles Weight (z.B. 1234/6000 = 20.6%)
+        // - Verbleibende Kapazität
+        // - Order-Count
+        // - Top-3 meistgenutzte Endpoints
+        // - Requests/Minute-Statistik
+        //
+        // Bei Auslastung >80% wird eine Warnung ausgegeben.
+        //
+        if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
+            RateLimitTracker rateLimitTracker = RateLimitTracker.getInstance();
+            rateLimitTracker.startTracking();
+            System.out.println("✅ Rate-Limit-Tracking aktiviert - Console-Output alle " 
+                + TradingConstants.RATE_LIMIT_REPORT_INTERVAL_SECONDS + " Sekunden");
+        }
 
         while (running) {
             try {
@@ -85,6 +112,7 @@ public class LTC_EUR_Live {
                     currency = BuyCurrencies[state];
 
                     sleep.for_1_second();
+                    // sleep.valueOffMillieSeconds(5);
 
                     Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
 
@@ -95,10 +123,9 @@ public class LTC_EUR_Live {
 
                     ATHSQL.updateLPP(currency);
 
-
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
-                        // BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                        BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
 
                         getTrade.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
