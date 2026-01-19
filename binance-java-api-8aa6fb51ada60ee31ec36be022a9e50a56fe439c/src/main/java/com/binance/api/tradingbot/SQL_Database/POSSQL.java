@@ -177,7 +177,7 @@ public class POSSQL {
             dataRecords.clear();
             try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                     PreparedStatement pstmt = con.prepareStatement(
-                            "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                            "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                                     "FROM POS WHERE Status IN (1, 7) AND Währung = ?")) {
 
                 pstmt.setString(1, CurrencyPair);
@@ -186,13 +186,14 @@ public class POSSQL {
                 while (rs.next()) {
                     String BuyOrderId = rs.getString("BuyOrderId"); // 0
                     String OrderPrice = rs.getString("OrderPrice"); // 1
-                    String Quantity = rs.getString("Qty"); // 2
-                    String BuyAmount = rs.getString("BuyAmount"); // 3
-                    String BuyPrice = rs.getString("BuyPrice"); // 4
-                    String BuyDate = rs.getString("BuyDate"); // 7
-                    String BuyTime = rs.getString("BuyTime"); // 8
+                    String OrigPrice = rs.getString("OrigPrice"); // 2
+                    String Quantity = rs.getString("Qty"); // 3
+                    String BuyAmount = rs.getString("BuyAmount"); // 4
+                    String BuyPrice = rs.getString("BuyPrice"); // 5
+                    String BuyDate = rs.getString("BuyDate"); // 6
+                    String BuyTime = rs.getString("BuyTime"); // 7
 
-                    String dataRecord = BuyOrderId + ", " + OrderPrice + ", " + Quantity + ", " + BuyAmount + ", " +
+                    String dataRecord = BuyOrderId + ", " + OrderPrice + ", " + OrigPrice + ", " + Quantity + ", " + BuyAmount + ", " +
                             BuyPrice + ", " + BuyDate + ", " + BuyTime;
 
                     dataRecords.add(dataRecord);
@@ -214,7 +215,7 @@ public class POSSQL {
             dataRecords.clear();
 
             // Zuerst versuchen, einen Datensatz mit Status = 7 und passender Währung zu finden
-            String SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
+            String SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
                     "WHERE Status = 7 AND Währung = '" + currency + "'";
 
             try (ResultSet rs = query.executeQuery(SQL)) {
@@ -226,7 +227,7 @@ public class POSSQL {
 
                 // Falls kein Datensatz mit Status = 7 gefunden wurde, dann Status = 1 verwenden
                 if (!foundStatus7) {
-                    SQL = "SELECT BuyOrderId, OrderPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
+                    SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM POS " +
                             "WHERE Status = 1 AND Währung = '" + currency + "' " +
                             "AND BuyAmount > 10 " +
                             "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
@@ -247,13 +248,14 @@ public class POSSQL {
     private static void addDataRecord(ResultSet rs, List<String> dataRecords) throws SQLException {
         String BuyOrderId = rs.getString("BuyOrderId");
         String OrderPrice = rs.getString("OrderPrice");
+        String OrigPrice = rs.getString("OrigPrice");
         String Quantity = rs.getString("Qty");
         String BuyAmount = rs.getString("BuyAmount");
         String BuyPrice = rs.getString("BuyPrice");
         String BuyDate = rs.getString("BuyDate");
         String BuyTime = rs.getString("BuyTime");
 
-        String dataRecord = BuyOrderId + ", " + OrderPrice + ", " + Quantity + ", " + BuyAmount + ", " +
+        String dataRecord = BuyOrderId + ", " + OrderPrice + ", " + OrigPrice + ", " + Quantity + ", " + BuyAmount + ", " +
                 BuyPrice + ", " + BuyDate + ", " + BuyTime;
         dataRecords.add(dataRecord);
     }

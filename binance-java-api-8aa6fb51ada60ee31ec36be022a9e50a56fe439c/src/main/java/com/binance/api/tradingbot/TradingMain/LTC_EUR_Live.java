@@ -12,11 +12,22 @@ import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.BalanceChecker;
 import com.binance.api.tradingbot.HelperFunctions.Schedule;
 import com.binance.api.tradingbot.HelperFunctions.Time;
+import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
+import com.binance.api.tradingbot.Indicator.ATR;
+import com.binance.api.tradingbot.Indicator.ATR.ATRResult;
 import com.binance.api.tradingbot.Indicator.BollingerBands;
+import com.binance.api.tradingbot.Indicator.EMA;
+import com.binance.api.tradingbot.Indicator.EMA.PriceType;
+import com.binance.api.tradingbot.Indicator.Stochastic;
+import com.binance.api.tradingbot.Indicator.StochRSI;
+import com.binance.api.tradingbot.Indicator.StochRSI.StochRSIResult;
+import com.binance.api.tradingbot.Indicator.MACD;
 import com.binance.api.tradingbot.Indicator.BollingerBands.BollingerBandsResult;
 import com.binance.api.tradingbot.HelperFunctions.BollingerBandsPrint;
 import com.binance.api.tradingbot.Indicator.Merge;
+import com.binance.api.tradingbot.Indicator.RSI;
+import com.binance.api.tradingbot.Indicator.RSI.RSIResult;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -26,6 +37,7 @@ import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
+import com.binance.api.tradingbot.Strategie.StrategieService;
 import com.binance.api.tradingbot.TradeInformation.getTrade;
 import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.Settings.CurrencyConfig;
@@ -41,34 +53,34 @@ import org.ta4j.core.Indicator;
 import java.util.ArrayList;
 
 public class LTC_EUR_Live {
-    
+
     private static volatile boolean running = true;
-    
+
     /**
      * Stoppt den Trading Bot.
      */
     public static void stop() {
         running = false;
-        
+
         // Rate-Limit-Tracker stoppen
         if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
             RateLimitTracker.getInstance().stopTracking();
         }
     }
-    
+
     /**
      * Prüft ob der Bot läuft.
      */
     public static boolean isRunning() {
         return running;
     }
-    
+
     public static void main(String[] args) {
-        
+
         running = true;
-        
+
         // ========== Rate-Limit-Tracking starten ==========
-        // 
+        //
         // Der RateLimitTracker überwacht alle Binance API-Calls und gibt
         // alle 5 Sekunden eine Statusmeldung auf der Console aus.
         //
@@ -84,8 +96,8 @@ public class LTC_EUR_Live {
         if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
             RateLimitTracker rateLimitTracker = RateLimitTracker.getInstance();
             rateLimitTracker.startTracking();
-            System.out.println("✅ Rate-Limit-Tracking aktiviert - Console-Output alle " 
-                + TradingConstants.RATE_LIMIT_REPORT_INTERVAL_SECONDS + " Sekunden");
+            System.out.println("✅ Rate-Limit-Tracking aktiviert - Console-Output alle "
+                    + TradingConstants.RATE_LIMIT_REPORT_INTERVAL_SECONDS + " Sekunden");
         }
 
         while (running) {
@@ -97,10 +109,12 @@ public class LTC_EUR_Live {
 
                 int count = 0;
                 boolean FirstRound = true;
+                double ema73low = 0.0;
 
                 List<Long> OrderIdList = new ArrayList<Long>();
                 List<String> getDataRecords = new ArrayList<String>();
                 List<Double> LivePrice = new ArrayList<Double>();
+
                 // -----------------------------------------------------------------------------------------------------------------------------------------------------
 
                 // Jeden Tag 5€ DCA auf gebunde Assets -> 5€ über Sparplan aus Datenbank jeden
@@ -117,7 +131,7 @@ public class LTC_EUR_Live {
                     Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
-                    //ATHSQL.CheckForNewAllTimeHighOneOfX(currency, LivePrice);
+                    // ATHSQL.CheckForNewAllTimeHighOneOfX(currency, LivePrice);
 
                     BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
 
@@ -125,7 +139,7 @@ public class LTC_EUR_Live {
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
-                        BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                        // BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
 
                         getTrade.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
@@ -138,27 +152,71 @@ public class LTC_EUR_Live {
                         SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
 
                         HISTSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
-                        Merge.splitValue(currency, getDataRecords);                       
+                        Merge.splitValue(currency, getDataRecords);
 
-                        // Wieviel ist mein Portfolio im Minus
                         WPDSQL.getGewinnAfterTax();
-
                         Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
-
                         count = 0;
 
+                        // ------- Indikator Strategie -------
+
+                        // double rsi = RSI.getRSIWithSmoothing(bnb.getClient(), "LTCEUR",
+                        // CandlestickInterval.FIVE_MINUTES, 14, 14).getRSI();
+
+                        // StrategieService.executeRsiStrategy(rsi);
+
+                        // double ema100 = round.two(EMA.getValue(bnb.getClient(), "LTCEUR",
+                        // CandlestickInterval.FIVE_MINUTES, 100));
+
+                        // if (SETSQL.getEMA_value() > ema100) {
+                        // SETSQL.setEMA(true);
+                        // } else {
+                        // SETSQL.setEMA_value(ema100);
+                        // SETSQL.setEMA(false);
+                        // }
+
+                        // ATRResult atrResult = ATR.getATR(bnb.getClient(), "LTCEUR",
+                        // CandlestickInterval.FIVE_MINUTES,
+                        // 14);
+                        // double atr = atrResult.getATR();
+
+                        // // Eigene Parameter (rsiPeriod, stochPeriod, kPeriod, dPeriod):
+                        // StochRSIResult stochRsiResult = StochRSI.getStochRSI(bnb.getClient(),
+                        // "LTCEUR",
+                        // CandlestickInterval.FIVE_MINUTES, 14, 14, 2, 2);
+                        // double stochK = round.two(stochRsiResult.getK() * 100);
+                        // double stochD = round.two(stochRsiResult.getD() * 100);
+
+                        // System.out.println(
+                        // "RSI: " + rsi + " | EMA100: " + ema100 + " | StochRSI K: " + stochK + " D: "
+                        // + stochD
+                        // + " | ATR: " + atr);
+
+                        // if ((SETSQL.getRSI() == true) && (LivePrice.get(0) > ema100) && (stochK >
+                        // stochD)
+                        // && (stochK < 23)) {
+                        // System.out.println();
+                        // // SETSQL.setRSI();
+
+                        // SETSQL.setStopLoss(3 * atr);
+                        // }
+
+                        // ------------------------------------
+                        ema73low = round.two(EMA.getValue(bnb.getClient(), "LTCEUR", CandlestickInterval.FIFTEEN_MINUTES, 73, PriceType.LOW));
+
+                        System.out.println(ema73low + " | " + LivePrice.get(0));
+
                         FirstRound = false;
-
-                    }                  
-                    // BollingerBandsPrint.printBollingerBandsCompact(bnb.getClient(), currency, CandlestickInterval.FIVE_MINUTES);
-
-                    // Schedule.Sell_Every_X_Seconds(currency, 300);
-
+                    }
+                  
                     count++;
 
                     // Buy
+
                     if (SETSQL.getStatus("BUYING")) {
-                        BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                        if (LivePrice.get(0) > ema73low) {
+                            BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                        }
                     }
 
                     // Check

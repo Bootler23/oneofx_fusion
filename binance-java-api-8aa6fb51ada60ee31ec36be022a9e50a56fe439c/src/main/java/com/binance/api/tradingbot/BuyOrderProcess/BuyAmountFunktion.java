@@ -34,6 +34,7 @@ public class BuyAmountFunktion {
         boolean Loop1 = true;
         boolean Loop2 = true;
         int count_PositionToBottom = 0;
+        int count23 = 0;
         int count_20 = 0;
         int restPosition = 0;
         int currentPositionNumber = POSSQL.getCountPOS(currencyPair) + 1;
@@ -58,59 +59,15 @@ public class BuyAmountFunktion {
                         Loop2 = false;
                     }
                 }
-            }
-
-            // Pyramidische Berechnung
-            // -----------------------------------------------------------------------------------
-
-            // Gesamt-Positionen = bereits gekaufte + verbleibende
-            // int totalPositions = (currentPositionNumber - 1) + count_PositionToBottom;
-
-            // // Pyramiden-Berechnung
-            // double minAmount = TradingConstants.MIN_BUY_AMOUNT;
-            // double inkrement = 0.0;
-
-            // if (totalPositions > 1) {
-            // // Formel: inkrement = 2 * (Budget - minAmount * n) / (n * (n-1))
-            // inkrement = 2.0 * (freeBalance - minAmount * totalPositions)
-            // / (totalPositions * (totalPositions - 1));
-            // }
-
-            // // Falls Budget zu klein, kein Inkrement (alle Positionen = minAmount)
-            // if (inkrement < 0) {
-            // inkrement = 0;
-            // }
-
-            // // BuyAmount = minAmount + (positionsNummer - 1) * inkrement
-            // getBuyAmount = minAmount + (currentPositionNumber - 1) * inkrement;
-
-            // -----------------------------------------------------------------------------------
-
-            count_20 = (int) (count_PositionToBottom * 0.2);
-
-            restPosition = count_PositionToBottom - count_20;
-
-            freeBalance = ((freeBalance + dailyAccumulatedAmount) - (restPosition * 5.5));
-
-            // freeBalance = (freeBalance - ((count_PositionToBottom - 23) * 40.0));
-
-            // getBuyAmount = freeBalance / count_20;
-
-            // if (getBuyAmount >= (minBuyAmount / (1 - 0.30))) {
-            // SETSQL.setMinBuyAmount(minBuyAmount + 0.1);
-            // getBuyAmount = minBuyAmount;
-            // }
-
-            // freeBalance = freeBalance - (32 * count_PositionToBottom);
-
-            getBuyAmount = (freeBalance / count_20);
-
-            Loop1 = false;
+            }      
+            Loop1 = false;           
         }
+
+        getBuyAmount = (freeBalance + dailyAccumulatedAmount) / 100;
 
         if (getBuyAmount < TradingConstants.MIN_BUY_AMOUNT) {
             getBuyAmount = 5.5;
-        }
+        }     
 
         return getBuyAmount;
     }

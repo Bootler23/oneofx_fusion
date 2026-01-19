@@ -60,6 +60,11 @@ public class Update {
                 double Qty = Double.valueOf(order.getExecutedQty());
                 double BuyAmount = Double.valueOf(order.getCummulativeQuoteQty());
                 double SellFee = round.eight(trade_fee * Ticker.getAssetPrice("BNBEUR", client));
+
+                if (SellFee > 10) { // TODO 
+                    SellFee = trade_fee;
+                }
+
                 double SplitValue = 0;
                 double LossAfterTax = 0;
 
