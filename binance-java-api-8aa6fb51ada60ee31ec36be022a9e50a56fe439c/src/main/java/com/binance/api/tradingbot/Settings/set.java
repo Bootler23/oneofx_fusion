@@ -6,7 +6,7 @@ public class set {
         int Grid;
         switch (currency) {
             case "LTCEUR":
-                Grid = 11;
+                Grid = 17;
                 break;
             case "BNBEUR":
                 Grid = 11;

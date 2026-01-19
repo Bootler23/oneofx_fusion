@@ -12,6 +12,7 @@ import java.util.List;
 
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
+import com.binance.api.client.domain.market.CandlestickInterval;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.CalcPercenToSell;
@@ -19,6 +20,8 @@ import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
+import com.binance.api.tradingbot.Indicator.ATR;
+import com.binance.api.tradingbot.Indicator.ATR.ATRResult;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
@@ -27,11 +30,22 @@ public class SellOrderProcess {
     public static void setSellOrder(String currency, BinanceApiRestClient client,
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
+        // ------- ATR basierte Verkaufsstrategie -------
+
+        // ATR-basiertes Gewinnziel berechnen
+        ATRResult atrResult = ATR.getATR(client, currency, CandlestickInterval.FIVE_MINUTES, 14);
+        double atr = atrResult.getATR();
+        double currentPrice = LivePrice.get(0);
+
+        // ATR-Multiplikator (anpassbar)
+        double atrMultiplier = SETSQL.getATRMultiplier();
+
+        // ----------------------------------------------
         double percent = CalcPercenToSell.PercentToSell(currency); // Dynamische Berechnung
-       
+
         if (percent <= 0) {
             percent = 1.0;
-        }       
+        }
 
         percent = SETSQL.getPercentToSell();
 
@@ -39,12 +53,27 @@ public class SellOrderProcess {
             String[] parts = dataRecord.split(", ");
 
             String BuyOrderId = parts[0];
-            String Quantity_String = parts[2];
-            String BuyPrice_String = parts[4];
+            String OrigPrice_String = parts[2];
+            String Quantity_String = parts[3];
+            String BuyPrice_String = parts[5];
+
+            // System.out.println(OrigPrice_String + " | " + BuyPrice_String);
+          
             double BuyPrice_Double = round.two(Double.valueOf(BuyPrice_String));
+            // ATR-basiertes Sell-Target
+            double sellTarget2 = round.two(BuyPrice_Double + (atr * atrMultiplier));
+            // Mindest-Gewinn sicherstellen (z.B. 0.3%)
+            double minTarget = round.two(BuyPrice_Double * 1.0053);
+
+            // System.out.println("Berechnetes ATR-basiertes Verkaufsziel: " + sellTarget2 + " | Mindestziel: " + minTarget);
+
+            sellTarget2 = round.two(Math.max(sellTarget2, minTarget));
             double sellTarget = (BuyPrice_Double / 100) * (100 + percent);
 
-            if ((LivePrice.get(0) >= sellTarget)) {
+          
+
+            // if ((LivePrice.get(0) >= sellTarget)) {
+            if (currentPrice >= sellTarget2) {                 
 
                 empty.Line();
                 System.out.println("es soll " + currency + " verkauft werden");

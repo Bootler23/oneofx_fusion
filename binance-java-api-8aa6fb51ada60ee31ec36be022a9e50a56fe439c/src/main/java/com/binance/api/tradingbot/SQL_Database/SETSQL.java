@@ -38,13 +38,13 @@ public class SETSQL {
     }
 
     // public static double getUSDCBalance(BinanceApiRestClient client) {
-    //     try {
-    //         double USDC_Balance = Asset.getFreeCalced_Balance("USDC", client);
-    //         return round.two(USDC_Balance);
-    //     } catch (BinanceApiException e) {
-    //         System.out.println("Fehler beim Abrufen des USDC-Saldos: " + e.getMessage());
-    //         return 0.0;
-    //     }
+    // try {
+    // double USDC_Balance = Asset.getFreeCalced_Balance("USDC", client);
+    // return round.two(USDC_Balance);
+    // } catch (BinanceApiException e) {
+    // System.out.println("Fehler beim Abrufen des USDC-Saldos: " + e.getMessage());
+    // return 0.0;
+    // }
     // }
 
     public static double getBalance_SQL() {
@@ -75,13 +75,13 @@ public class SETSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setDouble(1, round.two(BuyAmount)); 
+            ps.setDouble(1, round.two(BuyAmount));
             ps.executeUpdate();
 
         } catch (SQLException err) {
             System.out.println(err.getMessage());
         }
-    }  
+    }
 
     public static double getROIpercent() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -334,4 +334,110 @@ public class SETSQL {
             return 0.0;
         }
     }
+
+    public static boolean getRSI() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT RSI FROM SETTING")) {
+            if (rs.next()) {
+                String value = rs.getString("RSI");
+                return "true".equalsIgnoreCase(value) || "1".equals(value);
+            }
+            return false;
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return false;
+        }
+    }
+
+    public static void setRSI(boolean status) {
+        String sql = "UPDATE SETTING SET RSI = '" + (status ? "true" : "false") + "'";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement()) {
+            query.executeUpdate(sql);
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    public static void setEMA(boolean status) {
+        String sql = "UPDATE SETTING SET EMA = '" + (status ? "true" : "false") + "'";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement()) {
+            query.executeUpdate(sql);
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    public static void setEMA_value(double emaValue) {
+        String sql = "UPDATE SETTING SET EMA_value = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.two(emaValue));
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    public static double getEMA_value() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT EMA_value FROM SETTING")) {
+            if (rs.next()) {
+                return round.two(rs.getDouble("EMA_value"));
+            } else {
+                return 0.0;
+            }   
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 0.0;
+        }
+    }  
+
+    public static void setStopLoss(double stopLoss) {
+        String sql = "UPDATE SETTING SET SL = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.two(stopLoss));
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    public static void setBuyPriceTest(double buyPrice) {
+        String sql = "UPDATE SETTING SET TP = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.two(buyPrice));
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+     public static double getATRMultiplier() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT ATR_multiply FROM SETTING")) {
+            if (rs.next()) {
+                return round.two(rs.getDouble("ATR_multiply"));
+            } else {
+                return 0.0;
+            }   
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 0.0;
+        }
+    }  
+
+
 }
