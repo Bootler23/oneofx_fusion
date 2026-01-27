@@ -23,7 +23,7 @@ public final class ApiEndpointWeights {
      * Globales Request-Weight-Limit pro Minute.
      * Alle REST API Calls teilen sich dieses Limit.
      */
-    public static final int GLOBAL_WEIGHT_LIMIT_PER_MINUTE = 6000;
+    public static final int GLOBAL_WEIGHT_LIMIT_PER_MINUTE = 1200;
     
     /**
      * Order-Limit pro Sekunde (gilt nur für Order-Platzierungen).

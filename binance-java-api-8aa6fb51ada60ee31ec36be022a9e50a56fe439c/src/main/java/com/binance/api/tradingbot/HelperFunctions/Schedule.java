@@ -55,7 +55,7 @@ public class Schedule {
         }
     }
 
-    public static void Sell_Every_X_Seconds(String currency, int intervalSeconds) {
+    public static void DCA_Fake_every_x_Seconds(String currency, int intervalSeconds) {
         long currentEpoch = System.currentTimeMillis() / 1000;     
 
         if (currentEpoch - lastExecutionEpoch >= intervalSeconds) {

@@ -260,13 +260,15 @@ public class RateLimitTracker {
         // Alte Einträge aufräumen (außerhalb des 1-Minuten-Fensters)
         cleanupOldRecords(timestamp);
         
-        // Warnung bei hoher Auslastung
-        int currentWeight = getUsedWeightInWindow();
-        double usagePercent = (double) currentWeight / WEIGHT_LIMIT_PER_MINUTE;
-        
-        if (usagePercent > WARNING_THRESHOLD) {
-            logger.warn("⚠️ HOHE API-AUSLASTUNG: {}/{} Weight ({:.1f}%) - Endpoint: {}", 
-                currentWeight, WEIGHT_LIMIT_PER_MINUTE, usagePercent * 100, endpointName);
+        // Warnung bei hoher Auslastung (basierend auf Server-Weight)
+        int serverWeight = serverReportedWeight.get();
+        if (serverWeight > 0) {
+            double usagePercent = (double) serverWeight / WEIGHT_LIMIT_PER_MINUTE;
+            if (usagePercent > WARNING_THRESHOLD) {
+                logger.warn("⚠️ HOHE API-AUSLASTUNG: {}/{} Weight ({}%) - Endpoint: {}", 
+                    serverWeight, WEIGHT_LIMIT_PER_MINUTE, 
+                    String.format("%.1f", usagePercent * 100), endpointName);
+            }
         }
     }
     
@@ -351,6 +353,22 @@ public class RateLimitTracker {
         return (currentWeight + requiredWeight) <= WEIGHT_LIMIT_PER_MINUTE;
     }
     
+    /**
+     * Prüft ob das Server-Weight über dem Warnschwellenwert (80%) liegt.
+     * 
+     * Nutzt den Server-gemeldeten Weight-Wert für genaue Auslastungsprüfung.
+     * Wenn noch kein Server-Weight empfangen wurde, wird false zurückgegeben.
+     * 
+     * @return True wenn Server-Weight > 80% des Limits
+     */
+    public boolean isOverThreshold() {
+        int serverWeight = serverReportedWeight.get();
+        if (serverWeight <= 0) {
+            return false; // Noch kein Server-Weight erhalten
+        }
+        return (serverWeight / (double) WEIGHT_LIMIT_PER_MINUTE) > WARNING_THRESHOLD;
+    }
+    
     // ========== Private Hilfsmethoden ==========
     
     /**
@@ -383,11 +401,9 @@ public class RateLimitTracker {
      * Bei Auslastung >80% wird eine farbige Warnung ausgegeben.
      */
     private void printRateLimitStatus() {
-        // Aktuelle Werte sammeln
-        int usedWeight = getUsedWeightInWindow();
-        int requestCount = getRequestCountInWindow();
-        double usagePercent = getUsagePercentage() * 100;
+        // Server-Weight von Binance (der echte Wert!)
         int serverWeight = serverReportedWeight.get();
+        int requestCount = getRequestCountInWindow();
         
         // Berechne Orders in der letzten Minute
         long now = System.currentTimeMillis();
@@ -400,27 +416,27 @@ public class RateLimitTracker {
         // Timestamp formatieren
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
         
-        // ========== EINZEILIGE AUSGABE ==========
-        // Format: [HH:mm:ss] API-Limit: 250/6000 (4.2%) | Server: 94 | Requests: 7 | Orders: 0/10
+        // ========== EINZEILIGE AUSGABE (NUR SERVER-WEIGHT) ==========
+        // Format: [HH:mm:ss] API-Limit: 725/1200 (60.4%) | Requests: 145 | Orders: 9/10
         
-        String output;
-        if (serverWeight > 0) {
-            output = String.format("[%s] API-Limit: %d/%d (%5.1f%%) | Server: %d | Requests: %d | Orders: %d/10",
-                timestamp, usedWeight, WEIGHT_LIMIT_PER_MINUTE, usagePercent,
-                serverWeight, requestCount, ordersLastMinute);
-        } else {
-            output = String.format("[%s] API-Limit: %d/%d (%5.1f%%) | Requests: %d | Orders: %d/10",
-                timestamp, usedWeight, WEIGHT_LIMIT_PER_MINUTE, usagePercent,
-                requestCount, ordersLastMinute);
+        // Nur ausgeben wenn Server-Weight verfügbar
+        if (serverWeight <= 0) {
+            return; // Noch kein Server-Weight erhalten
         }
         
-        // Ausgabe je nach Auslastung
+        double usagePercent = (serverWeight * 100.0) / WEIGHT_LIMIT_PER_MINUTE;
+        
+        String output = String.format("[%s] API-Limit: %d/%d (%5.1f%%) | Requests: %d | Orders: %d/10",
+            timestamp, serverWeight, WEIGHT_LIMIT_PER_MINUTE, usagePercent,
+            requestCount, ordersLastMinute);
+        
+        // Ausgabe je nach Auslastung (basierend auf Server-Weight)
         if (usagePercent > WARNING_THRESHOLD * 100) {
             // WARNUNG bei hoher Auslastung (über System.err für rote Farbe)
             System.err.println("⚠️ " + output);
         } else {
             // Normale Ausgabe
-            // System.out.println(output);
+            System.out.println(output);
         }
     }
     

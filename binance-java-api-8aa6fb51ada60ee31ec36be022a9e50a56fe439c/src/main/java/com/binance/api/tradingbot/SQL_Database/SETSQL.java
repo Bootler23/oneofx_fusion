@@ -58,20 +58,47 @@ public class SETSQL {
         }
     }
 
-    public static double getMinBuyAmount() {
+    // ------- minBuyAmount -------
+    public static double getminBuyAmount() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query
-                        .executeQuery("SELECT MinBuyAmount FROM SETTING")) {
-            return round.two(rs.getDouble("MinBuyAmount"));
+                        .executeQuery("SELECT minBuyAmount FROM SETTING")) {
+            return round.two(rs.getDouble("minBuyAmount"));
         } catch (SQLException err) {
             System.out.println(err.getMessage());
             return 5.5;
         }
     }
 
-    public static void setMinBuyAmount(double BuyAmount) {
-        String sql = "UPDATE SETTING SET MinBuyAmount = ?";
+    public static void setminBuyAmount(double BuyAmount) {
+        String sql = "UPDATE SETTING SET minBuyAmount = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.two(BuyAmount));
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    // ------- maxBuyAmount -------
+    public static double getmaxBuyAmount() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query
+                        .executeQuery("SELECT maxBuyAmount FROM SETTING")) {
+            return round.two(rs.getDouble("maxBuyAmount"));
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 500.0;
+        }
+    }
+
+    public static void setmaxBuyAmount(double BuyAmount) {
+        String sql = "UPDATE SETTING SET maxBuyAmount = ?";
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 

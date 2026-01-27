@@ -2,6 +2,10 @@ package com.binance.api.tradingbot.HelperFunctions;
 
 public class sleep {
 
+    public static void for_01_second() {
+        sleeping(100);
+    }
+
     public static void for_02_second() {
         sleeping(200);
     }

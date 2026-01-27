@@ -33,16 +33,16 @@ public class Merge {
             if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01) && currency_Split.equals(currency)) { 
                                                                                   
                 String record = BuyAmountRecord.get(0); 
-                String[] recordParts = record.split(", ");
-                String BuyOrderId_POS = recordParts[0];
-                String Quantity = recordParts[2];
-                String BuyAmount = recordParts[3];
-                String OrigBuyPrice = recordParts[4];
+                String[] recordParts = record.split(", ");              
+                String BuyOrderId_POS = recordParts[0];               
+                String Quantity = recordParts[3];
+                String BuyAmount = recordParts[4];
+                String BuyPrice = recordParts[5];
 
                 double new_Buymount, new_BuyPrice;
 
                 System.out.println("ProfitSplitValue: " + profitSplitValue);
-                System.out.println("Old Position: " + BuyOrderId_POS + " - " + Quantity + " - " + BuyAmount + " - " + OrigBuyPrice);
+                System.out.println("Old Position: " + BuyOrderId_POS + " - " + Quantity + " - " + BuyAmount + " - " + BuyPrice);
 
                 new_Buymount = round.five(Double.valueOf(BuyAmount) - Double.valueOf(profitSplitValue));
                 new_BuyPrice = round.five(new_Buymount / Double.valueOf(Quantity));

@@ -26,7 +26,7 @@ public class CheckOrderStatus {
             List<Double> LivePrice) {
 
         for (Long buyOrderId : BuyOrderIdList) {
-           
+
             try {
                 Order order = client.getOrderStatus(new OrderStatusRequest(currency, buyOrderId));
                 Double orderPrice = round.two(Double.parseDouble(order.getPrice()));
