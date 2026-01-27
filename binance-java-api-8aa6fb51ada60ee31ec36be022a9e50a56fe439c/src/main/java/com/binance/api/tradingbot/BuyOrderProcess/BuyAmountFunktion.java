@@ -38,8 +38,8 @@ public class BuyAmountFunktion {
         int count_20 = 0;
         int restPosition = 0;
         int currentPositionNumber = POSSQL.getCountPOS(currencyPair) + 1;
-        double minBuyAmount = SETSQL.getMinBuyAmount();
-
+        double minBuyAmount = SETSQL.getminBuyAmount();
+        // double maxBuyAmount = SETSQL.getmaxBuyAmount();
         double Tax = HISTSQL.getTaxe();
         double freeBalance = SETSQL.getBalance_SQL();
 
@@ -59,15 +59,21 @@ public class BuyAmountFunktion {
                         Loop2 = false;
                     }
                 }
-            }      
-            Loop1 = false;           
+            }
+            Loop1 = false;
         }
 
-        getBuyAmount = (freeBalance + dailyAccumulatedAmount) / 100;
+        getBuyAmount = (freeBalance - (count_PositionToBottom * minBuyAmount));
 
-        if (getBuyAmount < TradingConstants.MIN_BUY_AMOUNT) {
-            getBuyAmount = 5.5;
-        }     
+        if (getBuyAmount < minBuyAmount) {
+            getBuyAmount = minBuyAmount;
+        }
+
+        if (wahr) {
+            if (minBuyAmount < getBuyAmount) {
+                SETSQL.setminBuyAmount(minBuyAmount + 0.01);
+            }
+        }
 
         return getBuyAmount;
     }

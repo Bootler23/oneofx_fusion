@@ -45,6 +45,7 @@ import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.domain.OrderStatus;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.service.RateLimitTracker;
+import com.binance.api.tradingbot.Stream.UltraFastStream;
 
 import java.util.List;
 
@@ -55,12 +56,19 @@ import java.util.ArrayList;
 public class LTC_EUR_Live {
 
     private static volatile boolean running = true;
+    private static UltraFastStream priceStream;
+    private static long lastBnbBalanceCheck = 0;
 
     /**
      * Stoppt den Trading Bot.
      */
     public static void stop() {
         running = false;
+
+        // WebSocket Stream stoppen
+        if (priceStream != null) {
+            priceStream.stop();
+        }
 
         // Rate-Limit-Tracker stoppen
         if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
@@ -100,11 +108,37 @@ public class LTC_EUR_Live {
                     + TradingConstants.RATE_LIMIT_REPORT_INTERVAL_SECONDS + " Sekunden");
         }
 
+        // ========== WebSocket Stream starten ==========
+        //
+        // Der UltraFastStream liefert Echtzeit-Preise via WebSocket.
+        // Vorteile:
+        // - Kein Rate-Limit-Verbrauch für Preis-Abrufe
+        // - Echtzeit-Updates (keine 1-Sekunden-Verzögerung)
+        // - Automatischer Reconnect bei Verbindungsabbruch
+        // - REST-Fallback wenn WebSocket dauerhaft fehlschlägt
+        //
+        String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
+        String currency = BuyCurrencies[0]; // Erste (und einzige) Währung
+
+        priceStream = new UltraFastStream();
+        priceStream.start(currency);
+
+        // Warte kurz auf erste Daten (max 5 Sekunden)
+        int waitCount = 0;
+        while (!priceStream.hasData() && waitCount < 50 && running) {
+            sleep.valueOffMillieSeconds(100);
+            waitCount++;
+        }
+
+        if (priceStream.hasData()) {
+            System.out.println("✅ WebSocket Stream aktiv für " + currency);
+        } else {
+            System.out.println("⚠️ Noch keine Stream-Daten - REST-Fallback wird automatisch genutzt");
+        }
+
         while (running) {
             try {
 
-                String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
-                String currency = "";
                 int state = 0;
 
                 int count = 0;
@@ -117,21 +151,37 @@ public class LTC_EUR_Live {
 
                 // -----------------------------------------------------------------------------------------------------------------------------------------------------
 
-                // Jeden Tag 5€ DCA auf gebunde Assets -> 5€ über Sparplan aus Datenbank jeden
-                // Tag 5e holen.
-
                 while (running) {
 
                     state = set.Currency(BuyCurrencies, state);
                     currency = BuyCurrencies[state];
 
-                    sleep.for_1_second();
-                    // sleep.valueOffMillieSeconds(5);
+                    if (RateLimitTracker.getInstance().isOverThreshold()) {
+                        sleep.for_1_second(); // Langsamer bei hoher Last
+                    } else {
+                        sleep.for_02_second(); // Normal: 5 Durchläufe/Sekunde
+                    }
 
-                    Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
+                    Schedule.DCA_Fake_every_x_Seconds(currency, 600); // alle 10 Minuten DCA ausführen
+
+                    Double livePrice = priceStream.getPrice();
+                    if (livePrice == null || livePrice == 0.0) {
+
+                        System.out.println("x");
+                        sleep.for_1_second();
+                        Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
+
+                        if (LivePrice.isEmpty() || LivePrice.get(0) == 0.0) {
+                            System.err.println("p");
+                            sleep.for_1_second();
+                            continue;
+                        }
+                    } else {
+                        LivePrice.clear();
+                        LivePrice.add(livePrice);
+                    }
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
-                    // ATHSQL.CheckForNewAllTimeHighOneOfX(currency, LivePrice);
 
                     BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
 
@@ -140,7 +190,6 @@ public class LTC_EUR_Live {
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
                         // BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
-
                         getTrade.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
@@ -149,74 +198,36 @@ public class LTC_EUR_Live {
                                 TradingConstants.POS_COLUMNS_BUY_TRADES, getDataRecords);
                         Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);
 
-                        SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
+                        // SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
 
                         HISTSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
                         Merge.splitValue(currency, getDataRecords);
 
                         WPDSQL.getGewinnAfterTax();
-                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
+
+                        // BNB Balance nur alle 5 Minuten prüfen
+                        long currentTime = System.currentTimeMillis();
+                        if (currentTime - lastBnbBalanceCheck >= 5 * 60 * 1000) { // 5 Minuten in Millisekunden
+                            Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
+                            lastBnbBalanceCheck = currentTime;
+                        }
+
                         count = 0;
 
-                        // ------- Indikator Strategie -------
-
-                        // double rsi = RSI.getRSIWithSmoothing(bnb.getClient(), "LTCEUR",
-                        // CandlestickInterval.FIVE_MINUTES, 14, 14).getRSI();
-
-                        // StrategieService.executeRsiStrategy(rsi);
-
-                        // double ema100 = round.two(EMA.getValue(bnb.getClient(), "LTCEUR",
-                        // CandlestickInterval.FIVE_MINUTES, 100));
-
-                        // if (SETSQL.getEMA_value() > ema100) {
-                        // SETSQL.setEMA(true);
-                        // } else {
-                        // SETSQL.setEMA_value(ema100);
-                        // SETSQL.setEMA(false);
-                        // }
-
-                        // ATRResult atrResult = ATR.getATR(bnb.getClient(), "LTCEUR",
-                        // CandlestickInterval.FIVE_MINUTES,
-                        // 14);
-                        // double atr = atrResult.getATR();
-
-                        // // Eigene Parameter (rsiPeriod, stochPeriod, kPeriod, dPeriod):
-                        // StochRSIResult stochRsiResult = StochRSI.getStochRSI(bnb.getClient(),
-                        // "LTCEUR",
-                        // CandlestickInterval.FIVE_MINUTES, 14, 14, 2, 2);
-                        // double stochK = round.two(stochRsiResult.getK() * 100);
-                        // double stochD = round.two(stochRsiResult.getD() * 100);
-
-                        // System.out.println(
-                        // "RSI: " + rsi + " | EMA100: " + ema100 + " | StochRSI K: " + stochK + " D: "
-                        // + stochD
-                        // + " | ATR: " + atr);
-
-                        // if ((SETSQL.getRSI() == true) && (LivePrice.get(0) > ema100) && (stochK >
-                        // stochD)
-                        // && (stochK < 23)) {
-                        // System.out.println();
-                        // // SETSQL.setRSI();
-
-                        // SETSQL.setStopLoss(3 * atr);
-                        // }
-
-                        // ------------------------------------
-                        ema73low = round.two(EMA.getValue(bnb.getClient(), "LTCEUR", CandlestickInterval.FIFTEEN_MINUTES, 73, PriceType.LOW));
-
-                        System.out.println(ema73low + " | " + LivePrice.get(0));
-
+                        // ema73low = round.two(EMA.getValue(bnb.getClient(), "LTCEUR",
+                        // CandlestickInterval.FIFTEEN_MINUTES, 73, PriceType.LOW));
+                        // System.out.println(ema73low + " | " + LivePrice.get(0));
                         FirstRound = false;
                     }
-                  
+
                     count++;
 
                     // Buy
 
                     if (SETSQL.getStatus("BUYING")) {
-                        if (LivePrice.get(0) > ema73low) {
-                            BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
-                        }
+                        // if (LivePrice.get(0) > ema73low) {
+                        BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                        // }
                     }
 
                     // Check

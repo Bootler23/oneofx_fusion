@@ -20,11 +20,11 @@ public class dca {
         if (!BuyAmountRecord.isEmpty() && (DCA_Amount >= 0.01)) {
 
             String record = BuyAmountRecord.get(0);
-            String[] recordParts = record.split(", ");
+            String[] recordParts = record.split(", ");         
             String BuyOrderId_POS = recordParts[0];
-            String Quantity = recordParts[2];
-            String BuyAmount = recordParts[3];
-            String OrigBuyPrice = recordParts[4];
+            String Quantity = recordParts[3];
+            String BuyAmount = recordParts[4];
+            String OrigBuyPrice = recordParts[5];
 
             double new_Buymount, new_BuyPrice;
 

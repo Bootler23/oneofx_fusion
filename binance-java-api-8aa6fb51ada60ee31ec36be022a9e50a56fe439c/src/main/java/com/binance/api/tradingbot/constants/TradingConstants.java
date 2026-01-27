@@ -62,6 +62,37 @@ public final class TradingConstants {
      */
     public static final boolean RATE_LIMIT_TRACKING_ENABLED = true;
 
+    // ========= WebSocket Stream Konfiguration =================
+    
+    /**
+     * Maximale Anzahl an Reconnect-Versuchen bevor auf REST-Fallback gewechselt wird.
+     */
+    public static final int STREAM_MAX_RECONNECT_ATTEMPTS = 10;
+    
+    /**
+     * Initiale Wartezeit für Reconnect (Exponential Backoff Basis).
+     * 1. Versuch: 1s, 2. Versuch: 2s, 3. Versuch: 4s, etc.
+     */
+    public static final long STREAM_INITIAL_RECONNECT_DELAY_MS = 1000;
+    
+    /**
+     * Maximale Wartezeit zwischen Reconnect-Versuchen.
+     */
+    public static final long STREAM_MAX_RECONNECT_DELAY_MS = 60000;
+    
+    /**
+     * Threshold für Stale-Data-Detection.
+     * Wenn keine neuen Daten innerhalb dieser Zeit empfangen werden,
+     * gilt die Verbindung als problematisch.
+     */
+    public static final long STREAM_STALE_DATA_THRESHOLD_MS = 30000;
+    
+    /**
+     * Polling-Intervall für REST-Fallback in Millisekunden.
+     * Nicht zu niedrig setzen um Rate-Limits zu schonen.
+     */
+    public static final long STREAM_REST_FALLBACK_INTERVAL_MS = 3000;
+
     // Verhindern von Instanziierung (Utility-Klasse)
     private TradingConstants() {
         throw new AssertionError("Cannot instantiate TradingConstants - this is a utility class");
