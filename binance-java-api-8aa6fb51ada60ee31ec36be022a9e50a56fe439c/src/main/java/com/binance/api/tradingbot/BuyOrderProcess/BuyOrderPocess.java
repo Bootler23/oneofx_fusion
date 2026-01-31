@@ -62,8 +62,6 @@ public class BuyOrderPocess {
 
                 ATHSQL.GetHighestBuyAmount(currency);
 
-                sleep.for_05_second();
-
                 BuyAmaunt = BuyAmountFunktion.getBuyAmount(currency, client, LivePrice, true);
                 BuyAmaunt = checkBuyAmount(client, BuyAmaunt);              
 
