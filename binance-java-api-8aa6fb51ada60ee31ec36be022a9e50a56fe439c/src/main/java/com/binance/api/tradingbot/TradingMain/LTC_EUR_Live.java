@@ -162,7 +162,7 @@ public class LTC_EUR_Live {
                         sleep.for_02_second(); // Normal: 5 Durchläufe/Sekunde
                     }
 
-                    Schedule.DCA_Fake_every_x_Seconds(currency, 600); // alle 10 Minuten DCA ausführen
+                    // Schedule.DCA_Fake_every_x_Seconds(currency, 600); // alle 10 Minuten DCA ausführen
 
                     Double livePrice = priceStream.getPrice();
                     if (livePrice == null || livePrice == 0.0) {
@@ -183,7 +183,7 @@ public class LTC_EUR_Live {
 
                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
-                    BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
+                    // BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
 
                     ATHSQL.updateLPP(currency);
 
@@ -213,21 +213,14 @@ public class LTC_EUR_Live {
                         }
 
                         count = 0;
-
-                        // ema73low = round.two(EMA.getValue(bnb.getClient(), "LTCEUR",
-                        // CandlestickInterval.FIFTEEN_MINUTES, 73, PriceType.LOW));
-                        // System.out.println(ema73low + " | " + LivePrice.get(0));
                         FirstRound = false;
                     }
 
                     count++;
 
                     // Buy
-
                     if (SETSQL.getStatus("BUYING")) {
-                        // if (LivePrice.get(0) > ema73low) {
                         BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
-                        // }
                     }
 
                     // Check

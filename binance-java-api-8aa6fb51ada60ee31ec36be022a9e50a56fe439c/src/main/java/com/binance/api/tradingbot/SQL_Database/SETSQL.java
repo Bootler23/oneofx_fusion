@@ -64,7 +64,7 @@ public class SETSQL {
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT minBuyAmount FROM SETTING")) {
-            return round.two(rs.getDouble("minBuyAmount"));
+            return round.five(rs.getDouble("minBuyAmount"));
         } catch (SQLException err) {
             System.out.println(err.getMessage());
             return 5.5;
@@ -76,7 +76,7 @@ public class SETSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setDouble(1, round.two(BuyAmount));
+            ps.setDouble(1, round.five(BuyAmount));
             ps.executeUpdate();
 
         } catch (SQLException err) {

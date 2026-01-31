@@ -180,6 +180,10 @@ public class POSSQL {
                             "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                                     "FROM POS WHERE Status IN (1, 7) AND Währung = ?")) {
 
+                            //   "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                            //         "FROM POS WHERE Status = 11 AND Währung = ?")) {
+
+
                 pstmt.setString(1, CurrencyPair);
                 ResultSet rs = pstmt.executeQuery();
 

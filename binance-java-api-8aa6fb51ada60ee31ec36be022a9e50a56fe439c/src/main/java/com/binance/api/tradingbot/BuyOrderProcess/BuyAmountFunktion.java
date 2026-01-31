@@ -2,12 +2,12 @@ package com.binance.api.tradingbot.BuyOrderProcess;
 
 import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
+import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
-import com.binance.api.tradingbot.constants.TradingConstants;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -73,12 +73,12 @@ public class BuyAmountFunktion {
             if (minBuyAmount < getBuyAmount) {
                 SETSQL.setminBuyAmount(minBuyAmount + 0.01);
             }
-        }
+        }      
 
-        return getBuyAmount;
+        return round.five(getBuyAmount);
     }
 
-    /**
+     /**
      * Berechnet den akkumulierten Betrag basierend auf Tagen seit Startdatum.
      * Tag 1 (Startdatum) = addAmount, Tag 2 = 2*addAmount, usw.
      * 
