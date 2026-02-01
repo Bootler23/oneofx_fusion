@@ -12,32 +12,25 @@ import java.util.List;
 
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
-import com.binance.api.client.domain.market.CandlestickInterval;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
-import com.binance.api.tradingbot.HelperFunctions.CalcPercenToSell;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.empty;
-import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
-import com.binance.api.tradingbot.Indicator.ATR;
-import com.binance.api.tradingbot.Indicator.ATR.ATRResult;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class SellOrderProcess {
 
     public static void setSellOrder(String currency, BinanceApiRestClient client,
-            List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {   
+            List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
-        double percent = CalcPercenToSell.PercentToSell(currency); // Dynamische Berechnung
         double currentPrice = LivePrice.get(0);
+        double percent = SETSQL.getPercentToSell();
 
         if (percent <= 0) {
-            percent = 1.0;
+            percent = 0.5;
         }
-
-        percent = SETSQL.getPercentToSell();
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
@@ -50,7 +43,7 @@ public class SellOrderProcess {
             double BuyPrice_Double = Double.valueOf(BuyPrice_String);
             double sellTarget = (BuyPrice_Double / 100) * (100 + percent);
 
-            if (currentPrice >= sellTarget) {                          
+            if (currentPrice >= sellTarget) {
 
                 empty.Line();
                 System.out.println("es soll " + currency + " verkauft werden");
