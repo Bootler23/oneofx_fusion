@@ -6,7 +6,6 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
-import com.binance.api.tradingbot.constants.TradingConstants;
 
 public class Asset {
 

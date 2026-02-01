@@ -16,7 +16,7 @@ import com.binance.api.tradingbot.SQL_Database.WPDSQL;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
-import com.binance.api.tradingbot.TradeInformation.getTrade;
+import com.binance.api.tradingbot.TradeInformation.getTradeInformation;
 import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.Settings.CurrencyConfig;
 import com.binance.api.tradingbot.constants.TradingConstants;
@@ -51,10 +51,7 @@ public class LTC_EUR_Live {
             RateLimitTracker.getInstance().stopTracking();
         }
     }
-
-    /**
-     * Prüft ob der Bot läuft.
-     */
+   
     public static boolean isRunning() {
         return running;
     }
@@ -63,20 +60,6 @@ public class LTC_EUR_Live {
 
         running = true;
 
-        // ========== Rate-Limit-Tracking starten ==========
-        //
-        // Der RateLimitTracker überwacht alle Binance API-Calls und gibt
-        // alle 5 Sekunden eine Statusmeldung auf der Console aus.
-        //
-        // Diese zeigt:
-        // - Aktuelles Weight (z.B. 1234/6000 = 20.6%)
-        // - Verbleibende Kapazität
-        // - Order-Count
-        // - Top-3 meistgenutzte Endpoints
-        // - Requests/Minute-Statistik
-        //
-        // Bei Auslastung >80% wird eine Warnung ausgegeben.
-        //
         if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
             RateLimitTracker rateLimitTracker = RateLimitTracker.getInstance();
             rateLimitTracker.startTracking();
@@ -85,14 +68,7 @@ public class LTC_EUR_Live {
         }
 
         // ========== WebSocket Stream starten ==========
-        //
-        // Der UltraFastStream liefert Echtzeit-Preise via WebSocket.
-        // Vorteile:
-        // - Kein Rate-Limit-Verbrauch für Preis-Abrufe
-        // - Echtzeit-Updates (keine 1-Sekunden-Verzögerung)
-        // - Automatischer Reconnect bei Verbindungsabbruch
-        // - REST-Fallback wenn WebSocket dauerhaft fehlschlägt
-        //
+     
         String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
         String currency = BuyCurrencies[0]; // Erste (und einzige) Währung
 
@@ -162,18 +138,18 @@ public class LTC_EUR_Live {
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
-                        // Balance Check nur alle 60 Sekunden
+                        // Balance Check nur alle 5 Minuten
                         long currentTime2 = System.currentTimeMillis();
-                        if (currentTime2 - lastBalanceCheck >= 60 * 1000) { // 60 Sekunden
+                        if (currentTime2 - lastBalanceCheck >= 5 * 60 * 1000) { // 5 Minuten in Millisekunden
                             BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
                             lastBalanceCheck = currentTime2;
                         }
                         
-                        getTrade.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
+                        getTradeInformation.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
 
-                        getTrade.RecordsByStatus(dbUrl.getPOS(), TradingConstants.TABLE_POS, 5,
+                        getTradeInformation.RecordsByStatus(dbUrl.getPOS(), TradingConstants.TABLE_POS, 5,
                                 TradingConstants.POS_COLUMNS_BUY_TRADES, getDataRecords);
                         Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);
 
@@ -183,10 +159,9 @@ public class LTC_EUR_Live {
                         Merge.splitValue(currency, getDataRecords);
 
                         WPDSQL.getGewinnAfterTax();
-
-                        // BNB Balance nur alle 5 Minuten prüfen
+                       
                         long currentTime = System.currentTimeMillis();
-                        if (currentTime - lastBnbBalanceCheck >= 5 * 60 * 1000) { // 5 Minuten in Millisekunden
+                        if (currentTime - lastBnbBalanceCheck >= 5 * 60 * 1000) {
                             Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
                             lastBnbBalanceCheck = currentTime;
                         }

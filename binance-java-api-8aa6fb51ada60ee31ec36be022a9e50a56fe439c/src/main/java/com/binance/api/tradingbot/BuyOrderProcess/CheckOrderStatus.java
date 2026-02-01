@@ -4,12 +4,13 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
 
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.OrderStatus;
+import com.binance.api.client.domain.account.Account;
+import com.binance.api.client.domain.account.AssetBalance;
 import com.binance.api.client.domain.account.Order;
 import com.binance.api.client.domain.account.request.CancelOrderRequest;
 import com.binance.api.client.domain.account.request.OrderStatusRequest;
@@ -23,8 +24,7 @@ import com.binance.api.tradingbot.Settings.set;
 
 public class CheckOrderStatus {
 
-    public static void OrderStatus(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList,
-            List<Double> LivePrice) {
+    public static void OrderStatus(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList, List<Double> LivePrice) {
 
         for (Long buyOrderId : BuyOrderIdList) {
 
@@ -41,7 +41,7 @@ public class CheckOrderStatus {
                 }
 
                 if (order.getStatus() == OrderStatus.FILLED) {
-                    BUY_FILLED(currency, client, buyOrderId, order);
+                    BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
                 }
 
                 if (order.getStatus() == OrderStatus.EXPIRED_IN_MATCH) {
@@ -121,7 +121,7 @@ public class CheckOrderStatus {
         }
     }
 
-    private static void BUY_FILLED(String currencyPair, BinanceApiRestClient client, Long BuyOrderId, Order order) {
+    private static void BUY_FILLED(String currencyPair, BinanceApiRestClient client, Long BuyOrderId, Order order, List<Double> LivePrice) {
 
         double OrderPrice = getBuyPrice(order);
         String BuyDate = Time.getCurrentDate();
@@ -147,16 +147,27 @@ public class CheckOrderStatus {
         } catch (SQLException err) {
             System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
         }
+       
+        String asset = currencyPair.replace("EUR", ""); // z.B. "LTCEUR" -> "LTC", "BNBEUR" -> "BNB" // TODO -> Achtung bei USDC
+        BalanceInfo balances = getBalances(asset, client);
 
         try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
                 PreparedStatement insert_HIST = con_insert_HIST.prepareStatement(
-                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime) VALUES (?, ?, ?, ?, ?)")) {
+                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
 
             insert_HIST.setString(1, currencyPair);
             insert_HIST.setLong(2, BuyOrderId);
             insert_HIST.setDouble(3, OrderPrice);
             insert_HIST.setString(4, BuyDate);
             insert_HIST.setString(5, BuyTime);
+            insert_HIST.setDouble(6, balances.eurBalance);
+            insert_HIST.setDouble(7, (round.three(balances.assetQuantity) * LivePrice.get(0)));
+
+            double balanceToAssetRatio = 0.0;
+            if (balances.assetQuantity > 0) {
+                balanceToAssetRatio = round.three(balances.eurBalance / (balances.assetQuantity * LivePrice.get(0)));
+            }
+            insert_HIST.setDouble(8, balanceToAssetRatio);
 
             insert_HIST.executeUpdate();
             System.out.println("Part in Hist Saved");
@@ -301,6 +312,44 @@ public class CheckOrderStatus {
         } catch (Exception e) {
             System.err.println("Fehler in Test_PARTIALLY_FILLED für Order " + BuyOrderId + ": " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    public static class BalanceInfo {
+        public final double assetQuantity; // z.B. LTC
+        public final double eurBalance; // EUR
+
+        public BalanceInfo(double assetQuantity, double eurBalance) {
+            this.assetQuantity = assetQuantity;
+            this.eurBalance = eurBalance;
+        }
+    }
+
+    public static BalanceInfo getBalances(String asset, BinanceApiRestClient client) {
+        try {
+            // Nur EIN API-Call für beide Werte (Weight: 20)
+            Account account = client.getAccount();
+
+            // Asset-Balance (z.B. LTC)
+            AssetBalance assetBalance = account.getAssetBalance(asset);
+            double assetFree = Double.parseDouble(assetBalance.getFree());
+            double assetLocked = Double.parseDouble(assetBalance.getLocked());
+            double assetTotal = assetFree + assetLocked;
+
+            // EUR-Balance
+            AssetBalance eurBalance = account.getAssetBalance("EUR");
+            double eurFree = Double.parseDouble(eurBalance.getFree());
+            double eurLocked = Double.parseDouble(eurBalance.getLocked());
+            double eurTotal = eurFree + eurLocked;
+
+            return new BalanceInfo(assetTotal, eurTotal);
+
+        } catch (BinanceApiException e) {
+            System.err.println("Fehler beim Abrufen der Balances: " + e.getMessage());
+            return new BalanceInfo(0.0, 0.0);
+        } catch (Exception e) {
+            System.err.println("Unbekannter Fehler: " + e.getMessage());
+            return new BalanceInfo(0.0, 0.0);
         }
     }
 }

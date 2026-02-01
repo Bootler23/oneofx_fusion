@@ -7,7 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-public class getTrade {
+public class getTradeInformation {
 
       public static void RecordsByStatus(String dbUrl, String tableName, int status, String[] columns, List<String> records) {
 
