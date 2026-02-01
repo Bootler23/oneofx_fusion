@@ -1,55 +1,30 @@
 package com.binance.api.tradingbot.TradingMain;
 
-import com.binance.api.tradingbot.Arbitrage.TriangularArbitrageExample;
-import com.binance.api.client.domain.market.CandlestickInterval;
-import com.binance.api.tradingbot.Arbitrage.TriangularArbitrageBot;
-import java.math.BigDecimal;
-import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyOrderPocess;
 import com.binance.api.tradingbot.BuyOrderProcess.CheckOrderStatus;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.BalanceChecker;
-import com.binance.api.tradingbot.HelperFunctions.Schedule;
 import com.binance.api.tradingbot.HelperFunctions.Time;
-import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
-import com.binance.api.tradingbot.Indicator.ATR;
-import com.binance.api.tradingbot.Indicator.ATR.ATRResult;
-import com.binance.api.tradingbot.Indicator.BollingerBands;
-import com.binance.api.tradingbot.Indicator.EMA;
-import com.binance.api.tradingbot.Indicator.EMA.PriceType;
-import com.binance.api.tradingbot.Indicator.Stochastic;
-import com.binance.api.tradingbot.Indicator.StochRSI;
-import com.binance.api.tradingbot.Indicator.StochRSI.StochRSIResult;
-import com.binance.api.tradingbot.Indicator.MACD;
-import com.binance.api.tradingbot.Indicator.BollingerBands.BollingerBandsResult;
-import com.binance.api.tradingbot.HelperFunctions.BollingerBandsPrint;
 import com.binance.api.tradingbot.Indicator.Merge;
-import com.binance.api.tradingbot.Indicator.RSI;
-import com.binance.api.tradingbot.Indicator.RSI.RSIResult;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
-import com.binance.api.tradingbot.SellAsset.SellAsset;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
-import com.binance.api.tradingbot.Strategie.StrategieService;
 import com.binance.api.tradingbot.TradeInformation.getTrade;
 import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.Settings.CurrencyConfig;
 import com.binance.api.tradingbot.constants.TradingConstants;
-import com.binance.api.tradingbot.domain.OrderStatus;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.service.RateLimitTracker;
 import com.binance.api.tradingbot.Stream.UltraFastStream;
 
 import java.util.List;
-
-import org.ta4j.core.Indicator;
 
 import java.util.ArrayList;
 
@@ -58,6 +33,7 @@ public class LTC_EUR_Live {
     private static volatile boolean running = true;
     private static UltraFastStream priceStream;
     private static long lastBnbBalanceCheck = 0;
+    private static long lastBalanceCheck = 0;
 
     /**
      * Stoppt den Trading Bot.
@@ -143,7 +119,6 @@ public class LTC_EUR_Live {
 
                 int count = 0;
                 boolean FirstRound = true;
-                double ema73low = 0.0;
 
                 List<Long> OrderIdList = new ArrayList<Long>();
                 List<String> getDataRecords = new ArrayList<String>();
@@ -161,8 +136,6 @@ public class LTC_EUR_Live {
                     } else {
                         sleep.for_02_second(); // Normal: 5 Durchläufe/Sekunde
                     }
-
-                    // Schedule.DCA_Fake_every_x_Seconds(currency, 600); // alle 10 Minuten DCA ausführen
 
                     Double livePrice = priceStream.getPrice();
                     if (livePrice == null || livePrice == 0.0) {
@@ -189,7 +162,13 @@ public class LTC_EUR_Live {
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
-                        // BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                        // Balance Check nur alle 60 Sekunden
+                        long currentTime2 = System.currentTimeMillis();
+                        if (currentTime2 - lastBalanceCheck >= 60 * 1000) { // 60 Sekunden
+                            BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                            lastBalanceCheck = currentTime2;
+                        }
+                        
                         getTrade.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
