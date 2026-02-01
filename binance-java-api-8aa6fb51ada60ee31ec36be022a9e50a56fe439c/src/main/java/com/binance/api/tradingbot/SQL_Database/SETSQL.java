@@ -263,6 +263,33 @@ public class SETSQL {
         }
     }
 
+    /**
+     * Speichert Exchange-Balance-Informationen in der Datenbank.
+     * 
+     * @param exchangeBalance Gesamtbalance von der Börse
+     * @param databaseBalance Summe der Positionen aus der Datenbank
+     * @param difference Differenz zwischen Börse und Datenbank
+     * @return true wenn erfolgreich, false bei Fehler
+     */
+    public static boolean setBalanceExchangeInfo(double exchangeBalance, double databaseBalance, double difference) {
+        String sql = "UPDATE SETTING SET Börse = ?, Datenbank = ?, Differenz = ?";
+        
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+            
+            ps.setDouble(1, round.eight(exchangeBalance));
+            ps.setDouble(2, round.eight(databaseBalance));
+            ps.setDouble(3, round.eight(difference));
+            
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+            
+        } catch (SQLException err) {
+            logger.error("Fehler beim Speichern der Balance-Info: {}", err.getMessage());
+            return false;
+        }
+    }
+
     public static double setBalance(double newValue) {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement()) {

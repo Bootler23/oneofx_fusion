@@ -5,6 +5,8 @@ import com.binance.api.client.domain.account.Account;
 import com.binance.api.client.domain.account.AssetBalance;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
+
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
@@ -37,12 +39,14 @@ public class BalanceChecker {
             double totalDouble = freeDouble + lockedDouble;
             double dbQuantity = POSSQL.getSumQuantity();
             double difference = totalDouble - dbQuantity;
+
+            SETSQL.setBalanceExchangeInfo(totalDouble, dbQuantity, difference);
             
-            System.out.println("=== " + currency + " Balance von Börse ===");                
-            System.out.println("Börse:     " + formatDecimal(totalDouble) + " " + currency);
-            System.out.println("Datenbank: " + formatDecimal(dbQuantity) + " " + currency);
-            System.out.println("Differenz: " + formatDecimal(difference) + " " + currency);
-            System.out.println("================================");
+            // System.out.println("=== " + currency + " Balance von Börse ===");                
+            // System.out.println("Börse:     " + formatDecimal(totalDouble) + " " + currency);
+            // System.out.println("Datenbank: " + formatDecimal(dbQuantity) + " " + currency);
+            // System.out.println("Differenz: " + formatDecimal(difference) + " " + currency);
+            // System.out.println("================================");
             
         } catch (BinanceApiException e) {
             System.err.println("Fehler beim Abrufen der " + currency + " Balance: " + e.getMessage());

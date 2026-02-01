@@ -34,7 +34,6 @@ public class BuyAmountFunktion {
         boolean Loop1 = true;
         boolean Loop2 = true;
         int count_PositionToBottom = 0;
-        int count23 = 0;
         int count_20 = 0;
         int restPosition = 0;
         int currentPositionNumber = POSSQL.getCountPOS(currencyPair) + 1;
