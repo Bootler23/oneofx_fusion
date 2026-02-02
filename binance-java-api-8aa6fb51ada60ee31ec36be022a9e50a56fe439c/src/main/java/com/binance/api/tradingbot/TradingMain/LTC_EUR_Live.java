@@ -137,14 +137,7 @@ public class LTC_EUR_Live {
                     ATHSQL.updateLPP(currency);
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
-
-                        // Balance Check nur alle 5 Minuten
-                        long currentTime2 = System.currentTimeMillis();
-                        if (currentTime2 - lastBalanceCheck >= 5 * 60 * 1000) { // 5 Minuten in Millisekunden
-                            BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
-                            lastBalanceCheck = currentTime2;
-                        }
-                        
+                                               
                         getTradeInformation.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
@@ -161,15 +154,19 @@ public class LTC_EUR_Live {
                         WPDSQL.getGewinnAfterTax();
                        
                         long currentTime = System.currentTimeMillis();
-                        if (currentTime - lastBnbBalanceCheck >= 5 * 60 * 1000) {
-                            Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
+                        if (currentTime - lastBnbBalanceCheck >= 60 * 1000) {
+                            Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient()); // TODO -> evtl. anderer Ort
+                            
+                            SETSQL.getAVG_BalanceToAsset_atBuy();
+
+                            BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                            
                             lastBnbBalanceCheck = currentTime;
                         }
 
                         count = 0;
-                        FirstRound = false;
+                        FirstRound = false;                      
                     }
-
                     count++;
 
                     // Buy

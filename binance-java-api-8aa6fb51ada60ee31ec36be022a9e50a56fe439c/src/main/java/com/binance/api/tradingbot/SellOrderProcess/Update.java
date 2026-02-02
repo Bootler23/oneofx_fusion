@@ -17,6 +17,7 @@ import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.CalcSplit;
 import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
@@ -28,13 +29,12 @@ public class Update {
         for (String dataRecord : dataRecords) {
 
             String[] parts = dataRecord.split(", ");
-            String SellOrderId = parts[0];
+            String sellorderID = parts[0];
             String Quantity = parts[1];
             String BuyPrice = parts[2];
             String currency = parts[3];
 
-            Long OrderId = Long.valueOf(SellOrderId);
-            double SetFeePercentFromBinance = 0.08; // 0.1 = 0.15
+            Long OrderId = Long.valueOf(sellorderID);
 
             Order order = find_OrderWithOrderId(client, currency, OrderId);
             if (order != null) {
@@ -57,35 +57,43 @@ public class Update {
                     continue;
                 }
 
-                double Qty = Double.valueOf(order.getExecutedQty());
-                double BuyAmount = Double.valueOf(order.getCummulativeQuoteQty());
-                double SellFee = round.eight(trade_fee * Ticker.getAssetPrice("BNBEUR", client));
+                HISTSQL.setsellfee(sellorderID, trade_fee);
+                double bnb_price = SETSQL.get_BNB_price();
+                if (bnb_price == 0) {
+                    continue;
+                }
 
-                if (SellFee > 10) { // TODO 
-                    SellFee = trade_fee;
+                double Qty = Double.valueOf(order.getExecutedQty());
+
+                double buyamount = HISTSQL.getbuyamount(sellorderID);
+                double sellamount = Double.valueOf(order.getCummulativeQuoteQty());
+
+                double buyfee = HISTSQL.getbuyfee(sellorderID);
+                double sellfee = round.eight(trade_fee * bnb_price);
+
+                if (sellfee > 10) { // TODO wenn kein BNB da ist dann wird in Euro bezahlt
+                    sellfee = trade_fee;
                 }
 
                 double SplitValue = 0;
                 double LossAfterTax = 0;
 
-                double SellPriceFromExchange = RoundCurrency.forQuantity((BuyAmount / Qty), currency);
-
-                double GewinnAfterTax = getGewinnAfterTaxAndFee(Quantity, BuyPrice, SetFeePercentFromBinance,
-                        SellPriceFromExchange,
-                        getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange));
+                double buyprice = HISTSQL.getbuyprice(sellorderID);
+                double sellprice = RoundCurrency.forQuantity((sellamount / Qty), currency);
+                double GewinnAfterTax = getGewinnAfterTaxAndFeeSimple(buyamount, sellamount, buyfee, sellfee);
 
                 if (GewinnAfterTax == 0) {
                     continue;
                 }
-              
-                if (SETSQL.getStatus("ROI")) {  
+
+                if (SETSQL.getStatus("ROI")) {
                     if (GewinnAfterTax > 0) {
                         SplitValue = CalcSplit.calcROI(currency, GewinnAfterTax);
-                        
+
                         if (SplitValue == 0) {
                             continue;
                         }
-                        
+
                         if (SplitValue > TradingConstants.MIN_SPLIT_VALUE) {
                             GewinnAfterTax = (GewinnAfterTax - SplitValue);
                         } else {
@@ -103,22 +111,23 @@ public class Update {
 
                 try (Connection conUpdateHIST = DriverManager.getConnection(dbUrl.getHIST());
                         PreparedStatement pstmt = conUpdateHIST.prepareStatement(
-                                "UPDATE HIST SET SellPrice = ?, Tax = ?, Fee = ?, Gewinn = ?, " +
+                                "UPDATE HIST SET SellAmount = ?, SellPrice = ?, Tax = ?, Fee = ?, Gewinn = ?, " +
                                         "GewinnAfterTax = ?, LossAfterTax = ?, Profit = ?, SellFee = ?, " +
                                         "Split = ?, Status = ?, statusCode = ? WHERE SellOrderId = ?")) {
 
-                    pstmt.setDouble(1, SellPriceFromExchange);
-                    pstmt.setDouble(2, getTaxe(Quantity, BuyPrice, SellPriceFromExchange));
-                    pstmt.setDouble(3, getBuyFeeInfoFromHist(OrderId) + SellFee);
-                    pstmt.setDouble(4, getRevenuePerTrade(Quantity, BuyPrice, SellPriceFromExchange));
-                    pstmt.setDouble(5, round.five(GewinnAfterTax));
-                    pstmt.setDouble(6, round.five(LossAfterTax));
-                    pstmt.setDouble(7, getProfitinPercent(BuyPrice, SellPriceFromExchange));
-                    pstmt.setDouble(8, SellFee);
-                    pstmt.setDouble(9, round.five(SplitValue));
-                    pstmt.setInt(10, 1);
-                    pstmt.setString(11, TradingConstants.STATUS_FILLED_CHECKED);
-                    pstmt.setLong(12, OrderId);
+                    pstmt.setDouble(1, RoundCurrency.BuyAmount(sellamount, currency));
+                    pstmt.setDouble(2, sellprice);
+                    pstmt.setDouble(3, getTaxe(buyamount, sellamount));
+                    pstmt.setDouble(4, getFee(buyfee, sellfee));
+                    pstmt.setDouble(5, getRevenuePerTrade(buyamount, sellamount));
+                    pstmt.setDouble(6, round.five(GewinnAfterTax));
+                    pstmt.setDouble(7, round.five(LossAfterTax));
+                    pstmt.setDouble(8, getProfitinPercent(buyprice, sellprice));
+                    pstmt.setDouble(9, sellfee);
+                    pstmt.setDouble(10, round.five(SplitValue));
+                    pstmt.setInt(11, 1);
+                    pstmt.setString(12, TradingConstants.STATUS_FILLED_CHECKED);
+                    pstmt.setLong(13, OrderId);
 
                     pstmt.executeUpdate();
                     System.out.println("Update in Hist!");
@@ -131,24 +140,7 @@ public class Update {
         }
     }
 
-    public static double getBuyFeeInfoFromHist(long BuyOrderId) {
-        double BuyFee = 0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
-                PreparedStatement pstmt = con
-                        .prepareStatement("SELECT BuyFee FROM HIST WHERE SellOrderId = ?")) {
-
-            pstmt.setLong(1, BuyOrderId);
-            java.sql.ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                BuyFee = rs.getDouble("BuyFee");
-            }
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Abrufen der BuyFee aus HIST: " + err.getMessage());
-        }
-        return BuyFee;
-    }
+    // -------------------------- Buy Trade Information --------------------------
 
     public static void getBuyTradeInformation(BinanceApiRestClient client, List<String> dataRecords) {
 
@@ -159,7 +151,6 @@ public class Update {
             String currency = parts[1];
 
             Long OrderId = Long.valueOf(BuyOrderId);
-
             Order order = find_OrderWithOrderId(client, currency, OrderId);
 
             if (order != null) {
@@ -182,12 +173,15 @@ public class Update {
                     continue;
                 }
 
+                double bnb_price = SETSQL.get_BNB_price();
+                if (bnb_price == 0) {
+                    continue;
+                }
+
                 double Quantity = Double.valueOf(order.getExecutedQty());
                 double BuyAmount = Double.valueOf(order.getCummulativeQuoteQty());
-
                 double BuyPriceFromExchange = Double.valueOf(order.getPrice());
-
-                double BuyFee = round.eight(trade_fee * Ticker.getAssetPrice("BNBEUR", client));
+                double BuyFee = round.eight(trade_fee * bnb_price);
 
                 try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                         PreparedStatement pstmt = con_update.prepareStatement(
@@ -232,30 +226,27 @@ public class Update {
         }
     }
 
-    public static double getGewinnAfterTaxAndFee(String Quantity, String BuyPrice, double SetFeePercentFromBinance,
-            double SellPriceFromExchange, double RevenuePerTrade) {
-        return SELL.getWin(getTaxe(Quantity, BuyPrice, SellPriceFromExchange),
-                getFee(Quantity, SetFeePercentFromBinance, SellPriceFromExchange), RevenuePerTrade);
+    // -------------------------- Helper Functions --------------------------
+
+    public static double getGewinnAfterTaxAndFeeSimple(double buyamount, double sellamount, double buyfee,
+            double sellfee) {
+        return ((sellamount - buyamount) - getTaxe(buyamount, sellamount) - (buyfee + sellfee));
     }
 
-    public static double getRevenuePerTrade(String Quantity, String BuyPrice, double SellPriceFromExchange) {
-        return SELL.getRevenue((Double.valueOf(Quantity)), getProfitinPercent(BuyPrice, SellPriceFromExchange),
-                Double.valueOf(BuyPrice));
+    public static double getRevenuePerTrade(double buyamount, double sellamount) {
+        return (sellamount - buyamount);
     }
 
-    // Hole dem BNB Preis und errechne die Gebühr (Fee * BNB/EUR * 2)
-    public static double getFee(String Quantity, double SetFeePercentFromBinance, double SellPriceFromExchange) {
-        return SELL.getFeeX2((Double.valueOf(Quantity)), SetFeePercentFromBinance, SellPriceFromExchange);
+    public static double getFee(double buyfee, double sellfee) {
+        return (buyfee + sellfee);
     }
 
-    public static double getTaxe(String Quantity, String BuyPrice, double SellPriceFromExchange) {
-        return SELL.getTaxe((Double.valueOf(Quantity)), getProfitinPercent(BuyPrice, SellPriceFromExchange),
-                SellPriceFromExchange);
+    public static double getTaxe(double buyamount, double sellamount) {
+        return (((sellamount - buyamount) / 100) * 42);
     }
 
-    private static double getProfitinPercent(String BuyPrice, double SellPriceFromExchange) {
-        return SELL.getProfit(Double.valueOf(SellPriceFromExchange),
-                (Double.valueOf(BuyPrice)));
+    private static double getProfitinPercent(double buyprice, double sellprice) {
+        return round.five(((sellprice - buyprice) / buyprice) * 100);
     }
 
     public static Order find_OrderWithOrderId(BinanceApiRestClient client, String currencyPair, long orderId) {

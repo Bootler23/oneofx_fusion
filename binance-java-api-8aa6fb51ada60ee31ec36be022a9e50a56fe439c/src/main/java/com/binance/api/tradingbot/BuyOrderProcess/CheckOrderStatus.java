@@ -20,6 +20,8 @@ import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.Indicator.Update;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
+import com.binance.api.tradingbot.SQL_Database.HISTSQL;
+import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.Settings.set;
 
 public class CheckOrderStatus {
@@ -148,26 +150,35 @@ public class CheckOrderStatus {
             System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
         }
        
-        String asset = currencyPair.replace("EUR", ""); // z.B. "LTCEUR" -> "LTC", "BNBEUR" -> "BNB" // TODO -> Achtung bei USDC
+        String asset = currencyPair.replace("EUR", ""); // z.B. "LTCEUR" -> "LTC", "BNBEUR" -> "BNB"
         BalanceInfo balances = getBalances(asset, client);
+        double taxe = HISTSQL.getTaxe();
 
         try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
                 PreparedStatement insert_HIST = con_insert_HIST.prepareStatement(
-                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy, POS_count, xFactor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
 
             insert_HIST.setString(1, currencyPair);
             insert_HIST.setLong(2, BuyOrderId);
             insert_HIST.setDouble(3, OrderPrice);
             insert_HIST.setString(4, BuyDate);
             insert_HIST.setString(5, BuyTime);
-            insert_HIST.setDouble(6, balances.eurBalance);
-            insert_HIST.setDouble(7, (round.three(balances.assetQuantity) * LivePrice.get(0)));
+
+            double eurBalance = round.eight((balances.eurBalance - taxe));
+            insert_HIST.setDouble(6, eurBalance);
+
+            double assetQuantityPrice = round.five(balances.assetQuantity * LivePrice.get(0));
+            insert_HIST.setDouble(7, assetQuantityPrice);    
 
             double balanceToAssetRatio = 0.0;
             if (balances.assetQuantity > 0) {
-                balanceToAssetRatio = round.three(balances.eurBalance / (balances.assetQuantity * LivePrice.get(0)));
+                balanceToAssetRatio = round.three(eurBalance / assetQuantityPrice);
             }
             insert_HIST.setDouble(8, balanceToAssetRatio);
+
+            int countPosition = POSSQL.getCountPOS(currencyPair);
+            insert_HIST.setInt(9, countPosition);  
+            insert_HIST.setDouble(10, round.five(countPosition/balanceToAssetRatio));
 
             insert_HIST.executeUpdate();
             System.out.println("Part in Hist Saved");

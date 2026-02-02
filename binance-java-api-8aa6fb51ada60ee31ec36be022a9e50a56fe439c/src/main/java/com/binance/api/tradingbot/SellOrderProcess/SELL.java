@@ -21,11 +21,6 @@ public class SELL {
         return Taxe;
     }
 
-    public static double getFeeX2(double Quantity, double FeePercent, double SellPrice) {
-        double Fee = round.six((((Quantity * SellPrice) / 100.0) * FeePercent) * 2);
-        return Fee;
-    }
-
     public static double getRevenue(double Quantity, double ProfitinPercent, double BuyPrice) {
         double RevenuePerTrade = round.five(((Quantity * BuyPrice) / 100.0) * ProfitinPercent);
         return RevenuePerTrade;
