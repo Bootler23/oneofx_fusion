@@ -6,6 +6,9 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
+// TODO: Create SETSQL class or remove if not needed
+// import com.binance.api.tradingbot.SQLDatabase.SETSQL;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class Asset {
 
@@ -56,15 +59,12 @@ public class Asset {
             double bnbbalance = Double.valueOf(client.getAccount().getAssetBalance(currency).getFree());
             double bnbeuro = Double.valueOf(client.getPrice(currencyPeer).getPrice());
             double returnvalue = round.five(bnbeuro * bnbbalance);
-            System.out.println(); // Zeilenumbruch vor der Balance-Ausgabe
+            System.out.println();
             System.out.println("BNB Balance: " + returnvalue + " EUR");
 
-            if ((bnbeuro * bnbbalance) < 5.0) {
-
-                System.out.println("BNB unter 5 Euro -> Bitte Nachkaufen!");
-
-                Buy_BNB(client);
-
+            if ((bnbeuro * bnbbalance) < 1.0) {
+                System.out.println("BNB unter 1 Euro -> Bitte Nachkaufen!");
+                buy_bnb(client);
             }
             return returnvalue;
 
@@ -77,15 +77,20 @@ public class Asset {
         }
     }
 
-    private static void Buy_BNB(BinanceApiRestClient client) {
+    private static void buy_bnb(BinanceApiRestClient client) {
 
-        double Qty = RoundCurrency.forQuantity((5.5/Ticker.getAssetPrice("BNBEUR", client)), "BNBEUR");
+        double Qty = RoundCurrency.forQuantity((5.5 / Ticker.getAssetPrice("BNBEUR", client)), "BNBEUR");
         String Quantity = String.valueOf(Qty);
 
         try {
             NewOrderResponse newOrderResponse = client.newOrder(marketBuy("BNBEUR", Quantity));
 
-            System.out.println("BNB Nachkauf erfolgreich! " + newOrderResponse.getOrigQty());
+            double totalPaid = Double.valueOf(newOrderResponse.getCummulativeQuoteQty());
+            double quantityBought = Double.valueOf(newOrderResponse.getExecutedQty());
+            double avgBuyPrice = round.two(totalPaid / quantityBought);
+
+            SETSQL.set_BNB_price(avgBuyPrice);
+            System.out.println("BNB Nachkauf erfolgreich: " + quantityBought + " BNB zu einem Durchschnittspreis von " + avgBuyPrice + " EUR");           
 
         } catch (BinanceApiException dex) {
             System.err.println("Fehler beim Verkauf: Keine Menge für den Verkauf verfügbar!");

@@ -76,11 +76,24 @@ public class SETSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setDouble(1, round.five(BuyAmount));
+            ps.setDouble(1, round.six(BuyAmount));
             ps.executeUpdate();
 
         } catch (SQLException err) {
             System.out.println(err.getMessage());
+        }
+    }
+
+    // ------- get percent_toAdd -------
+
+    public static double getPercentToAdd() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT percent_toAdd FROM SETTING")) {
+            return round.three(rs.getDouble("percent_toAdd"));
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+            return 0.0;
         }
     }
 
@@ -268,22 +281,22 @@ public class SETSQL {
      * 
      * @param exchangeBalance Gesamtbalance von der Börse
      * @param databaseBalance Summe der Positionen aus der Datenbank
-     * @param difference Differenz zwischen Börse und Datenbank
+     * @param difference      Differenz zwischen Börse und Datenbank
      * @return true wenn erfolgreich, false bei Fehler
      */
     public static boolean setBalanceExchangeInfo(double exchangeBalance, double databaseBalance, double difference) {
         String sql = "UPDATE SETTING SET Börse = ?, Datenbank = ?, Differenz = ?";
-        
+
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
-            
+
             ps.setDouble(1, round.eight(exchangeBalance));
             ps.setDouble(2, round.eight(databaseBalance));
             ps.setDouble(3, round.eight(difference));
-            
+
             int rowsAffected = ps.executeUpdate();
             return rowsAffected > 0;
-            
+
         } catch (SQLException err) {
             logger.error("Fehler beim Speichern der Balance-Info: {}", err.getMessage());
             return false;
@@ -333,6 +346,58 @@ public class SETSQL {
         } catch (SQLException err) {
             System.out.println(err.getMessage());
             return 0;
+        }
+    }
+
+    public static void set_BNB_price(double newValue) {
+        String sql = "UPDATE SETTING SET BNB_Price = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, newValue);
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    public static double get_BNB_price() {
+        String sql = "SELECT BNB_Price FROM SETTING";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery(sql)) {
+
+            if (rs.next()) {
+                double bnbPrice = round.two(rs.getDouble("BNB_Price"));
+                return bnbPrice;
+            }
+        } catch (SQLException err) {
+            System.out.println("Fehler beim Abrufen des BNB-Preises: " + err.getMessage());
+        }
+        return 0.0;
+    }
+
+    public static void getAVG_BalanceToAsset_atBuy() {
+        String sql = "SELECT AVG(BalanceToAsset_atBuy) AS avg_balance_to_asset FROM HIST";
+        try (Connection conHist = DriverManager.getConnection(dbUrl.getHIST());
+                Statement query = conHist.createStatement();
+                ResultSet rs = query.executeQuery(sql)) {
+
+            if (rs.next()) {
+                double avgBalanceToAsset = round.five(rs.getDouble("avg_balance_to_asset"));
+
+                String updateSql = "UPDATE SETTING SET y_Factor = ?";
+                try (Connection conSet = DriverManager.getConnection(dbUrl.getSET());
+                        PreparedStatement ps = conSet.prepareStatement(updateSql)) {
+                    ps.setDouble(1, avgBalanceToAsset);
+                    ps.executeUpdate();
+                } catch (SQLException updateErr) {
+                    System.out.println("Fehler beim Aktualisieren von y_Factor: " + updateErr.getMessage());
+                }
+            }
+        } catch (SQLException err) {
+            System.out.println("Fehler beim Abrufen des Durchschnitts: " + err.getMessage());
         }
     }
 
@@ -445,12 +510,12 @@ public class SETSQL {
                 return round.two(rs.getDouble("EMA_value"));
             } else {
                 return 0.0;
-            }   
+            }
         } catch (SQLException err) {
             System.out.println(err.getMessage());
             return 0.0;
         }
-    }  
+    }
 
     public static void setStopLoss(double stopLoss) {
         String sql = "UPDATE SETTING SET SL = ?";
@@ -478,7 +543,7 @@ public class SETSQL {
         }
     }
 
-     public static double getATRMultiplier() {
+    public static double getATRMultiplier() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT ATR_multiply FROM SETTING")) {
@@ -486,12 +551,11 @@ public class SETSQL {
                 return round.two(rs.getDouble("ATR_multiply"));
             } else {
                 return 0.0;
-            }   
+            }
         } catch (SQLException err) {
             System.out.println(err.getMessage());
             return 0.0;
         }
-    }  
-
+    }
 
 }

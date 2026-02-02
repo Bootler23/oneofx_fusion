@@ -35,31 +35,6 @@ public class HISTSQL {
         }
     }
 
-    // public static void getTradeInformationRecords(int statusCode, List<String> records) { // TODO
-    //     String sql = "SELECT * FROM HIST WHERE Status = ?";
-    //     try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
-    //             PreparedStatement pstmt = con.prepareStatement(sql)) {
-
-    //         pstmt.setInt(1, statusCode);
-    //         ResultSet rs = pstmt.executeQuery();
-
-    //         records.clear();
-
-    //         while (rs.next()) {
-    //             String sellOrderId = rs.getString("SellOrderId");
-    //             String quantity = rs.getString("Quantity");
-    //             String buyPrice = rs.getString("BuyPrice");
-    //             String Währung = rs.getString("Währung");
-
-    //             String dataRecord = sellOrderId + ", " + quantity + ", " + buyPrice + ", " + Währung;
-    //             records.add(dataRecord);
-    //         }
-    //     } catch (SQLException err) {
-    //         System.out.println("SQL-Fehler: " + err.getMessage());
-    //     }
-
-    // }  
-
     public static void getDataRecords_WhereStatusOne(String currency, List<String> GetDataRecord) {
         try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
                 PreparedStatement query = con.prepareStatement("SELECT BuyOrderId, Split, Währung FROM HIST WHERE Status = 1 AND Split IS NOT NULL AND Währung = ?")) {
@@ -114,6 +89,73 @@ public class HISTSQL {
             System.err.println("SQL-Fehler beim Abrufen der Steuern: " + err.getMessage());
         }
         return tax;
+    }
+
+    public static double getbuyamount(String sellorderID) {
+        double buyamount = 0.0;
+        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+                PreparedStatement pstmt = con.prepareStatement("SELECT BuyAmount FROM HIST WHERE SellOrderId = ?")) {
+
+            pstmt.setString(1, sellorderID);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                buyamount = rs.getDouble("BuyAmount");
+            }
+
+        } catch (SQLException err) {
+            System.err.println("SQL-Fehler beim Abrufen des Kaufbetrags: " + err.getMessage());
+        }
+        return buyamount;
+    }
+
+    public static double getbuyfee(String sellorderID) {
+        double buyfee = 0.0;
+        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+                PreparedStatement pstmt = con.prepareStatement("SELECT BuyFee FROM HIST WHERE SellOrderId = ?")) {
+
+            pstmt.setString(1, sellorderID);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                buyfee = rs.getDouble("BuyFee");
+            }
+
+        } catch (SQLException err) {
+            System.err.println("SQL-Fehler beim Abrufen der Kaufgebühr: " + err.getMessage());
+        }
+        return buyfee;
+    }
+
+    public static double getbuyprice(String sellorderID) {
+        double buyprice = 0.0;
+        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+                PreparedStatement pstmt = con.prepareStatement("SELECT BuyPrice FROM HIST WHERE SellOrderId = ?")) {
+
+            pstmt.setString(1, sellorderID);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                buyprice = rs.getDouble("BuyPrice");
+            }
+
+        } catch (SQLException err) {
+            System.err.println("SQL-Fehler beim Abrufen des Kaufpreises: " + err.getMessage());
+        }
+        return buyprice;
+    }
+
+    public static void setsellfee(String sellorderID, double sellfee) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+                PreparedStatement pstmt = con.prepareStatement("UPDATE HIST SET SellFee = ? WHERE SellOrderId = ?")) {
+
+            pstmt.setDouble(1, sellfee);
+            pstmt.setString(2, sellorderID);
+            pstmt.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println("Fehler beim Aktualisieren des Kaufgebührwerts: " + err.getMessage());
+        }
     }
 
     public static double getSumColumnToday(final String Url, String columnName, String tableName) {
