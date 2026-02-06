@@ -32,7 +32,7 @@ public class BuyAmountFunktion {
         int count_PositionToBottom = 0;
         int count_20 = 0;
         int restPosition = 0;
-        int currentPositionNumber = POSSQL.getCountPOS(currencyPair) + 1;
+        // int currentPositionNumber = POSSQL.getCountPOS(currencyPair) + 1;
         double minBuyAmount = SETSQL.getminBuyAmount();
         // double maxBuyAmount = SETSQL.getmaxBuyAmount();
         double Tax = HISTSQL.getTaxe();
@@ -66,8 +66,17 @@ public class BuyAmountFunktion {
             if (minBuyAmount < getBuyAmount) {
                 SETSQL.setminBuyAmount(minBuyAmount + 0.01);
             }
-        }      
-
+        } 
         return round.five(getBuyAmount);
+    }
+
+    public static double getsimplebuyamount() {
+        double minBuyAmount = SETSQL.getminBuyAmount();
+        double AVGminBuyAmount = POSSQL.getAverageBuyAmount();
+
+        if (minBuyAmount <= 0 || minBuyAmount > (AVGminBuyAmount * 3)) {
+            minBuyAmount = round.two(POSSQL.getAverageBuyAmount());
+        }
+        return round.two(minBuyAmount);
     }
 }

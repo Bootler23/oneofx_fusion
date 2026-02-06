@@ -145,6 +145,24 @@ public class HISTSQL {
         return buyprice;
     }
 
+    public static int getcountHist() {
+        int count = 0;
+        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+                Statement stmt = con.createStatement()) {
+
+            String query = "SELECT COUNT(*) AS TotalCount FROM HIST";
+
+            ResultSet rs = stmt.executeQuery(query);
+            if (rs.next()) {
+                count = rs.getInt("TotalCount");
+            }
+
+        } catch (SQLException err) {
+            System.err.println("SQL-Fehler beim Abrufen der HIST-Anzahl: " + err.getMessage());
+        }
+        return count;
+    }
+
     public static void setsellfee(String sellorderID, double sellfee) {
         try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
                 PreparedStatement pstmt = con.prepareStatement("UPDATE HIST SET SellFee = ? WHERE SellOrderId = ?")) {

@@ -58,12 +58,12 @@ public class BuyOrderPocess {
             if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {
 
                 empty.Line();
-                System.out.println("Setze mal eine Order bei: " + BuyPrice);
+                System.out.println("Setze mal eine Order bei: " + BuyPrice);                        
 
-                ATHSQL.GetHighestBuyAmount(currency);
-
-                BuyAmaunt = BuyAmountFunktion.getBuyAmount(currency, client, LivePrice, true);
-                BuyAmaunt = checkBuyAmount(client, BuyAmaunt);              
+                BuyAmaunt = BuyAmountFunktion.getsimplebuyamount();
+                if (BuyAmaunt <= 0) {
+                    return;
+                }             
 
                 String Quantity = getQty(currency, LivePrice, BuyAmaunt);
                 String buyprice = String.valueOf(BuyPrice);

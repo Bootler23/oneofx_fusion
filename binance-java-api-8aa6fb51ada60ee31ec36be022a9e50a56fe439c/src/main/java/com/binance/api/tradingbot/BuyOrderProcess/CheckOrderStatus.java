@@ -22,6 +22,7 @@ import com.binance.api.tradingbot.Indicator.Update;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
 
 public class CheckOrderStatus {
@@ -131,6 +132,8 @@ public class CheckOrderStatus {
 
         Update.NewCounterPosition();
         Update.addminBuyAmount();
+        Update.ratioBalanceToBA();
+        Update.calcPercentToAddForNextBuy();
 
         try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                 Statement update = con_update.createStatement()) {
@@ -156,7 +159,7 @@ public class CheckOrderStatus {
 
         try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
                 PreparedStatement insert_HIST = con_insert_HIST.prepareStatement(
-                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy, POS_count, xFactor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy, POS_count, X) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
 
             insert_HIST.setString(1, currencyPair);
             insert_HIST.setLong(2, BuyOrderId);
@@ -172,13 +175,13 @@ public class CheckOrderStatus {
 
             double balanceToAssetRatio = 0.0;
             if (balances.assetQuantity > 0) {
-                balanceToAssetRatio = round.three(eurBalance / assetQuantityPrice);
+                balanceToAssetRatio = round.three((eurBalance -  HISTSQL.getTaxe()) / assetQuantityPrice);
             }
             insert_HIST.setDouble(8, balanceToAssetRatio);
 
             int countPosition = POSSQL.getCountPOS(currencyPair);
             insert_HIST.setInt(9, countPosition);  
-            insert_HIST.setDouble(10, round.five(countPosition/balanceToAssetRatio));
+            insert_HIST.setDouble(10, round.five(countPosition/balanceToAssetRatio)); // TODO -> Balance/BA
 
             insert_HIST.executeUpdate();
             System.out.println("Part in Hist Saved");

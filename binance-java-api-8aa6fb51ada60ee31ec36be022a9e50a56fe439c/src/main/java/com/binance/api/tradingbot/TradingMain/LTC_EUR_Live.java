@@ -5,6 +5,7 @@ import com.binance.api.tradingbot.BuyOrderProcess.CheckOrderStatus;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.BalanceChecker;
+import com.binance.api.tradingbot.HelperFunctions.CompoundInterestCalculator;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.Indicator.Merge;
@@ -23,6 +24,7 @@ import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.service.RateLimitTracker;
 import com.binance.api.tradingbot.Stream.UltraFastStream;
+import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 
 import java.util.List;
 
@@ -33,7 +35,6 @@ public class LTC_EUR_Live {
     private static volatile boolean running = true;
     private static UltraFastStream priceStream;
     private static long lastBnbBalanceCheck = 0;
-    private static long lastBalanceCheck = 0;
 
     /**
      * Stoppt den Trading Bot.
@@ -51,7 +52,7 @@ public class LTC_EUR_Live {
             RateLimitTracker.getInstance().stopTracking();
         }
     }
-   
+
     public static boolean isRunning() {
         return running;
     }
@@ -68,7 +69,7 @@ public class LTC_EUR_Live {
         }
 
         // ========== WebSocket Stream starten ==========
-     
+
         String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
         String currency = BuyCurrencies[0]; // Erste (und einzige) Währung
 
@@ -107,11 +108,8 @@ public class LTC_EUR_Live {
                     state = set.Currency(BuyCurrencies, state);
                     currency = BuyCurrencies[state];
 
-                    if (RateLimitTracker.getInstance().isOverThreshold()) {
-                        sleep.for_1_second(); // Langsamer bei hoher Last
-                    } else {
-                        sleep.for_02_second(); // Normal: 5 Durchläufe/Sekunde
-                    }
+                    int sleepMs = getSleepMs();
+                    sleep.valueOffMillieSeconds(sleepMs);
 
                     Double livePrice = priceStream.getPrice();
                     if (livePrice == null || livePrice == 0.0) {
@@ -130,44 +128,48 @@ public class LTC_EUR_Live {
                         LivePrice.add(livePrice);
                     }
 
-                    ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
+                    // ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
                     // BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
 
-                    ATHSQL.updateLPP(currency);
+                    // ATHSQL.updateLPP(currency);
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
-                                               
-                        getTradeInformation.RecordsByStatus(dbUrl.getHIST(), TradingConstants.TABLE_HIST, 0,
+
+                        getTradeInformation.RecordsByStatus(dbUrl.getHIST(),
+                                TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
 
-                        getTradeInformation.RecordsByStatus(dbUrl.getPOS(), TradingConstants.TABLE_POS, 5,
+                        getTradeInformation.RecordsByStatus(dbUrl.getPOS(),
+                                TradingConstants.TABLE_POS, 5,
                                 TradingConstants.POS_COLUMNS_BUY_TRADES, getDataRecords);
                         Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);
 
-                        // SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
+                        SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
 
                         HISTSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
                         Merge.splitValue(currency, getDataRecords);
 
                         WPDSQL.getGewinnAfterTax();
-                       
-                        long currentTime = System.currentTimeMillis();
-                        if (currentTime - lastBnbBalanceCheck >= 60 * 1000) {
-                            Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient()); // TODO -> evtl. anderer Ort
-                            
-                            SETSQL.getAVG_BalanceToAsset_atBuy();
 
+                        long currentTime = System.currentTimeMillis();
+                        if (currentTime - lastBnbBalanceCheck >= 60 * 1000) { // TODO Prozess verbessern
+                            Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient()); // TODO -> evtl. anderer Ort
+
+                            SETSQL.getAVG_BalanceToAsset_atBuy();
                             BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
-                            
                             lastBnbBalanceCheck = currentTime;
+
+                            // com.binance.api.tradingbot.Indicator.Update.calcPercentToAddForNextBuy();
+
                         }
 
                         count = 0;
-                        FirstRound = false;                      
+                        FirstRound = false;
                     }
-                    count++;
+                    count++;  
+                    System.out.print(".");                
 
                     // Buy
                     if (SETSQL.getStatus("BUYING")) {
@@ -193,5 +195,29 @@ public class LTC_EUR_Live {
                 continue;
             }
         }
+    }
+
+    private static int getSleepMs() {
+        RateLimitTracker tracker = RateLimitTracker.getInstance();
+       
+        int currentWeight = tracker.getServerReportedWeight();
+        if (currentWeight <= 0) {
+            currentWeight = tracker.getUsedWeightInWindow();
+            System.out.println("⚠️ Fallback auf genutztes Gewicht im Fenster für Sleep-Berechnung");
+        }
+      
+        int sleepMs;       
+
+        if (currentWeight <= 0) {
+            sleepMs = 2000;
+            System.out.println("⚠️ Kein Gewicht verfügbar, setze Sleep auf 2000 ms");
+        } else if (currentWeight >= 1200) {
+            sleepMs = 1200;
+            System.out.println("⚠️ Gewicht über 1200, setze Sleep auf 1200 ms");
+        } else {
+            sleepMs = 200 + (currentWeight * 1000 / 1200);
+            sleepMs = ((sleepMs + 50) / 100) * 100;
+        }
+        return sleepMs;
     }
 }

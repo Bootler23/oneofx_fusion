@@ -13,12 +13,14 @@ import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
+import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
+import com.binance.api.tradingbot.HelperFunctions.Slippage;
 
 public class SellOrderProcess {
 
@@ -41,9 +43,28 @@ public class SellOrderProcess {
             String BuyPrice_String = parts[5];
 
             double BuyPrice_Double = Double.valueOf(BuyPrice_String);
+
+            if (BuyPrice_Double <= 0) {
+                continue;
+            }
+
             double sellTarget = (BuyPrice_Double / 100) * (100 + percent);
 
             if (currentPrice >= sellTarget) {
+
+                //
+                Ticker.get_CurrencyPair_Price(currency, client, LivePrice);
+                double polledPrice = LivePrice.get(0);
+                if (polledPrice != currentPrice) {
+                    return;
+                }
+                
+                // NEU: Orderbuch-Check mit 0.5% Mindestgewinn
+                double quantity = Double.parseDouble(Quantity_String);
+                if (!Slippage.isProfitableAfterSlippage(currency, client, quantity, BuyPrice_Double, 0.5)) {
+                    System.out.println("⏳ Warte auf besseres Orderbuch...");
+                    return;
+                }
 
                 empty.Line();
                 System.out.println("es soll " + currency + " verkauft werden");
@@ -58,6 +79,7 @@ public class SellOrderProcess {
                     delete_POS_AfterMarketSell(BuyOrderId);
 
                     System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId);
+                    return;
 
                 } catch (BinanceApiException ex) {
                     String FehlerMessage = "Fehler beim Verkauf: Keine Menge für den Verkauf Vorhanden!";

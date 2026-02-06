@@ -30,8 +30,6 @@ public class Update {
 
             String[] parts = dataRecord.split(", ");
             String sellorderID = parts[0];
-            String Quantity = parts[1];
-            String BuyPrice = parts[2];
             String currency = parts[3];
 
             Long OrderId = Long.valueOf(sellorderID);
@@ -234,7 +232,7 @@ public class Update {
     }
 
     public static double getRevenuePerTrade(double buyamount, double sellamount) {
-        return (sellamount - buyamount);
+        return round.five(sellamount - buyamount);
     }
 
     public static double getFee(double buyfee, double sellfee) {
@@ -242,7 +240,7 @@ public class Update {
     }
 
     public static double getTaxe(double buyamount, double sellamount) {
-        return (((sellamount - buyamount) / 100) * 42);
+        return round.eight(((sellamount - buyamount) / 100) * 42);
     }
 
     private static double getProfitinPercent(double buyprice, double sellprice) {

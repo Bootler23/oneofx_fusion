@@ -11,18 +11,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.constants.TradingConstants;
 
-/**
- * Repository-Klasse für SETTING-Tabellen-Operationen.
- * Verwaltet globale Trading-Einstellungen wie Balance, Reserve, und
- * Status-Flags.
- */
 public class SETSQL {
 
     private static final Logger logger = LoggerFactory.getLogger(SETSQL.class);
@@ -30,22 +24,12 @@ public class SETSQL {
     public static void CompareBalanceInSQLWithBinanceBalance(BinanceApiRestClient client) {
         double BNB_Balance = Asset.getFreeCalced_Balance(TradingConstants.BASE_CURRENCY, client);
         System.out.print(":");
-        if ((getBalance_SQL() != (BNB_Balance) && (BNB_Balance > 1.0))) {
+        if ((getBalance_SQL() != (BNB_Balance) && (BNB_Balance > 10.0))) {
             setBalance(BNB_Balance);
             System.out.print("Datenbank Aktualisiert " + BNB_Balance);
             empty.Line();
         }
-    }
-
-    // public static double getUSDCBalance(BinanceApiRestClient client) {
-    // try {
-    // double USDC_Balance = Asset.getFreeCalced_Balance("USDC", client);
-    // return round.two(USDC_Balance);
-    // } catch (BinanceApiException e) {
-    // System.out.println("Fehler beim Abrufen des USDC-Saldos: " + e.getMessage());
-    // return 0.0;
-    // }
-    // }
+    }  
 
     public static double getBalance_SQL() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -362,6 +346,30 @@ public class SETSQL {
         }
     }
 
+    public static void setPercentToAdd(double newValue) {
+        String sql = "UPDATE SETTING SET percent_toAdd = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.eight(newValue));
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
+        }
+    }
+
+    // public static double getDesiredAmount() {
+    //     try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+    //             Statement query = con.createStatement();
+    //             ResultSet rs = query.executeQuery("SELECT DesiredAmount FROM SETTING")) {
+    //         return round.two(rs.getDouble("DesiredAmount"));
+    //     } catch (SQLException err) {
+    //         System.out.println(err.getMessage());
+    //         return 0.0;
+    //     }
+    // }
+
     public static double get_BNB_price() {
         String sql = "SELECT BNB_Price FROM SETTING";
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -411,6 +419,23 @@ public class SETSQL {
             System.out.println("Die Count-Spalte wurde erfolgreich aktualisiert.");
         } catch (SQLException err) {
             System.out.println("Fehler beim Aktualisieren der Count-Spalte: " + err.getMessage());
+        }
+    }
+
+    public static void setratioBalanceToBA() {
+        String sql = "UPDATE SETTING SET ratioBalanceToBA = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            double balance = getBalance_SQL();
+            double buyAmount = getminBuyAmount();
+            double ratio = balance / buyAmount;
+
+            ps.setDouble(1, round.three(ratio));
+            ps.executeUpdate();
+
+        } catch (SQLException err) {
+            System.out.println(err.getMessage());
         }
     }
 
@@ -557,5 +582,46 @@ public class SETSQL {
             return 0.0;
         }
     }
+
+    public static double getDesiredAmount() {
+        return SettingsRepository.getDouble("DesiredAmount", 0.0, 2);
+    }
+
+    // public static boolean setDesiredAmount(double value) {
+    //     return SettingsRepository.setDouble("DesiredAmount", value, 2);
+    // }
+
+    // // Weitere Beispiele:
+    // public static double getBalance_SQL() {
+    //     return SettingsRepository.getDouble("Balance", 0.0, 2);
+    // }
+
+    // public static boolean setBalance(double value) {
+    //     return SettingsRepository.setDouble("Balance", value, 2);
+    // }
+
+    // public static double getminBuyAmount() {
+    //     return SettingsRepository.getDouble("minBuyAmount", 5.5, 5);
+    // }
+
+    // public static boolean setminBuyAmount(double value) {
+    //     return SettingsRepository.setDouble("minBuyAmount", value, 6);
+    // }
+
+    // public static int getCount() {
+    //     return SettingsRepository.getInt("Count", 0);
+    // }
+
+    // public static boolean updateCount(int value) {
+    //     return SettingsRepository.setInt("Count", value);
+    // }
+
+    // public static boolean getRSI() {
+    //     return SettingsRepository.getBoolean("RSI", false);
+    // }
+
+    // public static boolean setRSI(boolean value) {
+    //     return SettingsRepository.setBoolean("RSI", value);
+    // }
 
 }
