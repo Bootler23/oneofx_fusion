@@ -62,8 +62,8 @@ public class Asset {
             System.out.println();
             System.out.println("BNB Balance: " + returnvalue + " EUR");
 
-            if ((bnbeuro * bnbbalance) < 1.0) {
-                System.out.println("BNB unter 1 Euro -> Bitte Nachkaufen!");
+            if ((bnbeuro * bnbbalance) < 10.0) {
+                System.out.println("BNB unter 10 Euro -> Bitte Nachkaufen!");
                 buy_bnb(client);
             }
             return returnvalue;
@@ -79,7 +79,7 @@ public class Asset {
 
     private static void buy_bnb(BinanceApiRestClient client) {
 
-        double Qty = RoundCurrency.forQuantity((5.5 / Ticker.getAssetPrice("BNBEUR", client)), "BNBEUR");
+        double Qty = RoundCurrency.forQuantity((10 / Ticker.getAssetPrice("BNBEUR", client)), "BNBEUR");
         String Quantity = String.valueOf(Qty);
 
         try {
