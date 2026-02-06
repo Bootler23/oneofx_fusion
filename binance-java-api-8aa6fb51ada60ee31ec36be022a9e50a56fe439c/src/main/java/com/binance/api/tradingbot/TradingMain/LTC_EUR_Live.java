@@ -168,7 +168,8 @@ public class LTC_EUR_Live {
                         count = 0;
                         FirstRound = false;
                     }
-                    count++;                  
+                    count++;  
+                    System.out.print(".");                
 
                     // Buy
                     if (SETSQL.getStatus("BUYING")) {

@@ -20,6 +20,7 @@ import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
+import com.binance.api.tradingbot.HelperFunctions.Slippage;
 
 public class SellOrderProcess {
 
@@ -51,9 +52,17 @@ public class SellOrderProcess {
 
             if (currentPrice >= sellTarget) {
 
+                //
                 Ticker.get_CurrencyPair_Price(currency, client, LivePrice);
                 double polledPrice = LivePrice.get(0);
                 if (polledPrice != currentPrice) {
+                    return;
+                }
+                
+                // NEU: Orderbuch-Check mit 0.5% Mindestgewinn
+                double quantity = Double.parseDouble(Quantity_String);
+                if (!Slippage.isProfitableAfterSlippage(currency, client, quantity, BuyPrice_Double, 0.5)) {
+                    System.out.println("⏳ Warte auf besseres Orderbuch...");
                     return;
                 }
 
