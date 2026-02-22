@@ -11,7 +11,6 @@ public class OrderDetails {
         this.currency = currency;
     }
 
-    // Getter
     public String getBuyOrderId() {
         return buyOrderId;
     }

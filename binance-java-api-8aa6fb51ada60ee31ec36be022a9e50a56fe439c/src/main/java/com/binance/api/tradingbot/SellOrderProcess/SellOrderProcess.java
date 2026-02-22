@@ -34,10 +34,41 @@ public class SellOrderProcess {
             percent = 0.5;
         }
 
+        // ========== VORSCHLEIFE: Portfolio-Analyse ==========
+        // double totalPnLPercent = 0.0;
+        // int positionCount = 0;
+
+        // for (String dataRecord : GetRecordFromDataBase_POS) {
+        // String[] parts = dataRecord.split(", ");
+        // String BuyPrice_String = parts[5];
+        // double buyPrice = Double.valueOf(BuyPrice_String);
+
+        // if (buyPrice <= 0)
+        // continue;
+
+        // // PnL pro Position in Prozent berechnen
+        // double pnlPercent = ((currentPrice - buyPrice) / buyPrice) * 100;
+        // totalPnLPercent += pnlPercent;
+        // positionCount++;
+        // }
+
+        // double avgPnLPercent;
+        // if (positionCount > 0) {
+        // avgPnLPercent = totalPnLPercent / positionCount;
+        // } else {
+        // avgPnLPercent = 0.0;
+        // }
+
+        // System.out.println("📊 Portfolio-Status: " + positionCount + " Positionen | Ø
+        // PnL: "
+        // + String.format("%.2f", avgPnLPercent) + "%");
+
+        // ========== ENDE VORSCHLEIFE: Portfolio-Analyse ==========
+
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
 
-            String BuyOrderId = parts[0];
+            String BuyOrderId = parts[0]; // TODO was soll in der Datenbank gespeichert werden?
             String OrigPrice_String = parts[2];
             String Quantity_String = parts[3];
             String BuyPrice_String = parts[5];
@@ -52,17 +83,18 @@ public class SellOrderProcess {
 
             if (currentPrice >= sellTarget) {
 
-                //
+                // Überprüfen, ob der Verkauf nach Berücksichtigung der Slippage immer noch
+                // profitabel ist
+                if (!Slippage.isProfitableAfterSlippage(currency, client, Double.parseDouble(Quantity_String),
+                        BuyPrice_Double, 0.5)) {
+                    System.out.println("⏳ Warte auf besseres Orderbuch...");
+                    return;
+                }
+
+                // Überprüfen, ob es einen Preisunterschied gibt
                 Ticker.get_CurrencyPair_Price(currency, client, LivePrice);
                 double polledPrice = LivePrice.get(0);
                 if (polledPrice != currentPrice) {
-                    return;
-                }
-                
-                // NEU: Orderbuch-Check mit 0.5% Mindestgewinn
-                double quantity = Double.parseDouble(Quantity_String);
-                if (!Slippage.isProfitableAfterSlippage(currency, client, quantity, BuyPrice_Double, 0.5)) {
-                    System.out.println("⏳ Warte auf besseres Orderbuch...");
                     return;
                 }
 

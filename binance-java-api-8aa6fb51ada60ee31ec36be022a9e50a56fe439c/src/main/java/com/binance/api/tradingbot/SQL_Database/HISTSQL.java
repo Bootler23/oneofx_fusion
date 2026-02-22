@@ -10,6 +10,7 @@ import java.util.List;
 
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
+import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class HISTSQL {
 
@@ -217,8 +218,8 @@ public class HISTSQL {
                 ResultSet rs = selectStmt.executeQuery();
 
                 if (rs.next()) {
-                    String insertSQL = "INSERT INTO WPD (GewinnAfterTax, TotalTax, TotalGewinn, TotalFee, LossAfterTax, TotalRows, Date, Status, SellPerDayAVG, RRR) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    String insertSQL = "INSERT INTO WPD (GewinnAfterTax, TotalTax, TotalGewinn, TotalFee, LossAfterTax, TotalRows, Date, Status, SellPerDayAVG, RRR, €_trade) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
                     try (PreparedStatement insertStmt = conWPD.prepareStatement(insertSQL)) {
                         insertStmt.setDouble(1, rs.getDouble("TotalGewinnAfterTax"));
@@ -231,7 +232,7 @@ public class HISTSQL {
                         insertStmt.setInt(8, 0); // Status explizit als Integer setzen
                         insertStmt.setDouble(9, WPDSQL.SellPerDayAVG());
                         insertStmt.setDouble(10,com.binance.api.tradingbot.RiskRewardRatio.RRR.calculateRiskRewardRatio(rs.getDouble("TotalGewinnAfterTax"), rs.getDouble("LossAfterTax")));
-                                
+                        insertStmt.setDouble(11, round.six(rs.getDouble("TotalGewinnAfterTax")/rs.getInt("TotalRows")));
 
                         int rowsAffected = insertStmt.executeUpdate();
                         System.out.println("Daten erfolgreich in WPD übertragen. Zeilen eingefügt: " + rowsAffected);
