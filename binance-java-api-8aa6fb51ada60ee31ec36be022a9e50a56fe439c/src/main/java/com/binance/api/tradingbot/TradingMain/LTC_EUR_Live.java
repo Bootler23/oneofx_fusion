@@ -7,8 +7,10 @@ import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.BalanceChecker;
 import com.binance.api.tradingbot.HelperFunctions.CompoundInterestCalculator;
 import com.binance.api.tradingbot.HelperFunctions.Time;
+import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.Indicator.Merge;
+import com.binance.api.tradingbot.Indicator.StochRSI;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -16,6 +18,7 @@ import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
+import com.binance.api.tradingbot.Indicator.Updates;
 import com.binance.api.tradingbot.Settings.set;
 import com.binance.api.tradingbot.TradeInformation.getTradeInformation;
 import com.binance.api.tradingbot.Settings.bnb;
@@ -24,6 +27,7 @@ import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.service.RateLimitTracker;
 import com.binance.api.tradingbot.Stream.UltraFastStream;
+import com.binance.api.client.domain.market.CandlestickInterval;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 
 import java.util.List;
@@ -35,6 +39,8 @@ public class LTC_EUR_Live {
     private static volatile boolean running = true;
     private static UltraFastStream priceStream;
     private static long lastBnbBalanceCheck = 0;
+    private static double K = 0.0;
+    private static double D = 0.0;
 
     /**
      * Stoppt den Trading Bot.
@@ -93,7 +99,6 @@ public class LTC_EUR_Live {
             try {
 
                 int state = 0;
-
                 int count = 0;
                 boolean FirstRound = true;
 
@@ -104,6 +109,10 @@ public class LTC_EUR_Live {
                 // -----------------------------------------------------------------------------------------------------------------------------------------------------
 
                 while (running) {
+
+                    OrderIdList.clear();
+                    getDataRecords.clear();
+                    LivePrice.clear();
 
                     state = set.Currency(BuyCurrencies, state);
                     currency = BuyCurrencies[state];
@@ -128,7 +137,7 @@ public class LTC_EUR_Live {
                         LivePrice.add(livePrice);
                     }
 
-                    // ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
+                    ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
                     // BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
 
@@ -153,27 +162,41 @@ public class LTC_EUR_Live {
 
                         WPDSQL.getGewinnAfterTax();
 
-                        long currentTime = System.currentTimeMillis();
-                        if (currentTime - lastBnbBalanceCheck >= 60 * 1000) { // TODO Prozess verbessern
-                            Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient()); // TODO -> evtl. anderer Ort
-
-                            SETSQL.getAVG_BalanceToAsset_atBuy();
-                            BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
-                            lastBnbBalanceCheck = currentTime;
-
-                            // com.binance.api.tradingbot.Indicator.Update.calcPercentToAddForNextBuy();
-
-                        }
-
                         count = 0;
                         FirstRound = false;
                     }
-                    count++;  
-                    System.out.print(".");                
+
+                    count++;
+                    System.out.print(".");
+
+                    long currentTime = System.currentTimeMillis();
+                    if (currentTime - lastBnbBalanceCheck >= 60 * 1000) { // TODO Prozess verbessern
+                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient()); // TODO -> evtl. anderer Ort
+
+                        SETSQL.getAVG_BalanceToAsset_atBuy();
+                        BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                        lastBnbBalanceCheck = currentTime;
+
+                        // com.binance.api.tradingbot.Indicator.Update.calcPercentToAddForNextBuy();
+
+                        K = 0.0;
+                        D = 0.0;
+
+                        K = round.two(StochRSI.getK(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
+                        D = round.two(StochRSI.getD(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
+
+                        K = Math.max(0.0, Math.min(100.0, K));
+                        D = Math.max(0.0, Math.min(100.0, D));
+
+                        System.out.println("StochRSI K: " + K + " D: " + D);
+
+                    }
 
                     // Buy
                     if (SETSQL.getStatus("BUYING")) {
-                        BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                        if (D < K) {
+                            BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                        }
                     }
 
                     // Check
@@ -199,14 +222,14 @@ public class LTC_EUR_Live {
 
     private static int getSleepMs() {
         RateLimitTracker tracker = RateLimitTracker.getInstance();
-       
+
         int currentWeight = tracker.getServerReportedWeight();
         if (currentWeight <= 0) {
             currentWeight = tracker.getUsedWeightInWindow();
             System.out.println("⚠️ Fallback auf genutztes Gewicht im Fenster für Sleep-Berechnung");
         }
-      
-        int sleepMs;       
+
+        int sleepMs;
 
         if (currentWeight <= 0) {
             sleepMs = 2000;

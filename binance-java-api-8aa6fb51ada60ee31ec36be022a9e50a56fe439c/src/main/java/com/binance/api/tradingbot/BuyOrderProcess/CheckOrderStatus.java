@@ -18,7 +18,7 @@ import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.round;
-import com.binance.api.tradingbot.Indicator.Update;
+import com.binance.api.tradingbot.Indicator.Updates;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -130,10 +130,11 @@ public class CheckOrderStatus {
         String BuyDate = Time.getCurrentDate();
         String BuyTime = Time.getCurrentTime_HHmmss();
 
-        Update.NewCounterPosition();
-        Update.addminBuyAmount();
-        Update.ratioBalanceToBA();
-        Update.calcPercentToAddForNextBuy();
+        Updates.NewCounterPosition();
+        Updates.addminBuyAmount();
+        Updates.ratioBalanceToBA();
+        Updates.calcPercentToAddForNextBuy();
+        Updates.setExpectationCounter();
 
         try (Connection con_update = DriverManager.getConnection(dbUrl.getPOS());
                 Statement update = con_update.createStatement()) {

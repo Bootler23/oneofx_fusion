@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import com.binance.api.tradingbot.HelperFunctions.CompoundInterestCalculator;
 
-public class Update {
+public class Updates {
 
     double minBuyAmount = SETSQL.getminBuyAmount();
     double percentToAdd = SETSQL.getPercentToAdd();
@@ -18,11 +18,13 @@ public class Update {
     public static void addminBuyAmount() {
         double minBuyAmount = SETSQL.getminBuyAmount();
         double percentToAdd = SETSQL.getPercentToAdd();
+        double newMinBuyAmount = (minBuyAmount + (minBuyAmount * (percentToAdd / 100)));
 
-        if (percentToAdd <= 0) {
-            percentToAdd = 0.001;
+        if (minBuyAmount <= 0 || percentToAdd <= 0 || newMinBuyAmount <= 0) {
+            return;
         }
-        SETSQL.setminBuyAmount(minBuyAmount + (minBuyAmount * (percentToAdd / 100)));
+
+        SETSQL.setminBuyAmount(newMinBuyAmount);
     }
 
     public static void ratioBalanceToBA() {
@@ -47,4 +49,15 @@ public class Update {
         LocalDate today = LocalDate.now();
         return (int) ChronoUnit.DAYS.between(startOfYear, today);
     }
+
+    public static void setExpectationCounter() {
+        int countPosition = SETSQL.getCount();
+        int expectationCounter = ((countPosition / getDaysPassedThisYear()) * 365);
+
+        if (expectationCounter <= 0 || countPosition <= 0) {
+           return;
+        }
+
+        SETSQL.setExpectationCounter(expectationCounter);
+    } 
 }

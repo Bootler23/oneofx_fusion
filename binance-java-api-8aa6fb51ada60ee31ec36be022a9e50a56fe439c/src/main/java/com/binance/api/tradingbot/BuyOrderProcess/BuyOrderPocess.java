@@ -56,6 +56,7 @@ public class BuyOrderPocess {
             }
 
             if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {
+            // if ((TickerPrice >= BuyPrice) && (unten != BuyPrice) && (BuyOrderCalc)) {
 
                 empty.Line();
                 System.out.println("Setze mal eine Order bei: " + BuyPrice);                        
