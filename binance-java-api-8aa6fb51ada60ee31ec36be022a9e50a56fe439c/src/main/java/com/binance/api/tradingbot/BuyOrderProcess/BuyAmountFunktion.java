@@ -23,7 +23,7 @@ public class BuyAmountFunktion {
         }
 
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
-        double unten = POSSQL.getLastPrice(currencyPair, LivePrice);
+        double unten = POSSQL.getLastDownSidePrice(currencyPair, LivePrice);
 
         double LPP = ATHSQL.getLPP(currencyPair);
         double getBuyAmount = 0.0;

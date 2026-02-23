@@ -35,7 +35,7 @@ public class BuyOrderPocess {
 
         double BuyAmaunt;
         double Ath = ATHSQL.getAllTimeHigh(currency);
-        double unten = POSSQL.getLastPrice(currency, LivePrice);
+        double unten = POSSQL.getLastDownSidePrice(currency, LivePrice);     
         double BuyPrice;
         int Count = 0;
         boolean BuyOrderCalc = true;
@@ -55,8 +55,8 @@ public class BuyOrderPocess {
                 }
             }
 
-            if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {
-            // if ((TickerPrice >= BuyPrice) && (unten != BuyPrice) && (BuyOrderCalc)) {
+            // if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) { //|| ((TickerPrice >= BuyPrice) && (oben < BuyPrice) && (BuyPrice != oben) && (BuyOrderCalc))) {
+            if ((TickerPrice >= BuyPrice) && !POSSQL.positionExistsAtPrice(currency, BuyPrice) && (BuyOrderCalc)) {
 
                 empty.Line();
                 System.out.println("Setze mal eine Order bei: " + BuyPrice);                        
@@ -70,8 +70,7 @@ public class BuyOrderPocess {
                 String buyprice = String.valueOf(BuyPrice);
 
                 try {
-                    NewOrderResponse newOrderResponse = client
-                            .newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
+                    NewOrderResponse newOrderResponse = client.newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
 
                     try (Connection con = DriverManager.getConnection(dbUrl.getPOS())) {
                         String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung, statusCode) VALUES (?, ?, ?, ?, ?)";
@@ -90,7 +89,7 @@ public class BuyOrderPocess {
                     System.out.println("BUY AMOUNT bei..........: " + round.three(BuyAmaunt) + " EUR");
                     System.out.println("Quantity bei............: " + Quantity + " " + currency);
                     System.out.println("");
-                    break;
+                    return;
 
                 } catch (BinanceApiException ex) {
                     System.err.println("Fehler beim Kauf: Nicht genügend Geld verfügbar - " + ex.getMessage());
