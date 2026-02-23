@@ -117,7 +117,7 @@ public class UltraFastStream {
         this.active = true;
         this.status = ConnectionStatus.RECONNECTING;
         
-        logger.info("🚀 Starte UltraFastStream für: {}", this.symbol);
+        logger.info("[START] Starte UltraFastStream für: {}", this.symbol);
         
         // WebSocket-Verbindung starten
         connectWebSocket();
@@ -139,7 +139,7 @@ public class UltraFastStream {
             
             // Symbol in Kleinbuchstaben für Binance WebSocket API
             String wsSymbol = symbol.toLowerCase();
-            logger.info("🔌 Verbinde WebSocket für Symbol: {} (WS: {})", symbol, wsSymbol);
+            logger.info("[WS] Verbinde WebSocket für Symbol: {} (WS: {})", symbol, wsSymbol);
             
             // WebSocket starten
             this.connection = webSocketClient.onTickerEvent(wsSymbol, 
@@ -155,10 +155,10 @@ public class UltraFastStream {
                     }
                 });
             
-            logger.info("✅ WebSocket-Verbindung hergestellt für {}", symbol);
+            logger.info("[OK] WebSocket-Verbindung hergestellt fuer {}", symbol);
             
         } catch (Exception e) {
-            logger.error("❌ Fehler beim WebSocket-Verbindungsaufbau: {}", e.getMessage(), e);
+            logger.error("[ERROR] Fehler beim WebSocket-Verbindungsaufbau: {}", e.getMessage(), e);
             handleWebSocketFailure(e);
         }
     }
@@ -172,12 +172,13 @@ public class UltraFastStream {
         
         // Debug: Zeige was ankommt
         if (currentPrice == null) {
-            logger.info("📥 Erster Ticker empfangen: Symbol={}, Preis={}", tickerSymbol, priceStr);
+            logger.info("[TICKER] Erster Ticker empfangen: Symbol={}, Preis={}", tickerSymbol, priceStr);
         }
         
         if (priceStr != null) {
             try {
                 BigDecimal price = new BigDecimal(priceStr);
+                BigDecimal oldPrice = this.currentPrice;
                 this.currentPrice = price;
                 this.lastUpdateTime = System.currentTimeMillis();
                 
@@ -190,14 +191,15 @@ public class UltraFastStream {
                     // Falls REST-Fallback aktiv war, stoppen
                     stopRestFallback();
                     
-                    logger.info("✅ Stream CONNECTED - Empfange Live-Preise für {} = €{}", symbol, price);
+                    logger.info("[OK] Stream CONNECTED - Empfange Live-Preise für {} = EUR {}", symbol, price);
                 }
+                // Preis-Updates werden nicht mehr geloggt (zu viel Output)
                 
             } catch (NumberFormatException e) {
                 logger.warn("Fehler beim Parsen des Preises '{}': {}", priceStr, e.getMessage());
             }
         } else {
-            logger.warn("⚠️ Ticker empfangen aber Preis ist null für Symbol: {}", tickerSymbol);
+            logger.warn("[WARN] Ticker empfangen aber Preis ist null für Symbol: {}", tickerSymbol);
         }
     }
     
@@ -205,7 +207,7 @@ public class UltraFastStream {
      * Behandelt WebSocket-Fehler und startet Reconnect.
      */
     private void handleWebSocketFailure(Throwable cause) {
-        logger.error("❌ WebSocket-Fehler für {}: {}", symbol, cause.getMessage());
+        logger.error("[ERROR] WebSocket-Fehler für {}: {}", symbol, cause.getMessage());
         
         if (active && !reconnecting) {
             attemptReconnect();
@@ -219,7 +221,7 @@ public class UltraFastStream {
         int attempts = reconnectAttempts.incrementAndGet();
         
         if (attempts > TradingConstants.STREAM_MAX_RECONNECT_ATTEMPTS) {
-            logger.warn("⚠️ Max Reconnect-Versuche ({}) erreicht. Wechsle zu REST-Fallback.", 
+            logger.warn("[WARN] Max Reconnect-Versuche ({}) erreicht. Wechsle zu REST-Fallback.", 
                 TradingConstants.STREAM_MAX_RECONNECT_ATTEMPTS);
             switchToRestFallback();
             return;
@@ -229,14 +231,14 @@ public class UltraFastStream {
         status = ConnectionStatus.RECONNECTING;
         
         long delay = calculateBackoff(attempts);
-        logger.info("🔄 Reconnect-Versuch {}/{} in {}ms für {}", 
+        logger.info("[RECONNECT] Versuch {}/{} in {}ms für {}", 
             attempts, TradingConstants.STREAM_MAX_RECONNECT_ATTEMPTS, delay, symbol);
         
         scheduler.schedule(() -> {
             try {
                 connectWebSocket();
             } catch (Exception e) {
-                logger.error("❌ Reconnect fehlgeschlagen: {}", e.getMessage());
+                logger.error("[ERROR] Reconnect fehlgeschlagen: {}", e.getMessage());
                 reconnecting = false;
                 attemptReconnect();
             }
@@ -264,21 +266,21 @@ public class UltraFastStream {
             // Prüfe auf stale data
             if (lastUpdateTime > 0 && dataAge > TradingConstants.STREAM_STALE_DATA_THRESHOLD_MS) {
                 if (status == ConnectionStatus.CONNECTED) {
-                    logger.warn("⚠️ Stale data für {} - Letztes Update vor {}s. Starte Reconnect...", 
+                    logger.warn("[WARN] Stale data für {} - Letztes Update vor {}s. Starte Reconnect...", 
                         symbol, dataAge / 1000);
                     status = ConnectionStatus.STALE;
                     attemptReconnect();
                 }
             }
             
-        }, 10, 10, TimeUnit.SECONDS);
+        }, 5, 5, TimeUnit.SECONDS);
     }
     
     /**
      * Wechselt in den REST-Fallback-Modus.
      */
     private void switchToRestFallback() {
-        logger.info("📡 Wechsle zu REST-Fallback-Modus für {}", symbol);
+        logger.info("[REST] Wechsle zu REST-Fallback-Modus für {}", symbol);
         status = ConnectionStatus.REST_FALLBACK;
         reconnecting = false;
         
@@ -303,7 +305,7 @@ public class UltraFastStream {
         // Periodisch WebSocket-Reconnect versuchen (alle 5 Minuten)
         scheduler.scheduleAtFixedRate(() -> {
             if (status == ConnectionStatus.REST_FALLBACK && active) {
-                logger.info("🔄 Versuche WebSocket wiederherzustellen für {}...", symbol);
+                logger.info("[RECONNECT] Versuche WebSocket wiederherzustellen für {}...", symbol);
                 reconnectAttempts.set(0);
                 attemptReconnect();
             }
@@ -328,10 +330,15 @@ public class UltraFastStream {
         if (connection != null) {
             try {
                 connection.close();
+                connection = null;
+            } catch (NullPointerException e) {
+                // OkHttp WebSocketListener.onClosed kann NPE werfen wenn reason = null
+                logger.trace("Connection bereits geschlossen oder reason=null: {}", e.getMessage());
+                connection = null;
             } catch (Exception e) {
-                logger.debug("Fehler beim Schließen der Connection: {}", e.getMessage());
+                logger.trace("Fehler beim Schließen der Connection: {}", e.getMessage());
+                connection = null;
             }
-            connection = null;
         }
     }
     
@@ -411,14 +418,14 @@ public class UltraFastStream {
      * Zeigt Status-Informationen im Log.
      */
     public void showStatus() {
-        logger.info("📊 === STREAM STATUS ===");
+        logger.info("=== STREAM STATUS ===");
         logger.info("Symbol: {}", symbol);
         logger.info("Status: {}", status);
         logger.info("Reconnect-Versuche: {}", reconnectAttempts.get());
         
         if (currentPrice != null) {
             long secondsAgo = (System.currentTimeMillis() - lastUpdateTime) / 1000;
-            logger.info("Preis: €{} (vor {}s)", currentPrice, secondsAgo);
+            logger.info("Preis: EUR {} (vor {}s)", currentPrice, secondsAgo);
         } else {
             logger.info("Preis: Keine Daten");
         }
@@ -429,7 +436,7 @@ public class UltraFastStream {
      * Stoppt den Stream und gibt alle Ressourcen frei.
      */
     public void stop() {
-        logger.info("🛑 Stoppe UltraFastStream für {}", symbol);
+        logger.info("[STOP] Stoppe UltraFastStream für {}", symbol);
         
         active = false;
         status = ConnectionStatus.STOPPED;
@@ -454,7 +461,7 @@ public class UltraFastStream {
                 }
             }
             
-            logger.info("✅ UltraFastStream gestoppt");
+            logger.info("[OK] UltraFastStream gestoppt");
             
         } catch (Exception e) {
             logger.error("Fehler beim Stoppen: {}", e.getMessage());

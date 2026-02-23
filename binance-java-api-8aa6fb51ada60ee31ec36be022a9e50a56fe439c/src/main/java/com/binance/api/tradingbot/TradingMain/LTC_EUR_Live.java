@@ -26,6 +26,7 @@ import com.binance.api.tradingbot.Settings.CurrencyConfig;
 import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.service.RateLimitTracker;
+import com.binance.api.tradingbot.service.PortfolioMonitor;
 import com.binance.api.tradingbot.Stream.UltraFastStream;
 import com.binance.api.client.domain.market.CandlestickInterval;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
@@ -175,6 +176,10 @@ public class LTC_EUR_Live {
 
                         SETSQL.getAVG_BalanceToAsset_atBuy();
                         BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
+                        
+                        // Portfolio-Status anzeigen
+                        PortfolioMonitor.showPortfolioStatus(currency, LivePrice.get(0));
+                        
                         lastBnbBalanceCheck = currentTime;
 
                         // com.binance.api.tradingbot.Indicator.Update.calcPercentToAddForNextBuy();

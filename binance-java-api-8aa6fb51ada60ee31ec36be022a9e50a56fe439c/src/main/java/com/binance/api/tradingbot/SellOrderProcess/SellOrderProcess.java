@@ -34,37 +34,6 @@ public class SellOrderProcess {
             percent = 0.5;
         }
 
-        // ========== VORSCHLEIFE: Portfolio-Analyse ==========
-        // double totalPnLPercent = 0.0;
-        // int positionCount = 0;
-
-        // for (String dataRecord : GetRecordFromDataBase_POS) {
-        // String[] parts = dataRecord.split(", ");
-        // String BuyPrice_String = parts[5];
-        // double buyPrice = Double.valueOf(BuyPrice_String);
-
-        // if (buyPrice <= 0)
-        // continue;
-
-        // // PnL pro Position in Prozent berechnen
-        // double pnlPercent = ((currentPrice - buyPrice) / buyPrice) * 100;
-        // totalPnLPercent += pnlPercent;
-        // positionCount++;
-        // }
-
-        // double avgPnLPercent;
-        // if (positionCount > 0) {
-        // avgPnLPercent = totalPnLPercent / positionCount;
-        // } else {
-        // avgPnLPercent = 0.0;
-        // }
-
-        // System.out.println("📊 Portfolio-Status: " + positionCount + " Positionen | Ø
-        // PnL: "
-        // + String.format("%.2f", avgPnLPercent) + "%");
-
-        // ========== ENDE VORSCHLEIFE: Portfolio-Analyse ==========
-
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
 
