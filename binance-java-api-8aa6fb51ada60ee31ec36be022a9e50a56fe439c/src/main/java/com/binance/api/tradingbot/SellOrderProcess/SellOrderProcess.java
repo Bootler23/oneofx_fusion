@@ -25,7 +25,7 @@ import com.binance.api.tradingbot.HelperFunctions.Slippage;
 public class SellOrderProcess {
 
     public static void setSellOrder(String currency, BinanceApiRestClient client,
-            List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
+            List<String> GetRecordFromDataBase_POS, List<Double> LivePrice, double PnL) {
 
         double currentPrice = LivePrice.get(0);
         double percent = SETSQL.getPercentToSell();
@@ -80,7 +80,6 @@ public class SellOrderProcess {
                     delete_POS_AfterMarketSell(BuyOrderId);
 
                     System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId);
-                    return;
 
                 } catch (BinanceApiException ex) {
                     String FehlerMessage = "Fehler beim Verkauf: Keine Menge für den Verkauf Vorhanden!";

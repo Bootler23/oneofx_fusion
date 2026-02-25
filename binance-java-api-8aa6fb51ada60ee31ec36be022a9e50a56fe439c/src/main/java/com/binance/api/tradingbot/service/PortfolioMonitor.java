@@ -3,6 +3,7 @@ package com.binance.api.tradingbot.service;
 import java.util.List;
 import java.util.ArrayList;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 /**
  * Service für Portfolio-Monitoring und Performance-Tracking.
@@ -16,14 +17,14 @@ public class PortfolioMonitor {
      * @param currency Das Währungspaar (z.B. "LTCEUR")
      * @param currentPrice Der aktuelle Preis
      */
-    public static void showPortfolioStatus(String currency, double currentPrice) {
+    public static double showPortfolioStatus(String currency, double currentPrice) {
         
         List<String> positions = new ArrayList<>();
         POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, positions);
         
         if (positions.isEmpty()) {
             System.out.println("[PORTFOLIO] Keine offenen Positionen fuer " + currency);
-            return;
+            return 0.0;
         }
         
         double totalPnLPercent = 0.0;
@@ -51,9 +52,16 @@ public class PortfolioMonitor {
         }
         
         double avgPnLPercent = positionCount > 0 ? totalPnLPercent / positionCount : 0.0;
+
+        if (avgPnLPercent > SETSQL.getPnL_Reverense()) {
+            SETSQL.setPnL_Reverense(avgPnLPercent);
+        }
+        
         
         System.out.println("[PORTFOLIO] " + currency + ": " + positionCount + " Positionen | Avg PnL: " 
                 + String.format("%.2f", avgPnLPercent) + "%");
+                
+        return avgPnLPercent;
     }
     
     /**
