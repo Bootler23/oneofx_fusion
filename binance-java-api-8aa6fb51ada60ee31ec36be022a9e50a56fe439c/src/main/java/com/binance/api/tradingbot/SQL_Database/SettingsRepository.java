@@ -15,10 +15,9 @@ import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class SettingsRepository {
     
-    private static final Logger logger = LoggerFactory.getLogger(SettingsRepository.class);
-    
-   
-    public static double getDouble(String columnName, double defaultValue, int roundDigits) {
+    private static final Logger logger = LoggerFactory.getLogger(SettingsRepository.class);   
+      
+    public static double getDouble(String columnName) {
         String sql = "SELECT " + columnName + " FROM SETTING";
         
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -27,40 +26,60 @@ public class SettingsRepository {
             
             if (rs.next()) {
                 double value = rs.getDouble(columnName);
-                if (rs.wasNull()) {
-                    return defaultValue;
-                }
-                return roundDigits > 0 ? roundValue(value, roundDigits) : value;
+                return rs.wasNull() ? 0.0 : value;
             }
-            return defaultValue;
+            return 0.0;
             
         } catch (SQLException err) {
             logger.error("Fehler beim Abrufen von {}: {}", columnName, err.getMessage());
-            return defaultValue;
+            return 0.0;
         }
     }    
   
-    public static boolean setDouble(String columnName, double value, int roundDigits) {
+    // public static boolean setDouble(String columnName, double value, int roundDigits) {
+    //     String sql = "UPDATE SETTING SET " + columnName + " = ?";
+        
+    //     try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+    //          PreparedStatement ps = con.prepareStatement(sql)) {
+            
+    //         double roundedValue = roundDigits > 0 ? roundValue(value, roundDigits) : value;
+    //         ps.setDouble(1, roundedValue);
+            
+    //         int rowsAffected = ps.executeUpdate();
+    //         if (rowsAffected > 0) {
+    //             logger.debug("{} erfolgreich auf {} gesetzt", columnName, roundedValue);
+    //             return true;
+    //         }
+    //         return false;
+            
+    //     } catch (SQLException err) {
+    //         logger.error("Fehler beim Setzen von {} auf {}: {}", columnName, value, err.getMessage());
+    //         return false;
+    //     }
+    // }    
+
+    public static void setDouble(String columnName, double value, int roundDigits) {
         String sql = "UPDATE SETTING SET " + columnName + " = ?";
         
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
              PreparedStatement ps = con.prepareStatement(sql)) {
             
-            double roundedValue = roundDigits > 0 ? roundValue(value, roundDigits) : value;
-            ps.setDouble(1, roundedValue);
-            
-            int rowsAffected = ps.executeUpdate();
-            if (rowsAffected > 0) {
-                logger.debug("{} erfolgreich auf {} gesetzt", columnName, roundedValue);
-                return true;
+            // Wert runden falls roundDigits angegeben
+            double roundedValue;
+            if (roundDigits > 0) {
+                roundedValue = roundValue(value, roundDigits);
+            } else {
+                roundedValue = value;
             }
-            return false;
+            
+            // Gerundeten Wert in DB speichern
+            ps.setDouble(1, roundedValue);
+            ps.executeUpdate();
             
         } catch (SQLException err) {
             logger.error("Fehler beim Setzen von {} auf {}: {}", columnName, value, err.getMessage());
-            return false;
         }
-    }    
+    }
    
     public static int getInt(String columnName, int defaultValue) {
         String sql = "SELECT " + columnName + " FROM SETTING";
