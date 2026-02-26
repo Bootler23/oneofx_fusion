@@ -197,7 +197,7 @@ public class POSSQL {
             try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                     PreparedStatement pstmt = con.prepareStatement(
                             "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
-                                    "FROM POS WHERE Status IN (1, 7) AND Währung = ?")) {
+                                    "FROM POS WHERE Status IN (1, 7) AND Währung = ? AND BuyAmount > 10")) {
 
                 // "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate,
                 // BuyTime " +

@@ -5,10 +5,6 @@ import java.util.ArrayList;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
-/**
- * Service für Portfolio-Monitoring und Performance-Tracking.
- * Zeigt durchschnittlichen PnL über alle offenen Positionen an.
- */
 public class PortfolioMonitor {
     
     /**

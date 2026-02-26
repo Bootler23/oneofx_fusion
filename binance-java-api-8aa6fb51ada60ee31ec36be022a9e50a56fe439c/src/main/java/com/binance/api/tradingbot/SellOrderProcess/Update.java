@@ -243,7 +243,7 @@ public class Update {
         return round.eight(((sellamount - buyamount) / 100) * 42);
     }
 
-    private static double getProfitinPercent(double buyprice, double sellprice) {
+    static double getProfitinPercent(double buyprice, double sellprice) {
         return round.five(((sellprice - buyprice) / buyprice) * 100);
     }
 

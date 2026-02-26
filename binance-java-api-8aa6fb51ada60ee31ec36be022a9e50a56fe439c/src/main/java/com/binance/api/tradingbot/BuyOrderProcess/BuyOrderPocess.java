@@ -74,6 +74,7 @@ public class BuyOrderPocess {
 
                     try (Connection con = DriverManager.getConnection(dbUrl.getPOS())) {
                         String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung, statusCode) VALUES (?, ?, ?, ?, ?)";
+                        
                         try (PreparedStatement pstmt = con.prepareStatement(SQL)) {
                             pstmt.setLong(1, newOrderResponse.getOrderId());
                             pstmt.setBigDecimal(2, new BigDecimal(newOrderResponse.getPrice()));

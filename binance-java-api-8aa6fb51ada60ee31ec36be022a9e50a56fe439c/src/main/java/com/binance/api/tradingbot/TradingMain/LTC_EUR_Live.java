@@ -5,12 +5,9 @@ import com.binance.api.tradingbot.BuyOrderProcess.CheckOrderStatus;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.BalanceChecker;
-import com.binance.api.tradingbot.HelperFunctions.CompoundInterestCalculator;
 import com.binance.api.tradingbot.HelperFunctions.Time;
-import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.Indicator.Merge;
-import com.binance.api.tradingbot.Indicator.StochRSI;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
@@ -18,7 +15,6 @@ import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
-import com.binance.api.tradingbot.Indicator.Updates;
 import com.binance.api.tradingbot.Settings.set;
 import com.binance.api.tradingbot.TradeInformation.getTradeInformation;
 import com.binance.api.tradingbot.Settings.bnb;
@@ -28,8 +24,9 @@ import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.service.RateLimitTracker;
 import com.binance.api.tradingbot.service.PortfolioMonitor;
 import com.binance.api.tradingbot.Stream.UltraFastStream;
+import com.binance.api.tradingbot.HelperFunctions.round;
+import com.binance.api.tradingbot.Indicator.StochRSI;
 import com.binance.api.client.domain.market.CandlestickInterval;
-import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 
 import java.util.List;
 
@@ -82,7 +79,7 @@ public class LTC_EUR_Live {
         String currency = BuyCurrencies[0]; // Erste (und einzige) Währung
 
         priceStream = new UltraFastStream();
-        priceStream.start(currency);
+        priceStream.start(currency);  
 
         // Warte kurz auf erste Daten (max 5 Sekunden)
         int waitCount = 0;
