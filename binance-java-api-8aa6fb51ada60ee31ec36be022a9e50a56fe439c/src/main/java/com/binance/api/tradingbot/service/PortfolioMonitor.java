@@ -3,9 +3,16 @@ package com.binance.api.tradingbot.service;
 import java.util.List;
 import java.util.ArrayList;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class PortfolioMonitor {
-       
+    
+    /**
+     * Zeigt den Portfolio-Status mit durchschnittlichem PnL an.
+     * 
+     * @param currency Das Währungspaar (z.B. "LTCEUR")
+     * @param currentPrice Der aktuelle Preis
+     */
     public static double showPortfolioStatus(String currency, double currentPrice) {
         
         List<String> positions = new ArrayList<>();
@@ -41,13 +48,24 @@ public class PortfolioMonitor {
         }
         
         double avgPnLPercent = positionCount > 0 ? totalPnLPercent / positionCount : 0.0;
+
+        if (avgPnLPercent > SETSQL.getPnL_Reverense()) {
+            SETSQL.setPnL_Reverense(avgPnLPercent);
+        }
+        
         
         System.out.println("[PORTFOLIO] " + currency + ": " + positionCount + " Positionen | Avg PnL: " 
-                + String.format("%.2f", avgPnLPercent) + "%");  
-           
+                + String.format("%.2f", avgPnLPercent) + "%");
+                
         return avgPnLPercent;
-    }       
-   
+    }
+    
+    /**
+     * Erweiterte Portfolio-Analyse mit mehr Details.
+     * 
+     * @param currency Das Währungspaar
+     * @param currentPrice Der aktuelle Preis
+     */
     public static void showDetailedPortfolioStatus(String currency, double currentPrice) {
         
         List<String> positions = new ArrayList<>();

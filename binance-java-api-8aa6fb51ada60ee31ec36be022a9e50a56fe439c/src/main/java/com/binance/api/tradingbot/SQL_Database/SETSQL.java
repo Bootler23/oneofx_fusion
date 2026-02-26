@@ -29,7 +29,7 @@ public class SETSQL {
             System.out.print("Datenbank Aktualisiert " + BNB_Balance);
             empty.Line();
         }
-    }  
+    }
 
     public static double getBalance_SQL() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -383,17 +383,7 @@ public class SETSQL {
             System.out.println(err.getMessage());
         }
     }
-
-    // public static double getDesiredAmount() {
-    //     try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-    //             Statement query = con.createStatement();
-    //             ResultSet rs = query.executeQuery("SELECT DesiredAmount FROM SETTING")) {
-    //         return round.two(rs.getDouble("DesiredAmount"));
-    //     } catch (SQLException err) {
-    //         System.out.println(err.getMessage());
-    //         return 0.0;
-    //     }
-    // }
+   
 
     public static double get_BNB_price() {
         String sql = "SELECT BNB_Price FROM SETTING";
@@ -473,7 +463,7 @@ public class SETSQL {
             System.out.println(err.getMessage());
             return 0.0;
         }
-    } 
+    }
 
     public static void setBuyPriceTest(double buyPrice) {
         String sql = "UPDATE SETTING SET TP = ?";
@@ -502,47 +492,55 @@ public class SETSQL {
     }
 
     public static double getDesiredAmount() {
-        return SettingsRepository.getDouble("DesiredAmount", 0.0, 2);
+        return SettingsRepository.getDouble("DesiredAmount");
+    }
+
+    public static void setPnL_Reverense(double newValue) {
+        SettingsRepository.setDouble("PnL_reverense", newValue, 2);
+    }
+
+    public static double getPnL_Reverense() {
+        return SettingsRepository.getDouble("PnL_reverense");
     }
 
     // public static boolean setExpectationCounter(int ExpectationCounter){
-    //     return SettingsRepository.setInt("ExpectationCounter", ExpectationCounter);
-    // } 
+    // return SettingsRepository.setInt("ExpectationCounter", ExpectationCounter);
+    // }
 
     // public static boolean setDesiredAmount(double value) {
-    //     return SettingsRepository.setDouble("DesiredAmount", value, 2);
+    // return SettingsRepository.setDouble("DesiredAmount", value, 2);
     // }
 
     // // Weitere Beispiele:
     // public static double getBalance_SQL() {
-    //     return SettingsRepository.getDouble("Balance", 0.0, 2);
+    // return SettingsRepository.getDouble("Balance", 0.0, 2);
     // }
 
-    // public static boolean setBalance(double value) {
-    //     return SettingsRepository.setDouble("Balance", value, 2);
-    // }
+    public static void setBuyingfalse() {
+        SettingsRepository.setString("BUYING", "false");
+    }
 
     // public static double getminBuyAmount() {
-    //     return SettingsRepository.getDouble("minBuyAmount", 5.5, 5);
+    // return SettingsRepository.getDouble("minBuyAmount", 5.5, 5);
     // }
 
     // public static boolean setminBuyAmount(double value) {
-    //     return SettingsRepository.setDouble("minBuyAmount", value, 6);
+    // return SettingsRepository.setDouble("minBuyAmount", value, 6);
     // }
 
     // public static int getCount() {
-    //     return SettingsRepository.getInt("Count", 0);
+    // return SettingsRepository.getInt("Count", 0);
     // }
 
     // public static boolean updateCount(int value) {
-    //     return SettingsRepository.setInt("Count", value);
+    // return SettingsRepository.setInt("Count", value);
     // }
 
     // public static boolean getRSI() {
-    //     return SettingsRepository.getBoolean("RSI", false);
+    // return SettingsRepository.getBoolean("RSI", false);
     // }
 
     // public static boolean setRSI(boolean value) {
-    //     return SettingsRepository.setBoolean("RSI", value);
+    // return SettingsRepository.setBoolean("RSI", value);
     // }
 }

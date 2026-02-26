@@ -55,8 +55,8 @@ public class BuyOrderPocess {
                 }
             }
 
-            // if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) { //|| ((TickerPrice >= BuyPrice) && (oben < BuyPrice) && (BuyPrice != oben) && (BuyOrderCalc))) {
-            if ((TickerPrice >= BuyPrice) && !POSSQL.positionExistsAtPrice(currency, BuyPrice) && (BuyOrderCalc)) {
+            if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {
+            // if ((TickerPrice >= BuyPrice) && !POSSQL.positionExistsAtPrice(currency, BuyPrice) && (BuyOrderCalc)) {
 
                 empty.Line();
                 System.out.println("Setze mal eine Order bei: " + BuyPrice);                        
