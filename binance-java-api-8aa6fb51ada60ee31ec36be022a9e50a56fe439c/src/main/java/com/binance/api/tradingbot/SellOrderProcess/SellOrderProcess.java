@@ -68,6 +68,7 @@ public class SellOrderProcess {
                 System.out.println("🔴 STOP-LOSS: " + currency + " bei " + dynamicStopLoss + "%");
                 System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " + currentPrice);
                 executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, true);
+                
                 return; // Todo        
 
             } else if (hitTakeProfit) {

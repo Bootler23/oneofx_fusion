@@ -28,6 +28,7 @@ import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
 import com.binance.api.tradingbot.constants.TradingConstants;
+import com.binance.api.tradingbot.service.VolumeService;
 
 public class BuyOrderPocess {
 
@@ -35,7 +36,7 @@ public class BuyOrderPocess {
 
         double BuyAmaunt;
         double Ath = ATHSQL.getAllTimeHigh(currency);
-        double unten = POSSQL.getLastDownSidePrice(currency, LivePrice);     
+        double unten = POSSQL.getLastDownSidePrice(currency, LivePrice);
         double BuyPrice;
         int Count = 0;
         boolean BuyOrderCalc = true;
@@ -56,25 +57,33 @@ public class BuyOrderPocess {
             }
 
             if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {
-            // if ((TickerPrice >= BuyPrice) && !POSSQL.positionExistsAtPrice(currency, BuyPrice) && (BuyOrderCalc)) {
+
+                // VolumeService service = VolumeService.getInstance();
+                // boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("10000000"));
+                // if (!hasVolume) {
+                //     return;
+                // }
 
                 empty.Line();
-                System.out.println("Setze mal eine Order bei: " + BuyPrice);                        
+                System.out.println("Setze mal eine Order bei: " + BuyPrice);
 
                 BuyAmaunt = BuyAmountFunktion.getsimplebuyamount();
                 if (BuyAmaunt <= 0) {
+                    System.out
+                            .println("Nicht genügend Geld verfügbar für eine Kauforder. Kaufprozess wird abgebrochen.");
                     return;
-                }             
+                }
 
                 String Quantity = getQty(currency, LivePrice, BuyAmaunt);
                 String buyprice = String.valueOf(BuyPrice);
 
                 try {
-                    NewOrderResponse newOrderResponse = client.newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
+                    NewOrderResponse newOrderResponse = client
+                            .newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
 
                     try (Connection con = DriverManager.getConnection(dbUrl.getPOS())) {
                         String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung, statusCode) VALUES (?, ?, ?, ?, ?)";
-                        
+
                         try (PreparedStatement pstmt = con.prepareStatement(SQL)) {
                             pstmt.setLong(1, newOrderResponse.getOrderId());
                             pstmt.setBigDecimal(2, new BigDecimal(newOrderResponse.getPrice()));
