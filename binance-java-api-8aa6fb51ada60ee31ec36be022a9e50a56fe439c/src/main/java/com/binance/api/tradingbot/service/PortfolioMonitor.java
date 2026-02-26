@@ -4,26 +4,16 @@ import java.util.List;
 import java.util.ArrayList;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 
-/**
- * Service für Portfolio-Monitoring und Performance-Tracking.
- * Zeigt durchschnittlichen PnL über alle offenen Positionen an.
- */
 public class PortfolioMonitor {
-    
-    /**
-     * Zeigt den Portfolio-Status mit durchschnittlichem PnL an.
-     * 
-     * @param currency Das Währungspaar (z.B. "LTCEUR")
-     * @param currentPrice Der aktuelle Preis
-     */
-    public static void showPortfolioStatus(String currency, double currentPrice) {
+       
+    public static double showPortfolioStatus(String currency, double currentPrice) {
         
         List<String> positions = new ArrayList<>();
         POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, positions);
         
         if (positions.isEmpty()) {
             System.out.println("[PORTFOLIO] Keine offenen Positionen fuer " + currency);
-            return;
+            return 0.0;
         }
         
         double totalPnLPercent = 0.0;
@@ -53,15 +43,11 @@ public class PortfolioMonitor {
         double avgPnLPercent = positionCount > 0 ? totalPnLPercent / positionCount : 0.0;
         
         System.out.println("[PORTFOLIO] " + currency + ": " + positionCount + " Positionen | Avg PnL: " 
-                + String.format("%.2f", avgPnLPercent) + "%");
-    }
-    
-    /**
-     * Erweiterte Portfolio-Analyse mit mehr Details.
-     * 
-     * @param currency Das Währungspaar
-     * @param currentPrice Der aktuelle Preis
-     */
+                + String.format("%.2f", avgPnLPercent) + "%");  
+           
+        return avgPnLPercent;
+    }       
+   
     public static void showDetailedPortfolioStatus(String currency, double currentPrice) {
         
         List<String> positions = new ArrayList<>();

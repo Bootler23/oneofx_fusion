@@ -128,6 +128,31 @@ public class SETSQL {
             return 0.0;
         }
     }
+    
+    public static double getBaseStopLossPercent() {
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                Statement query = con.createStatement();
+                ResultSet rs = query.executeQuery("SELECT BaseStopLoss FROM SETTING")) {
+            return round.three(rs.getDouble("BaseStopLoss"));
+        } catch (SQLException err) {
+            logger.warn("BaseStopLoss-Spalte nicht gefunden, verwende Fallback -2.0: {}", err.getMessage());
+            return -2.0;
+        }
+    }
+   
+    public static void setBaseStopLossPercent(double stopLossPercent) {
+        String sql = "UPDATE SETTING SET BaseStopLoss = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setDouble(1, round.three(stopLossPercent));
+            ps.executeUpdate();
+            logger.info("BaseStopLoss auf {}% gesetzt", stopLossPercent);
+
+        } catch (SQLException err) {
+            logger.error("Fehler beim Setzen des BaseStopLoss: {}", err.getMessage());
+        }
+    }
 
     public static double getDCA_Amount() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
