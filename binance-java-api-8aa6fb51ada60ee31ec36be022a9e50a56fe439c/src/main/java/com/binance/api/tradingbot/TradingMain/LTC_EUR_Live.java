@@ -79,7 +79,7 @@ public class LTC_EUR_Live {
         String currency = BuyCurrencies[0]; // Erste (und einzige) Währung
 
         priceStream = new UltraFastStream();
-        priceStream.start(currency);  
+        priceStream.start(currency);
 
         // Warte kurz auf erste Daten (max 5 Sekunden)
         int waitCount = 0;
@@ -174,29 +174,19 @@ public class LTC_EUR_Live {
 
                         SETSQL.getAVG_BalanceToAsset_atBuy();
                         BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
-                       
+
                         PnL = PortfolioMonitor.showPortfolioStatus(currency, LivePrice.get(0));
 
                         lastBnbBalanceCheck = currentTime;
 
-                        // K = 0.0;
-                        // D = 0.0;
-
-                        // K = round.two(StochRSI.getK(bnb.getClient(), currency, CandlestickInterval.HALF_HOURLY));
-                        // D = round.two(StochRSI.getD(bnb.getClient(), currency, CandlestickInterval.HALF_HOURLY));
-
-                        // K = Math.max(0.0, Math.min(100.0, K));
-                        // D = Math.max(0.0, Math.min(100.0, D));
-
-                        // System.out.println("StochRSI K: " + K + " D: " + D);
-
+                        extracted(currency);
                     }
 
                     // Buy
                     if (SETSQL.getStatus("BUYING")) {
-                        // if (D < K) {
-                            BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);                           
-                        // }
+                        if (D < K) {
+                            BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                        }
                     }
 
                     // Check
@@ -205,10 +195,8 @@ public class LTC_EUR_Live {
 
                     // Sell
                     if (SETSQL.getStatus("SELLING")) {
-                        // if (D > K) {
-                            POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
-                            SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice, PnL);
-                        // }
+                        POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
+                        SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice, PnL);
                     }
                 }
 
@@ -220,6 +208,19 @@ public class LTC_EUR_Live {
                 continue;
             }
         }
+    }
+
+    private static void extracted(String currency) {
+        K = 0.0;
+        D = 0.0;
+
+        K = round.two(StochRSI.getK(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
+        D = round.two(StochRSI.getD(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
+
+        K = Math.max(0.0, Math.min(100.0, K));
+        D = Math.max(0.0, Math.min(100.0, D));
+
+        System.out.println("StochRSI K: " + K + " D: " + D);
     }
 
     private static int getSleepMs() {

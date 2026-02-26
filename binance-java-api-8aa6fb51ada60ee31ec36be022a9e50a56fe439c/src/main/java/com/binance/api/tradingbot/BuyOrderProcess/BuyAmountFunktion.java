@@ -76,6 +76,9 @@ public class BuyAmountFunktion {
 
         if (minBuyAmount <= 0 || minBuyAmount > (AVGminBuyAmount * 3)) {
             minBuyAmount = round.two(POSSQL.getAverageBuyAmount());
+            if (minBuyAmount <= 0) {
+                minBuyAmount = SETSQL.getminBuyAmount();
+            }
         }
         return round.two(minBuyAmount);
     }
