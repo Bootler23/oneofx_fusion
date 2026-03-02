@@ -4,6 +4,8 @@ import com.binance.api.client.BinanceApiError;
 import com.binance.api.client.config.BinanceApiConfig;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.client.security.AuthenticationInterceptor;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
 import okhttp3.ResponseBody;
@@ -24,9 +26,14 @@ import java.util.concurrent.TimeUnit;
 public class BinanceApiServiceGenerator {
 
     private static final OkHttpClient sharedClient;
-    private static final Converter.Factory converterFactory = JacksonConverterFactory.create();
+    private static final Converter.Factory converterFactory;
 
     static {
+        // ObjectMapper konfigurieren: Unbekannte Enum-Werte als Default behandeln
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE, true);
+        converterFactory = JacksonConverterFactory.create(mapper);
+
         Dispatcher dispatcher = new Dispatcher();
         dispatcher.setMaxRequestsPerHost(500);
         dispatcher.setMaxRequests(500);

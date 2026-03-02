@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.SocketTimeoutException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -469,6 +470,6 @@ public class VolumeService {
         }
 
         BigDecimal totalVolume = getTotalVolume(symbols);
-        return totalVolume.divide(new BigDecimal(symbols.size()), 2, BigDecimal.ROUND_HALF_UP);
+        return totalVolume.divide(new BigDecimal(symbols.size()), 2, RoundingMode.HALF_UP);
     }
 }

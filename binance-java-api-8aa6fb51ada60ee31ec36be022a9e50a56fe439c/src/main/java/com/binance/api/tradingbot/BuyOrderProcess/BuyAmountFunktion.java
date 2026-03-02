@@ -24,8 +24,7 @@ public class BuyAmountFunktion {
 
         double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
         double unten = POSSQL.getLastDownSidePrice(currencyPair, LivePrice);
-
-        double LPP = ATHSQL.getLPP(currencyPair);
+       
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
@@ -48,9 +47,9 @@ public class BuyAmountFunktion {
 
                     count_PositionToBottom++;
 
-                    if (LPP > BuyPrice) {
-                        Loop2 = false;
-                    }
+                    // if (LPP > BuyPrice) {
+                    //     Loop2 = false;
+                    // }
                 }
             }
             Loop1 = false;

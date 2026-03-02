@@ -6,31 +6,23 @@ public class dbUrl {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/SETTING.db";
     }
 
-    public static String getATH() {
-        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ATH_LTCEUR.db";
-    }
-
     public static String getPOS() {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR.db";
     }
 
-    public static String getHIST() {
-        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";
+    public static String getoneOfX() {
+        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/oneofx.db";
     }
 
     public static String getWPD() {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/WPD.db";
     }
 
-    public static String getExpo() {
-        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/ExpoTag.db";
-    }
-
     public static String getPerformance() {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/Performance.db";
     }
 
-    public static String getoneofxString() {
-        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/oneofx/oneofx.db";
+    public static String getCurrency() {
+        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/currency.db";
     }
 }

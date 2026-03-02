@@ -84,7 +84,7 @@ public class Update {
                     continue;
                 }
 
-                if (SETSQL.getStatus("ROI")) {
+                if (SETSQL.getStatus("setting", "ROI", currency)) {
                     if (GewinnAfterTax > 0) {
                         SplitValue = CalcSplit.calcROI(currency, GewinnAfterTax);
 
@@ -107,7 +107,7 @@ public class Update {
                     LossAfterTax = 0;
                 }
 
-                try (Connection conUpdateHIST = DriverManager.getConnection(dbUrl.getHIST());
+                try (Connection conUpdateHIST = DriverManager.getConnection(dbUrl.getoneOfX());
                         PreparedStatement pstmt = conUpdateHIST.prepareStatement(
                                 "UPDATE HIST SET SellAmount = ?, SellPrice = ?, Tax = ?, Fee = ?, Gewinn = ?, " +
                                         "GewinnAfterTax = ?, LossAfterTax = ?, Profit = ?, SellFee = ?, " +
@@ -201,7 +201,7 @@ public class Update {
                     System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
                 }
 
-                try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
+                try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getoneOfX());
                         PreparedStatement pstmt = con_insert_HIST.prepareStatement(
                                 "UPDATE HIST SET BuyPrice = ?, OrigPrice = ?, Quantity = ?, BuyAmount = ?, BuyFee = ? "
                                         +

@@ -158,7 +158,7 @@ public class CheckOrderStatus {
         BalanceInfo balances = getBalances(asset, client);
         double taxe = HISTSQL.getTaxe();
 
-        try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement insert_HIST = con_insert_HIST.prepareStatement(
                         "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy, POS_count, X) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
 
@@ -295,7 +295,7 @@ public class CheckOrderStatus {
                                 err.printStackTrace();
                             }
 
-                            try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getHIST());
+                            try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getoneOfX());
                                     PreparedStatement pstmt = con_insert_HIST.prepareStatement(
                                             "INSERT INTO HIST (Währung, BuyOrderId, BuyPrice, Quantity, BuyAmount, BuyDate, BuyTime) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
 

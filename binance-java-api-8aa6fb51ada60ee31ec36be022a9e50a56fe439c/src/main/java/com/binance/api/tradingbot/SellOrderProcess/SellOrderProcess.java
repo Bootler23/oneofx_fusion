@@ -24,6 +24,8 @@ import com.binance.api.tradingbot.SQL_Database.PerformanceSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.HelperFunctions.Slippage;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
+import java.math.BigDecimal;
 
 public class SellOrderProcess {
 
@@ -40,7 +42,8 @@ public class SellOrderProcess {
         String today = Time.getCurrentDate();
         double dynamicStopLoss = round.two(PerformanceSQL.calculateCurrentDynamicStopLoss(currency, today));
         // double currentRRR = PerformanceSQL.getCurrentWeightedRRR(currency, today);
-        //System.out.println("📊 Aktuelles RRR: " + currentRRR + " | Dynamic Stop-Loss: " + dynamicStopLoss + "%"); 
+        // System.out.println("📊 Aktuelles RRR: " + currentRRR + " | Dynamic Stop-Loss:
+        // " + dynamicStopLoss + "%");
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
@@ -58,7 +61,7 @@ public class SellOrderProcess {
 
             double takeProfitTarget = (BuyPrice_Double / 100) * (100 + percent);
             // double stopLossTarget = BuyPrice_Double * (1 + (dynamicStopLoss / 100));
-            double stopLossTarget = BuyPrice_Double * (1 + (-2 / 100));
+            double stopLossTarget = BuyPrice_Double * (1 + (-2.3 / 100));
 
             boolean hitStopLoss = currentPrice <= stopLossTarget;
             boolean hitTakeProfit = currentPrice >= takeProfitTarget;
@@ -68,8 +71,7 @@ public class SellOrderProcess {
                 System.out.println("🔴 STOP-LOSS: " + currency + " bei " + dynamicStopLoss + "%");
                 System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " + currentPrice);
                 executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, true);
-                
-                return; // Todo        
+                return; // Todo
 
             } else if (hitTakeProfit) {
 
@@ -78,7 +80,7 @@ public class SellOrderProcess {
                     System.out.println("⏳ Warte auf besseres Orderbuch...");
                     return;
                 }
-               
+
                 Ticker.get_CurrencyPair_Price(currency, client, LivePrice);
                 double polledPrice = LivePrice.get(0);
                 if (polledPrice != currentPrice) {
@@ -99,12 +101,24 @@ public class SellOrderProcess {
             String Quantity_String, List<Double> LivePrice, double buyprice, boolean isStopLoss) {
 
         try {
-            NewOrderResponse orderResponse = getNewSellOrderResponse(currency, client, Quantity_String);
+            // Quantity nochmals durch Trading-Rules-Formatter laufen lassen zur Sicherheit
+            String validatedQuantity = TradingRulesFormatter.formatOrderQuantity(currency,
+                    new BigDecimal(Quantity_String));
 
-                    System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId);
+            // Validierung der Quantity
+            if (!TradingRulesFormatter.isQuantityValid(currency, new BigDecimal(validatedQuantity))) {
+                System.out.println("⚠️ Quantity ungültig für " + currency + ": " + validatedQuantity);
+                return;
+            }
 
-            System.out.println(
-                    "Verkauf erfolgreich: " + BuyOrderId + " (" + (isStopLoss ? "STOP-LOSS" : "TAKE-PROFIT") + ")");
+            NewOrderResponse orderResponse = getNewSellOrderResponse(currency, client, validatedQuantity);
+
+            System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId);
+            System.out.println("Verkauf erfolgreich: " + BuyOrderId + " (" + (isStopLoss ? "STOP-LOSS" : "TAKE-PROFIT") + ")");
+
+            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(), orderResponse);
+            update_POS_AfterMarketSell(BuyOrderId);
+            delete_POS_AfterMarketSell(BuyOrderId);
 
             updatePerformanceAfterSell(orderResponse, currency, BuyOrderId, isStopLoss, buyprice, LivePrice.get(0));
 
@@ -116,21 +130,21 @@ public class SellOrderProcess {
 
     private static void updatePerformanceAfterSell(NewOrderResponse orderResponse, String currency, String BuyOrderId,
             boolean isStopLoss, double buyprice, double livePrice) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getPerformance())) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
 
             double currentProfit = Update.getProfitinPercent(buyprice, livePrice);
             String today = Time.getCurrentDate();
-            double lastBuffer = getLastTotalBufferToday(currency, today);
+            double lastBuffer = getLastTotalBuffer(currency);
             double newTotalBuffer = lastBuffer + currentProfit;
 
-            String insertSql = "INSERT INTO Performance (Währung, SellOrderId, Profit, TotalBuffer, " +
+            String insertSql = "INSERT INTO performance (currency, SellOrderId, Profit, TotalBuffer, " +
                     "SellDate, SellTime, count_Position, SellAmount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
             try (PreparedStatement ps = con.prepareStatement(insertSql)) {
                 ps.setString(1, currency);
                 ps.setLong(2, orderResponse.getOrderId());
                 ps.setDouble(3, currentProfit);
-                ps.setDouble(4, newTotalBuffer);
+                ps.setDouble(4, round.two(newTotalBuffer));
                 ps.setString(5, Time.getCurrentDate());
                 ps.setString(6, Time.getCurrentTime_HHmmss());
                 ps.setInt(7, POSSQL.getCountPOS(currency));
@@ -146,15 +160,14 @@ public class SellOrderProcess {
         }
     }
 
-    private static double getLastTotalBufferToday(String currency, String today) {
-        String sql = "SELECT TotalBuffer FROM Performance WHERE Währung = ? AND SellDate = ? " +
-                "ORDER BY SellTime DESC LIMIT 1";
+    private static double getLastTotalBuffer(String currency) {
+        String sql = "SELECT TotalBuffer FROM performance WHERE currency = ? " +
+                "ORDER BY SellDate DESC, SellTime DESC LIMIT 1";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getPerformance());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setString(1, currency);
-            ps.setString(2, today);
             ResultSet rs = ps.executeQuery();
 
             if (rs.next()) {
@@ -164,7 +177,7 @@ public class SellOrderProcess {
             System.err.println("Fehler beim Abrufen des letzten TotalBuffers: " + e.getMessage());
         }
 
-        return 0.0; 
+        return 0.0;
     }
 
     private static void delete_POS_AfterMarketSell(String BuyOrderId) {
@@ -184,7 +197,7 @@ public class SellOrderProcess {
     private static void update_HIST_AfterMarketSell(String BuyOrderId, String SellTime,
             String SellDate, NewOrderResponse newOrderResponse) {
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement(
                         "UPDATE HIST SET Status = ?, SellOrderId = ?, SellTime = ?, SellDate = ? WHERE BuyOrderId = ?")) {
 
@@ -234,11 +247,20 @@ public class SellOrderProcess {
         String CurrencyPair = recordParts[2];
 
         try {
-            NewOrderResponse newOrderResponse = getNewSellOrderResponse(CurrencyPair, client, Quantity_String);
+            // Quantity nochmals durch Trading-Rules-Formatter laufen lassen zur Sicherheit
+            String validatedQuantity = TradingRulesFormatter.formatOrderQuantity(CurrencyPair,
+                    new BigDecimal(Quantity_String));
+
+            // Validierung der Quantity
+            if (!TradingRulesFormatter.isQuantityValid(CurrencyPair, new BigDecimal(validatedQuantity))) {
+                System.out.println("⚠️ Quantity ungültig für " + CurrencyPair + ": " + validatedQuantity);
+                return;
+            }
+
+            NewOrderResponse newOrderResponse = getNewSellOrderResponse(CurrencyPair, client, validatedQuantity);
 
             update_POS_AfterMarketSell(BuyOrderId);
-            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(),
-                    Time.getCurrentDate(), newOrderResponse);
+            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(), newOrderResponse);
             delete_POS_AfterMarketSell(BuyOrderId);
 
         } catch (BinanceApiException dex) {

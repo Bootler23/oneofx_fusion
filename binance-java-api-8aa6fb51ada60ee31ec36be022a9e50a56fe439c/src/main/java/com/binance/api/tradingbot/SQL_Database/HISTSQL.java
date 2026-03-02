@@ -15,7 +15,7 @@ import com.binance.api.tradingbot.HelperFunctions.round;
 public class HISTSQL {
 
     public static void get_SellTrade_Records_WhereStatusZero(List<String> records) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT SellOrderId, Quantity, Währung, BuyPrice FROM HIST WHERE Status = 0")) {
@@ -37,7 +37,7 @@ public class HISTSQL {
     }
 
     public static void getDataRecords_WhereStatusOne(String currency, List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement query = con.prepareStatement("SELECT BuyOrderId, Split, Währung FROM HIST WHERE Status = 1 AND Split IS NOT NULL AND Währung = ?")) {
 
             query.setString(1, currency);
@@ -76,7 +76,7 @@ public class HISTSQL {
 
     public static double getTaxe() {
         double tax = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement stmt = con.createStatement()) {
 
             String query = "SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM HIST";
@@ -94,7 +94,7 @@ public class HISTSQL {
 
     public static double getbuyamount(String sellorderID) {
         double buyamount = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("SELECT BuyAmount FROM HIST WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
@@ -112,7 +112,7 @@ public class HISTSQL {
 
     public static double getbuyfee(String sellorderID) {
         double buyfee = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("SELECT BuyFee FROM HIST WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
@@ -130,7 +130,7 @@ public class HISTSQL {
 
     public static double getbuyprice(String sellorderID) {
         double buyprice = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("SELECT BuyPrice FROM HIST WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
@@ -148,7 +148,7 @@ public class HISTSQL {
 
     public static int getcountHist() {
         int count = 0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement stmt = con.createStatement()) {
 
             String query = "SELECT COUNT(*) AS TotalCount FROM HIST";
@@ -165,7 +165,7 @@ public class HISTSQL {
     }
 
     public static void setsellfee(String sellorderID, double sellfee) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("UPDATE HIST SET SellFee = ? WHERE SellOrderId = ?")) {
 
             pstmt.setDouble(1, sellfee);
@@ -199,7 +199,7 @@ public class HISTSQL {
     }
 
     public static void transferHISTToWPD(final String SellDate) {
-        try (Connection conHIST = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection conHIST = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement stmtHIST = conHIST.createStatement();
                 Connection conWPD = DriverManager.getConnection(dbUrl.getWPD())) {
 

@@ -15,12 +15,13 @@ import com.binance.api.tradingbot.HelperFunctions.round;
 public class ATHSQL {
 
     public static double getAllTimeHigh(String Currency) {
-        ensureCurrencyPairExists(dbUrl.getATH(), Currency);
-        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
+        ensureCurrencyPairExists(dbUrl.getCurrency(), Currency);
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT ATH FROM ATH WHERE `Währung` = '" + Currency + "'")) {
+                ResultSet rs = query
+                        .executeQuery("SELECT alltimehigh FROM currency WHERE `currency` = '" + Currency + "'")) {
             if (rs.next()) {
-                return RoundCurrency.forTickerPrice(rs.getDouble("ATH"), Currency);
+                return RoundCurrency.forTickerPrice(rs.getDouble("alltimehigh"), Currency);
             } else {
                 return 0.0;
             }
@@ -30,13 +31,14 @@ public class ATHSQL {
         }
     }
 
-     public static double getAllTimeHighoneOfX(String Currency) {
-        ensureCurrencyPairExists(dbUrl.getoneofxString(), Currency);
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneofxString());
+    public static double getAllTimeHighoneOfX(String Currency) {
+        ensureCurrencyPairExists(dbUrl.getoneOfX(), Currency);
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT ATH FROM ATH WHERE `Währung` = '" + Currency + "'")) {
+                ResultSet rs = query
+                        .executeQuery("SELECT alltimehigh FROM currency WHERE `currency` = '" + Currency + "'")) {
             if (rs.next()) {
-                return RoundCurrency.forTickerPrice(rs.getDouble("ATH"), Currency);
+                return RoundCurrency.forTickerPrice(rs.getDouble("alltimehigh"), Currency);
             } else {
                 return 0.0;
             }
@@ -48,14 +50,7 @@ public class ATHSQL {
 
     public static void CheckForNewAllTimeHigh(String currency, List<Double> LivePrice) {
         if (LivePrice.get(0) > getAllTimeHigh(currency)) {
-            setAllTimeHigh(currency, dbUrl.getATH(), LivePrice.get(0));
-            System.out.println("New ATH small function");
-        }
-    }
-
-      public static void CheckForNewAllTimeHighOneOfX(String currency, List<Double> LivePrice) {
-        if (LivePrice.get(0) > getAllTimeHighoneOfX(currency)) {
-            setAllTimeHigh(currency, dbUrl.getoneofxString(), LivePrice.get(0));
+            setAllTimeHigh(currency, dbUrl.getoneOfX(), LivePrice.get(0));
             System.out.println("New ATH small function");
         }
     }
@@ -63,7 +58,7 @@ public class ATHSQL {
     private static void setAllTimeHigh(String CurrencyPair, final String ATH, double newValue) {
         try (Connection con = DriverManager.getConnection(ATH);
                 Statement stmt = con.createStatement()) {
-            String SQL = "UPDATE ATH SET ATH = " + newValue + " WHERE `Währung` = '" + CurrencyPair + "'";
+            String SQL = "UPDATE currency SET alltimehigh = " + newValue + " WHERE `currency` = '" + CurrencyPair + "'";
 
             stmt.executeUpdate(SQL);
         } catch (SQLException err) {
@@ -71,55 +66,16 @@ public class ATHSQL {
         }
     }
 
-    public static double getLPP(String currencyPair) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-                Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT LPP FROM ATH WHERE `Währung` = '" + currencyPair + "'")) {
-            return round.two(rs.getDouble("LPP"));
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-            return 0.0;
-        }
-    }
-
-    public static void updateLPP(String currencyPair) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-                Statement statement = con.createStatement()) {
-
-            String updateSQL = "UPDATE ATH SET LPP = " + CalcNewLPP(currencyPair) + " WHERE `Währung` = '"
-                    + currencyPair + "'";
-            statement.executeUpdate(updateSQL);
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Aktualisieren der LPP-Spalte: " + err.getMessage());
-        }
-    }
-
-    public static double CalcNewLPP(String currencyPair) {
-        double LastPossiblePrice = getLPP(currencyPair);
-
-        double AllTimeHighMinus80Percent = (ATHSQL.getAllTimeHigh(currencyPair) / 100) * 9;
-
-        if (AllTimeHighMinus80Percent > LastPossiblePrice) {
-            LastPossiblePrice += 0.01;
-        } else {
-            LastPossiblePrice -= 0.01;
-        }
-        return round.three(LastPossiblePrice);
-    }
-
     public static void ensureCurrencyPairExists(final String SQL, String currencyPair) {
         try (Connection con = DriverManager.getConnection(SQL);
                 Statement stmt = con.createStatement()) {
 
-            // Prüfen, ob das Currency Pair existiert
-            String checkQuery = "SELECT COUNT(*) AS count FROM ATH WHERE `Währung` = '" + currencyPair + "'";
+            String checkQuery = "SELECT COUNT(*) AS count FROM currency WHERE `currency` = '" + currencyPair + "'";
             ResultSet rs = stmt.executeQuery(checkQuery);
 
             if (rs.next() && rs.getInt("count") == 0) {
-                // Wenn das Currency Pair nicht existiert, einfügen mit Wert 0.000000001
-                String insertQuery = "INSERT INTO ATH (`Währung`, ATH, LPP) VALUES ('" + currencyPair
-                        + "', 0.000000001, 1)";
+                String insertQuery = "INSERT INTO currency (`currency`, alltimehigh) VALUES ('" + currencyPair
+                        + "', 0.000000001)";
                 stmt.executeUpdate(insertQuery);
                 System.out.println("Currency Pair hinzugefügt: " + currencyPair);
             }
@@ -127,40 +83,4 @@ public class ATHSQL {
             System.out.println("Fehler beim Prüfen/Hinzufügen des Currency Pair: " + err.getMessage());
         }
     }
-
-    public static double GetHighestBuyAmount(String currency) {
-        String sql = "SELECT HighestBuyAmount FROM ATH WHERE Währung = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setString(1, currency);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    double val = rs.getDouble("HighestBuyAmount");
-                    return rs.wasNull() ? 0.0 : val;
-                }
-            }
-
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
-
-        return 0.0;
-    }
-
-    public static void setHighestBuyAmount(String currency, double BuyAmount) {
-        String sql = "UPDATE ATH SET HighestBuyAmount = ? WHERE Währung = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getATH());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setDouble(1, round.two(BuyAmount));
-            ps.setString(2, currency);
-
-            ps.executeUpdate();
-
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
-    }    
 }

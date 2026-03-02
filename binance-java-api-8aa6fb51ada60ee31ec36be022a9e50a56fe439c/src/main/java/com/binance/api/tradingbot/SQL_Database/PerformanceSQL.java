@@ -17,11 +17,11 @@ public class PerformanceSQL {
         try {
             String sql = "SELECT " +
                     "COALESCE(SUM(Profit * SellAmount) / NULLIF(SUM(SellAmount), 0), 0) as weightedBuffer " +
-                    "FROM Performance WHERE Währung = ? AND SellDate >= date('now', '-30 days')";
+                    "FROM Performance WHERE currency = ? AND SellDate >= date('now', '-30 days')";
 
             double totalBuffer = 0.0;
 
-            try (Connection con = DriverManager.getConnection(dbUrl.getPerformance());
+            try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                     PreparedStatement ps = con.prepareStatement(sql)) {
 
                 ps.setString(1, currency);
@@ -47,9 +47,9 @@ public class PerformanceSQL {
         String sql = "SELECT " +
                 "SUM(CASE WHEN Profit > 0 THEN Profit * SellAmount ELSE 0 END) as weightedWins, " +
                 "ABS(SUM(CASE WHEN Profit < 0 THEN Profit * SellAmount ELSE 0 END)) as weightedLosses " +
-                "FROM Performance WHERE Währung = ? AND SellDate = ?";
+                "FROM Performance WHERE currency = ? AND SellDate = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getPerformance());
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setString(1, currency);
