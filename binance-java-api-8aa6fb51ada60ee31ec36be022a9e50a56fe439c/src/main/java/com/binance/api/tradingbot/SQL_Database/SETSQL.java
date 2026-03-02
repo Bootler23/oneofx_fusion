@@ -236,14 +236,6 @@ public class SETSQL {
         }
     }
 
-    /**
-     * Speichert Exchange-Balance-Informationen in der Datenbank.
-     * 
-     * @param exchangeBalance Gesamtbalance von der Börse
-     * @param databaseBalance Summe der Positionen aus der Datenbank
-     * @param difference      Differenz zwischen Börse und Datenbank
-     * @return true wenn erfolgreich, false bei Fehler
-     */
     public static boolean setBalanceExchangeInfo(double exchangeBalance, double databaseBalance, double difference) {
         String sql = "UPDATE SETTING SET Börse = ?, Datenbank = ?, Differenz = ?";
 
@@ -453,44 +445,7 @@ public class SETSQL {
         return SettingsRepository.getDouble("PnL_reverense");
     }
 
-    // public static boolean setExpectationCounter(int ExpectationCounter){
-    // return SettingsRepository.setInt("ExpectationCounter", ExpectationCounter);
-    // }
-
-    // public static boolean setDesiredAmount(double value) {
-    // return SettingsRepository.setDouble("DesiredAmount", value, 2);
-    // }
-
-    // // Weitere Beispiele:
-    // public static double getBalance_SQL() {
-    // return SettingsRepository.getDouble("Balance", 0.0, 2);
-    // }
-
     public static void setBuyingfalse() {
         SettingsRepository.setString("BUYING", "false");
     }
-
-    // public static double getminBuyAmount() {
-    // return SettingsRepository.getDouble("minBuyAmount", 5.5, 5);
-    // }
-
-    // public static boolean setminBuyAmount(double value) {
-    // return SettingsRepository.setDouble("minBuyAmount", value, 6);
-    // }
-
-    // public static int getCount() {
-    // return SettingsRepository.getInt("Count", 0);
-    // }
-
-    // public static boolean updateCount(int value) {
-    // return SettingsRepository.setInt("Count", value);
-    // }
-
-    // public static boolean getRSI() {
-    // return SettingsRepository.getBoolean("RSI", false);
-    // }
-
-    // public static boolean setRSI(boolean value) {
-    // return SettingsRepository.setBoolean("RSI", value);
-    // }
 }

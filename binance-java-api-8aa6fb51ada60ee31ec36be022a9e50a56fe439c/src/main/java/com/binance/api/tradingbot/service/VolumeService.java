@@ -3,6 +3,7 @@ package com.binance.api.tradingbot.service;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.market.TickerStatistics;
 import com.binance.api.client.exception.BinanceApiException;
+import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.domain.VolumeData;
 import org.slf4j.Logger;
@@ -105,7 +106,7 @@ public class VolumeService {
             throw new IllegalArgumentException("Symbol darf nicht null oder leer sein");
         }
 
-        logger.debug("Rufe 24h-Volumen für {} ab", symbol);
+        // logger.debug("Rufe 24h-Volumen für {} ab", symbol);
 
         int retryCount = 0;
         long retryDelay = INITIAL_RETRY_DELAY_MS;
@@ -118,8 +119,7 @@ public class VolumeService {
                 // Konvertierung zu VolumeData
                 VolumeData volumeData = mapToVolumeData(stats);
 
-                logger.debug("24h-Volumen für {} erfolgreich abgerufen: {} EUR", 
-                            symbol, volumeData.getVolumeQuote());
+                // logger.debug("24h-Volumen für {} erfolgreich abgerufen: {} EUR", symbol, volumeData.getVolumeQuote());
 
                 return volumeData;
 
@@ -179,7 +179,7 @@ public class VolumeService {
         
         logger.debug("{} Mindestvolumen-Check: {} EUR {} {} EUR", 
                     symbol, 
-                    volumeData.getVolumeQuote(),
+                    volumeData.getVolumeQuote().setScale(0, RoundingMode.HALF_UP),
                     hasMinVolume ? ">=" : "<",
                     minVolume);
 

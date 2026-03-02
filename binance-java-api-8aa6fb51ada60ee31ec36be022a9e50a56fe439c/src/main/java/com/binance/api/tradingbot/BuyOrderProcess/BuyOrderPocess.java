@@ -3,22 +3,17 @@ package com.binance.api.tradingbot.BuyOrderProcess;
 import static com.binance.api.client.domain.account.NewOrder.limitBuy;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.util.List;
-import java.util.Locale;
 
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.TimeInForce;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
-import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.empty;
@@ -26,7 +21,6 @@ import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
-import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
 import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.service.VolumeService;
@@ -70,17 +64,14 @@ public class BuyOrderPocess {
 
                 BuyAmaunt = BuyAmountFunktion.getsimplebuyamount();
                 if (BuyAmaunt <= 0) {
-                    System.out
-                            .println("Nicht genügend Geld verfügbar für eine Kauforder. Kaufprozess wird abgebrochen.");
+                    System.out.println("Nicht genügend Geld verfügbar für eine Kauforder. Kaufprozess wird abgebrochen.");
                     return;
                 }
 
-                // Trading-Rules-basierte Formatierung
                 String buyprice = TradingRulesFormatter.formatOrderPrice(currency, BuyPrice);
                 String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency, new BigDecimal(BuyAmaunt),
                         new BigDecimal(LivePrice.get(0)));
 
-                // Validierung der Order gemäß Binance Trading-Regeln
                 if (!TradingRulesFormatter.isOrderValid(
                         currency, new BigDecimal(buyprice), new BigDecimal(Quantity))) {
                     System.out.println("⚠️ Order ist ungültig gemäß Binance Trading-Regeln für " + currency);
@@ -89,8 +80,7 @@ public class BuyOrderPocess {
                 }
 
                 try {
-                    NewOrderResponse newOrderResponse = client
-                            .newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
+                    NewOrderResponse newOrderResponse = client.newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
 
                     try (Connection con = DriverManager.getConnection(dbUrl.getPOS())) {
                         String SQL = "INSERT INTO POS (BuyOrderId, OrderPrice, Status, Währung, statusCode) VALUES (?, ?, ?, ?, ?)";
@@ -123,40 +113,5 @@ public class BuyOrderPocess {
                 }
             }
         }
-    }
-
-    private static double checkBuyAmount(BinanceApiRestClient client, double BuyAmaunt) {
-
-        double sqlBalance = SETSQL.getBalance_SQL();
-        double ExcangeBalance = Asset.getFreeCalced_Balance(TradingConstants.BASE_CURRENCY, client);
-
-        if (sqlBalance != ExcangeBalance) {
-            System.out.println(
-                    "Balance stimmt nicht überein.------------------ Preis wird zugewiesen ---------------------------------");
-            BuyAmaunt = round.two(POSSQL.getAverageBuyAmount());
-        }
-        return BuyAmaunt;
-    }
-
-    public static String getQty(String Currency, List<Double> LivePrice, double BuyAmaunt) {
-        double Qty = round.Quantity((BuyAmaunt / LivePrice.get(0)), Currency);
-        return roundWithPoint(Qty);
-    }
-
-    public static String getQtySimple(String Currency, double Quantity) {
-        double Qty = round.Quantity(Quantity, Currency);
-        return roundWithPoint(Qty);
-    }
-
-    public static String roundWithPoint(double Qty) {
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
-        symbols.setDecimalSeparator('.');
-
-        // Festlegen des Formats mit genau 6 Nachkommastellen
-        DecimalFormat df = new DecimalFormat("0.000000", symbols);
-        df.setRoundingMode(RoundingMode.HALF_UP); // Normale Rundung
-
-        // Formatieren des Ergebnisses als String
-        return df.format(Qty);
     }
 }
