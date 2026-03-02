@@ -13,6 +13,7 @@ import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
+import com.binance.api.tradingbot.SQL_Database.TradingRulesSQL;
 import com.binance.api.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.binance.api.tradingbot.SellOrderProcess.Update;
 import com.binance.api.tradingbot.Settings.set;
@@ -21,6 +22,9 @@ import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.Settings.CurrencyConfig;
 import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.Database.dbUrl;
+import com.binance.api.tradingbot.service.TradingRulesService;
+import com.binance.api.tradingbot.domain.TradingRules;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.service.RateLimitTracker;
 import com.binance.api.tradingbot.service.PortfolioMonitor;
 import com.binance.api.tradingbot.Stream.UltraFastStream;
@@ -29,16 +33,20 @@ import com.binance.api.tradingbot.Indicator.StochRSI;
 import com.binance.api.client.domain.market.CandlestickInterval;
 
 import java.util.List;
-
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 
 public class LTC_EUR_Live {
 
     private static volatile boolean running = true;
-    private static UltraFastStream priceStream;
+    private static Map<String, UltraFastStream> priceStreams = new HashMap<>();
     private static long lastBnbBalanceCheck = 0;
-    private static double K = 0.0;
-    private static double D = 0.0;
+    private static double K4h = 0.0;
+    private static double D4h = 0.0;
+    private static double K2h = 0.0;
+    private static double D2h = 0.0;
+
     private static double PnL = 0.0;
 
     /**
@@ -47,9 +55,11 @@ public class LTC_EUR_Live {
     public static void stop() {
         running = false;
 
-        // WebSocket Stream stoppen
-        if (priceStream != null) {
-            priceStream.stop();
+        // Alle WebSocket Streams stoppen
+        for (UltraFastStream stream : priceStreams.values()) {
+            if (stream != null) {
+                stream.stop();
+            }
         }
 
         // Rate-Limit-Tracker stoppen
@@ -73,25 +83,61 @@ public class LTC_EUR_Live {
                     + TradingConstants.RATE_LIMIT_REPORT_INTERVAL_SECONDS + " Sekunden");
         }
 
-        // ========== WebSocket Stream starten ==========
-
-        String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
-        String currency = BuyCurrencies[0]; // Erste (und einzige) Währung
-
-        priceStream = new UltraFastStream();
-        priceStream.start(currency);
-
-        // Warte kurz auf erste Daten (max 5 Sekunden)
-        int waitCount = 0;
-        while (!priceStream.hasData() && waitCount < 50 && running) {
-            sleep.valueOffMillieSeconds(100);
-            waitCount++;
+        // ========== Trading-Rules initialisieren ==========
+        
+        System.out.println("📋 Initialisiere Trading-Rules...");
+        
+        TradingRulesService tradingRulesService = TradingRulesService.getInstance();
+        
+        // Trading-Regeln von Binance abrufen und direkt in DB speichern
+        String[] tradingCurrencies = CurrencyConfig.getBuyCurrencies();
+        int rulesUpdated = 0;
+        
+        for (String symbol : tradingCurrencies) {
+            TradingRules rules = tradingRulesService.getTradingRules(symbol);
+            if (rules != null) {
+                TradingRulesSQL.saveTradingRules(rules);
+                rulesUpdated++;
+            }
+        }
+        
+        if (rulesUpdated > 0) {
+            System.out.println("✅ Trading-Rules aktualisiert: " + rulesUpdated + " Symbole");
+            TradingRulesFormatter.printFormattingInfo(tradingCurrencies[0]);
+        } else {
+            System.out.println("⚠️ Keine Trading-Rules aktualisiert - verwende Fallback-Werte");
         }
 
-        if (priceStream.hasData()) {
-            System.out.println("✅ WebSocket Stream aktiv für " + currency);
-        } else {
-            System.out.println("⚠️ Noch keine Stream-Daten - REST-Fallback wird automatisch genutzt");
+        // ========== WebSocket Streams starten ==========
+
+        String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
+        
+        System.out.println("📡 Starte WebSocket Streams für " + BuyCurrencies.length + " Währungen...");
+        
+        for (String currency : BuyCurrencies) {
+            UltraFastStream stream = new UltraFastStream();
+            stream.start(currency);
+            priceStreams.put(currency, stream);
+            System.out.println("✅ WebSocket Stream gestartet für " + currency);
+        }
+
+        // Warte auf erste Daten von allen Streams
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        int activeStreams = 0;
+        for (Map.Entry<String, UltraFastStream> entry : priceStreams.entrySet()) {
+            if (entry.getValue().hasData()) {
+                activeStreams++;
+            }
+        }
+        
+        System.out.println("✅ " + activeStreams + "/" + BuyCurrencies.length + " WebSocket Streams aktiv");
+        if (activeStreams < BuyCurrencies.length) {
+            System.out.println("⚠️ Einige Streams ohne Daten - REST-Fallback wird genutzt");
         }
 
         while (running) {
@@ -114,14 +160,17 @@ public class LTC_EUR_Live {
                     LivePrice.clear();
 
                     state = set.Currency(BuyCurrencies, state);
-                    currency = BuyCurrencies[state];
+                    String currency = BuyCurrencies[state]; // TODO -> aus Datenbank nehmen Sell immer Buy nur wenn trading true
+
 
                     int sleepMs = getSleepMs();
                     sleep.valueOffMillieSeconds(sleepMs);
 
-                    Double livePrice = priceStream.getPrice();
+                    // Hole Stream für die aktuelle Währung
+                    UltraFastStream currentStream = priceStreams.get(currency);
+                    Double livePrice = currentStream != null ? currentStream.getPrice() : null;
+                    
                     if (livePrice == null || livePrice == 0.0) {
-
                         System.out.println("x");
                         sleep.for_1_second();
                         Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
@@ -136,15 +185,13 @@ public class LTC_EUR_Live {
                         LivePrice.add(livePrice);
                     }
 
-                    ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
+                     ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
 
-                    // BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);
-
-                    // ATHSQL.updateLPP(currency);
+                    // BuyAmountFunktion.getBuyAmount(currency, bnb.getClient(), LivePrice, false);                   
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
-                        getTradeInformation.RecordsByStatus(dbUrl.getHIST(),
+                        getTradeInformation.RecordsByStatus(dbUrl.getoneOfX(),
                                 TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
                         Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
@@ -176,28 +223,28 @@ public class LTC_EUR_Live {
                         BalanceChecker.showCurrencyBalance("LTC", bnb.getClient());
 
                         PnL = PortfolioMonitor.showPortfolioStatus(currency, LivePrice.get(0));
-
                         lastBnbBalanceCheck = currentTime;
-
-                        extracted(currency);
+                        StochRSI_4h(currency);
+                        StochRSI_2h(currency);
                     }
 
                     // Buy
-                    if (SETSQL.getStatus("BUYING")) {
-                        if (D < K) {
-                            BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                    if (SETSQL.getStatus("currency", "buystatus", currency)) {    
+                        if (D4h < K4h) {
+                            if (D2h < K2h) {
+                                BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
+                            }
                         }
                     }
 
                     // Check
                     POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
                     CheckOrderStatus.OrderStatus(currency, bnb.getClient(), OrderIdList, LivePrice);
-
+                   
                     // Sell
-                    if (SETSQL.getStatus("SELLING")) {
-                        POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
-                        SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice, PnL);
-                    }
+                    POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
+                    SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice, PnL);
+                    
                 }
 
             } catch (IndexOutOfBoundsException e) {
@@ -210,17 +257,30 @@ public class LTC_EUR_Live {
         }
     }
 
-    private static void extracted(String currency) {
-        K = 0.0;
-        D = 0.0;
+    private static void StochRSI_4h(String currency) {
+        K4h = 0.0;
+        D4h = 0.0;
 
-        K = round.two(StochRSI.getK(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
-        D = round.two(StochRSI.getD(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
+        K4h = round.two(StochRSI.getK(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
+        D4h = round.two(StochRSI.getD(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY));
 
-        K = Math.max(0.0, Math.min(100.0, K));
-        D = Math.max(0.0, Math.min(100.0, D));
+        K4h = Math.max(0.0, Math.min(100.0, K4h));
+        D4h = Math.max(0.0, Math.min(100.0, D4h));
 
-        System.out.println("StochRSI K: " + K + " D: " + D);
+        System.out.println("StochRSI K: " + K4h + " D: " + D4h);
+    }
+
+     private static void StochRSI_2h(String currency) {
+        K2h = 0.0;
+        D2h = 0.0;
+
+        K2h = round.two(StochRSI.getK(bnb.getClient(), currency, CandlestickInterval.TWO_HOURLY));
+        D2h = round.two(StochRSI.getD(bnb.getClient(), currency, CandlestickInterval.TWO_HOURLY));
+
+        K2h = Math.max(0.0, Math.min(100.0, K2h));
+        D2h = Math.max(0.0, Math.min(100.0, D2h));
+
+        System.out.println("StochRSI K: " + K2h + " D: " + D2h);
     }
 
     private static int getSleepMs() {

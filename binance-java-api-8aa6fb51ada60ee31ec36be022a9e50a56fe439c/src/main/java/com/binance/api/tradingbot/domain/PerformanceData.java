@@ -1,15 +1,5 @@
 package com.binance.api.tradingbot.domain;
 
-/**
- * DTO (Data Transfer Object) für Performance-Daten aus der Performance-Tabelle.
- * 
- * Diese Klasse repräsentiert die tagesbasierte Trading-Performance
- * und wird von PerformanceSQL verwendet.
- * 
- * @author Trading Bot
- * @version 1.0
- * @since 2026-02-25
- */
 public class PerformanceData {
 
     private String date;              // Format: "YYYY-MM-DD"

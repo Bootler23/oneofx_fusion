@@ -85,7 +85,7 @@ public class Merge {
 
     public static void updateOrderHIST(final String tableName, double BuyAmount,
             double Price, String BuyOrderId) {
-        try (Connection con_update = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement update = con_update.createStatement()) {
 
             String SQL = "UPDATE " + tableName + " SET "
@@ -102,7 +102,7 @@ public class Merge {
     }
 
     private static void updateHIST_Status(final String tableName, String BuyOrderId) {
-        try (Connection con_update = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement update = con_update.createStatement()) {
 
             String SQL = "UPDATE " + tableName + " SET "

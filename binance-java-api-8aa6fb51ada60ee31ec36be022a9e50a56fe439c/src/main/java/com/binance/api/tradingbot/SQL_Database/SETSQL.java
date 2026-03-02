@@ -128,7 +128,7 @@ public class SETSQL {
             return 0.0;
         }
     }
-    
+
     public static double getBaseStopLossPercent() {
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 Statement query = con.createStatement();
@@ -139,7 +139,7 @@ public class SETSQL {
             return -2.0;
         }
     }
-   
+
     public static void setBaseStopLossPercent(double stopLossPercent) {
         String sql = "UPDATE SETTING SET BaseStopLoss = ?";
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -152,85 +152,36 @@ public class SETSQL {
         } catch (SQLException err) {
             logger.error("Fehler beim Setzen des BaseStopLoss: {}", err.getMessage());
         }
-    }
+    }  
 
-    public static double getDCA_Amount() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery("SELECT DCA_Amount FROM SETTING")) {
-            return round.three(rs.getDouble("DCA_Amount"));
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-            return 0.0;
-        }
-    }
+    public static boolean getStatus(String tableString, String statusColumn, String currency) {
+        String sql = "SELECT " + statusColumn + " FROM " + tableString + " WHERE currency = ?";
 
-    @Deprecated
-    public static boolean getROIstatus() {
-        return getRoiStatus();
-    }
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+                PreparedStatement ps = con.prepareStatement(sql)) {
 
-    public static boolean getStatus(StatusType statusType) {
-        return getStatus(statusType.getColumnName());
-    }
-
-    public static boolean getStatus(String statusColumn) {
-        if (!isValidStatusColumn(statusColumn)) {
-            throw new IllegalArgumentException(
-                    "Ungültige Statusspalte: " + statusColumn +
-                            ". Erlaubt sind: ROI, BUYING, SELLING");
-        }
-
-        String sql = "SELECT " + statusColumn + " FROM SETTING";
-
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                PreparedStatement ps = con.prepareStatement(sql);
-                ResultSet rs = ps.executeQuery()) {
+            ps.setString(1, currency); // ✅ WHERE-Filter
+            ResultSet rs = ps.executeQuery();
 
             if (rs.next()) {
                 String status = rs.getString(statusColumn);
-                // Unterstütze verschiedene Formate: "true", "1", "TRUE", etc.
                 return "true".equalsIgnoreCase(status) || "1".equals(status);
             }
             return false;
 
         } catch (SQLException err) {
-            logger.error("Fehler beim Abrufen des Status für {}: {}", statusColumn, err.getMessage());
+            logger.error("Fehler beim Abrufen des Status für {}.{}: {}", tableString, statusColumn, err.getMessage());
             return false;
         }
     }
 
-    private static boolean isValidStatusColumn(String columnName) {
-        return "ROI".equals(columnName) ||
-                "BUYING".equals(columnName) ||
-                "SELLING".equals(columnName);
-    }
-
-    public static boolean getRoiStatus() {
-        return getStatus(StatusType.ROI);
-    }
-
-    public static boolean getBuyingStatus() {
-        return getStatus(StatusType.BUYING);
-    }
-
-    public static boolean getSellingStatus() {
-        return getStatus(StatusType.SELLING);
-    }
-
     public static boolean setStatus(StatusType statusType, boolean value) {
-        return setStatus(statusType.getColumnName(), value);
+        return setStatus("currency", statusType.getColumnName(), value);
     }
 
-    public static boolean setStatus(String statusColumn, boolean value) {
-        // Validierung der erlaubten Spalten
-        if (!isValidStatusColumn(statusColumn)) {
-            throw new IllegalArgumentException(
-                    "Ungültige Statusspalte: " + statusColumn +
-                            ". Erlaubt sind: ROI_status, BUYING, SELLING");
-        }
+    public static boolean setStatus(String tableString, String statusColumn, boolean value) {
 
-        String sql = "UPDATE SETTING SET " + statusColumn + " = ?";
+        String sql = "UPDATE " + tableString + " SET " + statusColumn + " = ?";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
@@ -254,12 +205,12 @@ public class SETSQL {
         return setStatus(StatusType.ROI, enabled);
     }
 
-    public static boolean setBuyingStatus(boolean enabled) {
-        return setStatus(StatusType.BUYING, enabled);
+    public static boolean setbuyStatus(boolean enabled) {
+        return setStatus(StatusType.buyStatus, enabled);
     }
 
-    public static boolean setSellingStatus(boolean enabled) {
-        return setStatus(StatusType.SELLING, enabled);
+    public static boolean setsellStatus(boolean enabled) {
+        return setStatus(StatusType.sellStatus, enabled);
     }
 
     public static int getcountPart() {
@@ -383,7 +334,6 @@ public class SETSQL {
             System.out.println(err.getMessage());
         }
     }
-   
 
     public static double get_BNB_price() {
         String sql = "SELECT BNB_Price FROM SETTING";
@@ -403,7 +353,7 @@ public class SETSQL {
 
     public static void getAVG_BalanceToAsset_atBuy() {
         String sql = "SELECT AVG(BalanceToAsset_atBuy) AS avg_balance_to_asset FROM HIST";
-        try (Connection conHist = DriverManager.getConnection(dbUrl.getHIST());
+        try (Connection conHist = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = conHist.createStatement();
                 ResultSet rs = query.executeQuery(sql)) {
 

@@ -20,6 +20,7 @@ import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
@@ -56,13 +57,13 @@ public class BuyOrderPocess {
                 }
             }
 
-            if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {
+            if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {           
 
-                // VolumeService service = VolumeService.getInstance();
-                // boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("10000000"));
-                // if (!hasVolume) {
-                //     return;
-                // }
+                VolumeService service = VolumeService.getInstance();
+                boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("10000000"));
+                if (!hasVolume) {
+                    System.out.println("Das Handelsvolumen für " + currency + " ist zu gering");
+                }
 
                 empty.Line();
                 System.out.println("Setze mal eine Order bei: " + BuyPrice);
@@ -74,8 +75,18 @@ public class BuyOrderPocess {
                     return;
                 }
 
-                String Quantity = getQty(currency, LivePrice, BuyAmaunt);
-                String buyprice = String.valueOf(BuyPrice);
+                // Trading-Rules-basierte Formatierung
+                String buyprice = TradingRulesFormatter.formatOrderPrice(currency, BuyPrice);
+                String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency, new BigDecimal(BuyAmaunt),
+                        new BigDecimal(LivePrice.get(0)));
+
+                // Validierung der Order gemäß Binance Trading-Regeln
+                if (!TradingRulesFormatter.isOrderValid(
+                        currency, new BigDecimal(buyprice), new BigDecimal(Quantity))) {
+                    System.out.println("⚠️ Order ist ungültig gemäß Binance Trading-Regeln für " + currency);
+                    System.out.println("   Preis: " + buyprice + ", Quantity: " + Quantity);
+                    return;
+                }
 
                 try {
                     NewOrderResponse newOrderResponse = client

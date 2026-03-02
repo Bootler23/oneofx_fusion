@@ -4,9 +4,9 @@ public enum StatusType {
   
     ROI("ROI"),    
    
-    BUYING("BUYING"),    
+    buyStatus("buystatus"),    
     
-    SELLING("SELLING");
+    sellStatus("sellstatus");
 
     private final String columnName;
   
