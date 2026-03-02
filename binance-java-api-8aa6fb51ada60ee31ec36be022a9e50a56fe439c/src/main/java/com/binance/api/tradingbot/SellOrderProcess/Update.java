@@ -84,7 +84,7 @@ public class Update {
                     continue;
                 }
 
-                if (SETSQL.getStatus("setting", "ROI", currency)) {
+                if (SETSQL.getStatus("currency", "ROI", currency)) {
                     if (GewinnAfterTax > 0) {
                         SplitValue = CalcSplit.calcROI(currency, GewinnAfterTax);
 
