@@ -4,17 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-/**
- * Definiert die API-Weight-Werte für alle Binance REST API Endpoints.
- * 
- * Diese Klasse enthält die offiziellen Weight-Werte gemäß Binance API-Dokumentation (Stand 2025).
- * Das globale Limit beträgt 6.000 Weight-Einheiten pro Minute für alle Requests.
- * 
- * Weight-Einheiten bestimmen, wie "schwer" ein API-Request für die Binance-Server ist.
- * Einfache Abfragen haben niedrige Weights (1-4), komplexe Abfragen höhere Weights (10-80).
- * 
- * @see <a href="https://developers.binance.com/docs/binance-spot-api-docs/rest-api/limits">Binance API Limits</a>
- */
 public final class ApiEndpointWeights {
 
     // ========== Binance API Rate Limits (Stand: Dezember 2025) ==========

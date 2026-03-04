@@ -253,9 +253,12 @@ public class TradingRulesFormatter {
         DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
         symbols.setDecimalSeparator('.');
 
-        StringBuilder pattern = new StringBuilder("0.");
-        for (int i = 0; i < decimals; i++) {
-            pattern.append("0");
+        StringBuilder pattern = new StringBuilder("0");
+        if (decimals > 0) {
+            pattern.append(".");
+            for (int i = 0; i < decimals; i++) {
+                pattern.append("0");
+            }
         }
 
         DecimalFormat df = new DecimalFormat(pattern.toString(), symbols);

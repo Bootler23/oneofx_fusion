@@ -1,7 +1,5 @@
-﻿package com.binance.api.tradingbot.SQL_Database;
+package com.binance.api.tradingbot.SQL_Database;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -10,14 +8,18 @@ import java.sql.SQLException;
 
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.RiskRewardRatio.RRR;
+import com.binance.api.tradingbot.RiskRewardRatio.CurrencyRRR;
 
 public class PerformanceSQL {
 
     public static double calculateCurrentDynamicStopLoss(String currency, String date) {
         try {
             String sql = "SELECT " +
-                    "COALESCE(SUM(Profit * SellAmount) / NULLIF(SUM(SellAmount), 0), 0) as weightedBuffer " +
-                    "FROM Performance WHERE currency = ? AND SellDate >= date('now', '-30 days')";
+                    "COALESCE(SUM(Profit), 0) as totalBuffer " +
+                    "FROM Performance WHERE currency = ? " +
+                    "AND date(CASE " +
+                    "WHEN instr(SellDate, '.') > 0 THEN substr(SellDate, 7, 4) || '-' || substr(SellDate, 4, 2) || '-' || substr(SellDate, 1, 2) " +
+                    "ELSE SellDate END) >= date('now', '-30 days')";
 
             double totalBuffer = 0.0;
 
@@ -28,8 +30,7 @@ public class PerformanceSQL {
                 ResultSet rs = ps.executeQuery();
 
                 if (rs.next()) {
-                    double weightedBuffer = rs.getDouble("weightedBuffer");
-                    totalBuffer = weightedBuffer;
+                    totalBuffer = rs.getDouble("totalBuffer");
                 }
             }
 
@@ -43,30 +44,32 @@ public class PerformanceSQL {
         }
     }
 
-    public static double getCurrentWeightedRRR(String currency, String date) {
+    public static CurrencyRRR getWeightedRRRLast30Days(String currency) {
         String sql = "SELECT " +
-                "SUM(CASE WHEN Profit > 0 THEN Profit * SellAmount ELSE 0 END) as weightedWins, " +
-                "ABS(SUM(CASE WHEN Profit < 0 THEN Profit * SellAmount ELSE 0 END)) as weightedLosses " +
-                "FROM Performance WHERE currency = ? AND SellDate = ?";
+                "COALESCE(SUM(CASE WHEN Profit > 0 THEN Profit ELSE 0 END), 0) AS weightedWins, " +
+                "COALESCE(ABS(SUM(CASE WHEN Profit < 0 THEN Profit ELSE 0 END)), 0) AS weightedLosses, " +
+                "COUNT(CASE WHEN Profit > 0 THEN 1 END) AS countPositive, " +
+                "COUNT(CASE WHEN Profit < 0 THEN 1 END) AS countNegative " +
+                "FROM Performance " +
+                "WHERE date(CASE " +
+                "WHEN instr(SellDate, '.') > 0 THEN substr(SellDate, 7, 4) || '-' || substr(SellDate, 4, 2) || '-' || substr(SellDate, 1, 2) " +
+                "ELSE SellDate END) >= date('now', '-30 days')";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setString(1, currency);
-            ps.setString(2, date);
             ResultSet rs = ps.executeQuery();
 
             if (rs.next()) {
-                double wins = rs.getDouble("weightedWins");
-                double losses = rs.getDouble("weightedLosses");
-
-                if (losses == 0)
-                    return wins; // Nur Gewinne
-                return new BigDecimal(wins / losses).setScale(2, RoundingMode.HALF_UP).doubleValue();
+                double weightedWins   = rs.getDouble("weightedWins");
+                double weightedLosses = rs.getDouble("weightedLosses");
+                int countPos          = rs.getInt("countPositive");
+                int countNeg          = rs.getInt("countNegative");
+                return new CurrencyRRR(currency, weightedWins, weightedLosses, countPos, countNeg);
             }
         } catch (SQLException e) {
-            System.err.println("RRR-Fehler: " + e.getMessage());
+            System.err.println("getWeightedRRRLast30Days Fehler: " + e.getMessage());
         }
-        return 0.0;
+        return new CurrencyRRR(currency, 0, 0, 0, 0);
     }
 }

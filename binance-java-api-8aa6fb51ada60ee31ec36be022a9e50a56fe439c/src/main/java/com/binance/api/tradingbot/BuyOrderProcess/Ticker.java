@@ -5,7 +5,7 @@ import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.market.TickerPrice;
 import com.binance.api.client.exception.BinanceApiException;
-import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
@@ -48,7 +48,7 @@ public class Ticker {
         while (retryCount < maxRetries) {
             try {
                 TickerPrice tickerPrice = client.getPrice(currency);
-                LiveTicker.add(RoundCurrency.forTickerPrice(Double.parseDouble(tickerPrice.getPrice()), currency));               
+                LiveTicker.add(TradingRulesFormatter.formatPrice(currency, Double.parseDouble(tickerPrice.getPrice())));
                 System.out.print(".");
                 return;
             } catch (BinanceApiException e) {

@@ -16,13 +16,5 @@ public class dbUrl {
 
     public static String getWPD() {
         return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/WPD.db";
-    }
-
-    public static String getPerformance() {
-        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/Performance.db";
-    }
-
-    public static String getCurrency() {
-        return "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/currency.db";
-    }
+    }    
 }

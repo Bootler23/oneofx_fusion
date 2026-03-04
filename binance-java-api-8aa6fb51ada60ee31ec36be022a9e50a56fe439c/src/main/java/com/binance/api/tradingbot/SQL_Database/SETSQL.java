@@ -373,28 +373,11 @@ public class SETSQL {
             String updateSQL = "UPDATE SETTING SET Count = " + newCountValue;
             statement.executeUpdate(updateSQL);
 
-            System.out.println("Die Count-Spalte wurde erfolgreich aktualisiert.");
+            // System.out.println("Die Count-Spalte wurde erfolgreich aktualisiert.");
         } catch (SQLException err) {
             System.out.println("Fehler beim Aktualisieren der Count-Spalte: " + err.getMessage());
         }
-    }
-
-    public static void setratioBalanceToBA() {
-        String sql = "UPDATE SETTING SET ratioBalanceToBA = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            double balance = getBalance_SQL();
-            double buyAmount = getminBuyAmount();
-            double ratio = balance / buyAmount;
-
-            ps.setDouble(1, round.three(ratio));
-            ps.executeUpdate();
-
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
-    }
+    }   
 
     public static double get_DataBase_Table_Value(final String dbUrl, String tableName, String value) {
         try (Connection con = DriverManager.getConnection(dbUrl);

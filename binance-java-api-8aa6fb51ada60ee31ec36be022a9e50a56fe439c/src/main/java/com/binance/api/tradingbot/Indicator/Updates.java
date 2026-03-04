@@ -27,9 +27,9 @@ public class Updates {
         SETSQL.setminBuyAmount(newMinBuyAmount);
     }
 
-    public static void ratioBalanceToBA() {
-        SETSQL.setratioBalanceToBA();
-    }
+    // public static void ratioBalanceToBA() {
+    //     SETSQL.setratioBalanceToBA();
+    // }
 
     public static void calcPercentToAddForNextBuy() {
 
