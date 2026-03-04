@@ -6,6 +6,7 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 // TODO: Create SETSQL class or remove if not needed
 // import com.binance.api.tradingbot.SQLDatabase.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
@@ -79,7 +80,7 @@ public class Asset {
 
     private static void buy_bnb(BinanceApiRestClient client) {
 
-        double Qty = RoundCurrency.forQuantity((10 / Ticker.getAssetPrice("BNBEUR", client)), "BNBEUR");
+        double Qty = TradingRulesFormatter.formatQuantity("BNBEUR", 10.0 / Ticker.getAssetPrice("BNBEUR", client));
         String Quantity = String.valueOf(Qty);
 
         try {

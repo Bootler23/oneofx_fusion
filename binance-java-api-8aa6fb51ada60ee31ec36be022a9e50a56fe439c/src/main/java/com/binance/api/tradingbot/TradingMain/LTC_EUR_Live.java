@@ -30,6 +30,7 @@ import com.binance.api.tradingbot.service.PortfolioMonitor;
 import com.binance.api.tradingbot.Stream.UltraFastStream;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.Indicator.StochRSI;
+import com.binance.api.tradingbot.RiskRewardRatio.CurrencyRRR;
 import com.binance.api.tradingbot.SQL_Database.CurrencySQL;
 import com.binance.api.client.domain.market.CandlestickInterval;
 
@@ -161,11 +162,12 @@ public class LTC_EUR_Live {
                     LivePrice.clear();
 
                     state = set.Currency(BuyCurrencies, state);
-                    String currency = BuyCurrencies[state]; // TODO -> aus Datenbank nehmen Sell immer Buy nur wenn trading true
+                    String currency = BuyCurrencies[state];
 
+                    // int sleepMs = getSleepMs();
+                    // sleep.valueOffMillieSeconds(sleepMs);
 
-                    int sleepMs = getSleepMs();
-                    sleep.valueOffMillieSeconds(sleepMs);
+                    sleep.for_05_second();
 
                     // Hole Stream für die aktuelle Währung
                     UltraFastStream currentStream = priceStreams.get(currency);
@@ -230,6 +232,12 @@ public class LTC_EUR_Live {
                         StochRSI_2h(currency);
                     }
 
+                    // CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
+                    // if (currencyRRR != null) {
+                    //     System.out.println(currencyRRR.toWeightedBreakdownString());
+                    //     System.out.println("RRR: " + round.two(currencyRRR.calculateRRR()));
+                    // }
+
                     // Buy
                     if (SETSQL.getStatus("currency", "buystatus", currency)) {
                         double[] stoch = CurrencySQL.getStochRSI(currency);
@@ -247,8 +255,7 @@ public class LTC_EUR_Live {
                    
                     // Sell
                     POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
-                    SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice, PnL);
-                    
+                    SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice, PnL);                    
                 }
 
             } catch (IndexOutOfBoundsException e) {
@@ -265,20 +272,14 @@ public class LTC_EUR_Live {
         StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY);
 
         stochCache_k4h = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d4h = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-
-        // System.out.println("StochRSI 4h [" + currency + "] K: " + stochCache_k4h + " D: " + stochCache_d4h);
+        stochCache_d4h = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));       
     }
 
     private static void StochRSI_2h(String currency) {
         StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency, CandlestickInterval.TWO_HOURLY);
 
         double k2h = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        double d2h = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-
-        // System.out.println("StochRSI 2h [" + currency + "] K: " + k2h + " D: " + d2h);
-
-        // Beide Zeitrahmen zusammen in DB speichern
+        double d2h = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));       
         CurrencySQL.saveStochRSI(currency, stochCache_k4h, stochCache_d4h, k2h, d2h);
     }
 

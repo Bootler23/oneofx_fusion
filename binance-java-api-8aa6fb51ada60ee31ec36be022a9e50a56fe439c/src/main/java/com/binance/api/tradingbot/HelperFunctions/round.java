@@ -1,10 +1,5 @@
 package com.binance.api.tradingbot.HelperFunctions;
 
-import java.math.RoundingMode;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.util.Locale;
-
 public class round {
 
     public static double zero(double value) {
@@ -42,35 +37,4 @@ public class round {
     public static double eight(double value) {
         return Math.round(100000000.0 * value) / 100000000.0;
     }    
-
-    public static double Quantity(double value, String Currency) {
-        return RoundCurrency.forQuantity(value, Currency);
-    }
-
-    /**
-     * Formatiert einen double-Wert als String mit Punkt als Dezimaltrennzeichen.
-     * 
-     * @param Qty Der zu formatierende Wert
-     * @param decimalPlaces Anzahl der Nachkommastellen (z.B. 6 oder 8)
-     * @return Formatierter String mit Punkt (z.B. "0.12345678")
-     */
-    public static String withPoint(double Qty, int decimalPlaces) {
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
-        symbols.setDecimalSeparator('.');
-
-        // Festlegen des Formats mit genau 6 Nachkommastellen
-        DecimalFormat df = new DecimalFormat("0.000000", symbols);
-        df.setRoundingMode(RoundingMode.HALF_UP); // Normale Rundung
-
-        // Formatieren des Ergebnisses als String
-        return df.format(Qty);
-    }
-    
-    /**
-     * Formatiert einen double-Wert als String mit 6 Nachkommastellen und Punkt.
-     * Backward-kompatible Methode.
-     */
-    public static String withPoint(double Qty) {
-        return withPoint(Qty, 6);
-    }
 }

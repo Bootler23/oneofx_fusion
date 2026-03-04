@@ -1,6 +1,7 @@
 package com.binance.api.tradingbot.SQL_Database;
 
 import com.binance.api.tradingbot.Database.dbUrl;
+import com.binance.api.tradingbot.RiskRewardRatio.CurrencyRRR;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -72,5 +73,9 @@ public class CurrencySQL {
         }
 
         return new double[]{0.0, 0.0, 0.0, 0.0};
+    }
+
+    public static CurrencyRRR getCurrencyRRR(String currency) {
+        return PerformanceSQL.getWeightedRRRLast30Days(currency);
     }
 }

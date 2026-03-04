@@ -20,7 +20,9 @@ import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
+import com.binance.api.tradingbot.RiskRewardRatio.CurrencyRRR;
 import com.binance.api.tradingbot.SQL_Database.PerformanceSQL;
+import com.binance.api.tradingbot.SQL_Database.CurrencySQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.HelperFunctions.Slippage;
@@ -67,10 +69,21 @@ public class SellOrderProcess {
             boolean hitTakeProfit = currentPrice >= takeProfitTarget;
 
             if (hitStopLoss) {
-                empty.Line();
-                System.out.println("🔴 STOP-LOSS: " + currency + " bei " + dynamicStopLoss + "%");
-                System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " + currentPrice);
-                executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, true);
+                // empty.Line();
+                // System.out.println("🔴 STOP-LOSS: " + currency + " bei " + dynamicStopLoss +
+                // "%");
+                // System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " +
+                // currentPrice);
+                // executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice,
+                // BuyPrice_Double, true);
+
+                // erst verkaufen wenn es dazu positive gibt
+
+                // CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
+                // if (currencyRRR != null) {
+                // System.out.println(currencyRRR.toWeightedBreakdownString());
+                // System.out.println("RRR: " + round.two(currencyRRR.calculateRRR()));
+                // }
                 return; // Todo
 
             } else if (hitTakeProfit) {
@@ -88,10 +101,21 @@ public class SellOrderProcess {
                 }
 
                 empty.Line();
-                System.out.println("✅ TAKE-PROFIT: " + currency + " bei +" + percent + "%");
-                System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " + currentPrice);
+                // System.out.println("✅ TAKE-PROFIT: " + currency + " bei +" + percent + "%");
+                // System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " +
+                // currentPrice);
 
                 executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
+
+                CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
+                if (currencyRRR != null) {
+                    System.out.println(currencyRRR.toWeightedBreakdownString());
+                    System.out.println("RRR: " + round.two(currencyRRR.calculateRRR()));
+                }
+
+                // double currentRRR = PerformanceSQL.getCurrentWeightedRRR(currency, today);
+                // System.out.println("📊 Aktuelles RRR: " + currentRRR + " | Dynamic
+                // Stop-Loss:// " + dynamicStopLoss + "%");
                 return; // Todo
             }
         }
@@ -113,8 +137,10 @@ public class SellOrderProcess {
 
             NewOrderResponse orderResponse = getNewSellOrderResponse(currency, client, validatedQuantity);
 
-            System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId);
-            System.out.println("Verkauf erfolgreich: " + BuyOrderId + " (" + (isStopLoss ? "STOP-LOSS" : "TAKE-PROFIT") + ")");
+            System.out
+                    .println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId + " " + currency);
+            // System.out.println("Verkauf erfolgreich: " + BuyOrderId + " (" + (isStopLoss
+            // ? "STOP-LOSS" : "TAKE-PROFIT") + ")");
 
             update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(), orderResponse);
             update_POS_AfterMarketSell(BuyOrderId);
@@ -151,7 +177,7 @@ public class SellOrderProcess {
                 ps.setDouble(8, round.five(Double.parseDouble(orderResponse.getExecutedQty())));
                 ps.executeUpdate();
 
-                System.out.println("📊 Performance-Eintrag erstellt für SellOrderId: " + orderResponse.getOrderId());
+                // System.out.println("📊 Performance-Eintrag erstellt für SellOrderId: " + orderResponse.getOrderId());
             }
 
         } catch (SQLException err) {
@@ -162,7 +188,7 @@ public class SellOrderProcess {
 
     private static double getLastTotalBuffer(String currency) {
         String sql = "SELECT TotalBuffer FROM performance WHERE currency = ? " +
-                "ORDER BY SellDate DESC, SellTime DESC LIMIT 1";
+                "ORDER BY rowid DESC LIMIT 1";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement ps = con.prepareStatement(sql)) {
@@ -260,7 +286,8 @@ public class SellOrderProcess {
             NewOrderResponse newOrderResponse = getNewSellOrderResponse(CurrencyPair, client, validatedQuantity);
 
             update_POS_AfterMarketSell(BuyOrderId);
-            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(), newOrderResponse);
+            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(),
+                    newOrderResponse);
             delete_POS_AfterMarketSell(BuyOrderId);
 
         } catch (BinanceApiException dex) {

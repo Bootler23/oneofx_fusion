@@ -17,12 +17,12 @@ import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.Indicator.Updates;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
-import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.set;
 
 public class CheckOrderStatus {
@@ -33,7 +33,7 @@ public class CheckOrderStatus {
 
             try {
                 Order order = client.getOrderStatus(new OrderStatusRequest(currency, buyOrderId));
-                Double orderPrice = round.two(Double.parseDouble(order.getPrice()));
+                Double orderPrice = Double.parseDouble(order.getPrice());
 
                 if (order.getStatus() == OrderStatus.NEW) {
                     BUY_NEW(currency, client, LivePrice, buyOrderId, orderPrice);
@@ -98,14 +98,14 @@ public class CheckOrderStatus {
     }
 
     private static void DeleteOrderWithOrderId(Long buyOrderId) {
-        System.out.println("Gecancelte Order gefunden: " + buyOrderId);
+        // System.out.println("Gecancelte Order gefunden: " + buyOrderId);
         try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 PreparedStatement pstmt = con.prepareStatement(
                         "DELETE FROM POS WHERE BuyOrderId = ?")) {
 
             pstmt.setLong(1, buyOrderId);
             pstmt.executeUpdate();
-            System.out.println("Order aus Datenbank entfernt: " + buyOrderId);
+            // System.out.println("Order aus Datenbank entfernt: " + buyOrderId);
 
         } catch (SQLException err) {
             System.err.println("Datenbankfehler beim Löschen: " + err.getMessage());
@@ -124,15 +124,15 @@ public class CheckOrderStatus {
         }
     }
 
-    private static void BUY_FILLED(String currencyPair, BinanceApiRestClient client, Long BuyOrderId, Order order, List<Double> LivePrice) {
+    private static void BUY_FILLED(String currency, BinanceApiRestClient client, Long BuyOrderId, Order order, List<Double> LivePrice) {
 
-        double OrderPrice = getBuyPrice(order);
+        double OrderPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getPrice()));
         String BuyDate = Time.getCurrentDate();
         String BuyTime = Time.getCurrentTime_HHmmss();
 
         Updates.NewCounterPosition();
         Updates.addminBuyAmount();
-        Updates.ratioBalanceToBA();
+        // Updates.ratioBalanceToBA();
         Updates.calcPercentToAddForNextBuy();
         Updates.setExpectationCounter();
 
@@ -148,13 +148,13 @@ public class CheckOrderStatus {
                     + "WHERE BuyOrderId = " + BuyOrderId;
 
             update.executeUpdate(SQL_update);
-            System.out.println("BUY FILLED - Vollzogen: " + OrderPrice);
+            // System.out.println("BUY FILLED - Vollzogen: " + currency + " " + OrderPrice);
 
         } catch (SQLException err) {
             System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
         }
        
-        String asset = currencyPair.replace("EUR", ""); // z.B. "LTCEUR" -> "LTC", "BNBEUR" -> "BNB"
+        String asset = currency.replace("EUR", ""); // z.B. "LTCEUR" -> "LTC", "BNBEUR" -> "BNB"
         BalanceInfo balances = getBalances(asset, client);
         double taxe = HISTSQL.getTaxe();
 
@@ -162,7 +162,7 @@ public class CheckOrderStatus {
                 PreparedStatement insert_HIST = con_insert_HIST.prepareStatement(
                         "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy, POS_count, X) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
 
-            insert_HIST.setString(1, currencyPair);
+            insert_HIST.setString(1, currency);
             insert_HIST.setLong(2, BuyOrderId);
             insert_HIST.setDouble(3, OrderPrice);
             insert_HIST.setString(4, BuyDate);
@@ -180,12 +180,12 @@ public class CheckOrderStatus {
             }
             insert_HIST.setDouble(8, balanceToAssetRatio);
 
-            int countPosition = POSSQL.getCountPOS(currencyPair);
+            int countPosition = POSSQL.getCountPOS(currency);
             insert_HIST.setInt(9, countPosition);  
             insert_HIST.setDouble(10, round.five(countPosition/balanceToAssetRatio)); // TODO -> Balance/BA
 
             insert_HIST.executeUpdate();
-            System.out.println("Part in Hist Saved");
+            System.out.println("Save Hist & Pos " + currency + " " + OrderPrice);
 
         } catch (SQLException err) {
             System.out.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
@@ -197,19 +197,22 @@ public class CheckOrderStatus {
         return BuyPrice;
     }
 
-    private static void BUY_NEW(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice,
+    private static void BUY_NEW(String currency, BinanceApiRestClient client, List<Double> LivePrice,
             Long BuyOrderId, Double orderPrice) {
 
         try {
-            double CancelPrice = ATHSQL.getAllTimeHigh(currencyPair);
+            double athPrice = ATHSQL.getAllTimeHigh(currency);
+            double CancelPrice = athPrice;
             double LiveKurs = LivePrice.get(0);
             int i = 0;
-            int grid = set.getGridforCurrency(currencyPair);
+            int grid = set.getGridforCurrency(currency);
+            double stepSize = athPrice / 100.0 / grid;  // präziser Step ohne Runden
 
             boolean calc = true;
-            while (calc) {
-                CancelPrice = CancelPrice - ((CancelPrice / 100) / grid);
-                CancelPrice = round.two(CancelPrice);
+            int maxIterations = 10000;
+            int iteration = 0;
+            while (calc && iteration++ < maxIterations) {
+                CancelPrice = CancelPrice - stepSize;  // kein round.two hier
 
                 if (LiveKurs > CancelPrice) {
                     i++;
@@ -219,8 +222,9 @@ public class CheckOrderStatus {
                     }
                     if (i == 3) {
                         if (CancelPrice > orderPrice) {
-                            client.cancelOrder(new CancelOrderRequest(currencyPair, BuyOrderId));
-                            System.out.println("Order gecancelt: " + orderPrice);
+                            client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
+                            System.out.println("Order gecancelt: " + currency + " orderPrice=" + orderPrice
+                                    + " cancelThreshold=" + CancelPrice);
 
                             DeleteOrderWithOrderId(BuyOrderId);
                             calc = false;
@@ -236,20 +240,23 @@ public class CheckOrderStatus {
         }
     }
 
-    private static void PARTIALLY_FILLED(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice,
+    private static void PARTIALLY_FILLED(String currency, BinanceApiRestClient client, List<Double> LivePrice,
             Long BuyOrderId, Double orderPrice,
             Order order) {
 
         try {
-            double CancelPrice = ATHSQL.getAllTimeHigh(currencyPair);
+            double athPrice = ATHSQL.getAllTimeHigh(currency);
+            double CancelPrice = athPrice;
             double LiveKurs = LivePrice.get(0);
             int i = 0;
-            int grid = set.getGridforCurrency(currencyPair);
+            int grid = set.getGridforCurrency(currency);
+            double stepSize = athPrice / 100.0 / grid;  // präziser Step ohne Runden
 
             boolean calc = true;
-            while (calc) {
-                CancelPrice = CancelPrice - ((CancelPrice / 100) / grid);
-                CancelPrice = round.two(CancelPrice);
+            int maxIterations = 10000;
+            int iteration = 0;
+            while (calc && iteration++ < maxIterations) {
+                CancelPrice = CancelPrice - stepSize;  // kein round.two hier
 
                 if (LiveKurs > CancelPrice) {
                     i++;
@@ -262,10 +269,10 @@ public class CheckOrderStatus {
                             System.out.println("Order teilweise gefüllt: " + orderPrice + " - " + BuyOrderId);
 
                             int Status;
-                            double BuyPrice = getBuyPrice(order);
+                            double BuyPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getPrice()));
                             String BuyDate = Time.getCurrentDate();
                             String BuyTime = Time.getCurrentTime_HHmmss();
-                            double Quantity = round.Quantity((Double.valueOf(order.getExecutedQty())), currencyPair);
+                            double Quantity = TradingRulesFormatter.formatQuantity(currency, Double.valueOf(order.getExecutedQty()));
                             double partially_BuyAmount = round.five(BuyPrice * Quantity);
 
                             if (partially_BuyAmount >= 6.0) {
@@ -281,7 +288,7 @@ public class CheckOrderStatus {
 
                                 pstmt.setDouble(1, BuyPrice);
                                 pstmt.setDouble(2, Quantity);
-                                pstmt.setString(3, currencyPair);
+                                pstmt.setString(3, currency);
                                 pstmt.setDouble(4, partially_BuyAmount);
                                 pstmt.setInt(5, Status);
                                 pstmt.setString(6, BuyTime);
@@ -299,7 +306,7 @@ public class CheckOrderStatus {
                                     PreparedStatement pstmt = con_insert_HIST.prepareStatement(
                                             "INSERT INTO HIST (Währung, BuyOrderId, BuyPrice, Quantity, BuyAmount, BuyDate, BuyTime) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
 
-                                pstmt.setString(1, currencyPair);
+                                pstmt.setString(1, currency);
                                 pstmt.setLong(2, BuyOrderId);
                                 pstmt.setDouble(3, BuyPrice);
                                 pstmt.setDouble(4, Quantity);
@@ -315,7 +322,7 @@ public class CheckOrderStatus {
                             }
 
                             // Cancel der verbleibenden offenen Order
-                            client.cancelOrder(new CancelOrderRequest(currencyPair, BuyOrderId));
+                            client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
                             System.out.println("Verbleibende Order gecancelt: " + BuyOrderId);
 
                             calc = false;

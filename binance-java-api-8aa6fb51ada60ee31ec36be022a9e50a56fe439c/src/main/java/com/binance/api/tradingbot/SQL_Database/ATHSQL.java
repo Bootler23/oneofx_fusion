@@ -9,19 +9,19 @@ import java.sql.Statement;
 import java.util.List;
 
 import com.binance.api.tradingbot.Database.dbUrl;
-import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.round;
 
 public class ATHSQL {
 
     public static double getAllTimeHigh(String Currency) {
-        ensureCurrencyPairExists(dbUrl.getCurrency(), Currency);
+        // ensureCurrencyPairExists(dbUrl.getCurrency(), Currency);
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT alltimehigh FROM currency WHERE `currency` = '" + Currency + "'")) {
             if (rs.next()) {
-                return RoundCurrency.forTickerPrice(rs.getDouble("alltimehigh"), Currency);
+                return TradingRulesFormatter.formatPrice(Currency, rs.getDouble("alltimehigh"));
             } else {
                 return 0.0;
             }
@@ -38,7 +38,7 @@ public class ATHSQL {
                 ResultSet rs = query
                         .executeQuery("SELECT alltimehigh FROM currency WHERE `currency` = '" + Currency + "'")) {
             if (rs.next()) {
-                return RoundCurrency.forTickerPrice(rs.getDouble("alltimehigh"), Currency);
+                return TradingRulesFormatter.formatPrice(Currency, rs.getDouble("alltimehigh"));
             } else {
                 return 0.0;
             }

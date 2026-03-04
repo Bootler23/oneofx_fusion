@@ -20,7 +20,7 @@ import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.SQL_Database.HISTSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.constants.TradingConstants;
-import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
+import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 
 public class Update {
 
@@ -50,7 +50,7 @@ public class Update {
                     trade_fee = trade_fee + Fee;
                 }
 
-                if (round.three(trade_quantity) != round.three(Double.valueOf(order.getExecutedQty()))) {
+                if (TradingRulesFormatter.formatQuantity(currency, trade_quantity) != TradingRulesFormatter.formatQuantity(currency, Double.valueOf(order.getExecutedQty()))) {
                     System.out.println("Die Mengen stimmen nicht überein!");
                     continue;
                 }
@@ -77,7 +77,7 @@ public class Update {
                 double LossAfterTax = 0;
 
                 double buyprice = HISTSQL.getbuyprice(sellorderID);
-                double sellprice = RoundCurrency.forQuantity((sellamount / Qty), currency);
+                double sellprice = TradingRulesFormatter.formatPrice(currency, sellamount / Qty);
                 double GewinnAfterTax = getGewinnAfterTaxAndFeeSimple(buyamount, sellamount, buyfee, sellfee);
 
                 if (GewinnAfterTax == 0) {
@@ -113,7 +113,7 @@ public class Update {
                                         "GewinnAfterTax = ?, LossAfterTax = ?, Profit = ?, SellFee = ?, " +
                                         "Split = ?, Status = ?, statusCode = ? WHERE SellOrderId = ?")) {
 
-                    pstmt.setDouble(1, RoundCurrency.BuyAmount(sellamount, currency));
+                    pstmt.setDouble(1, TradingRulesFormatter.formatPrice(currency, sellamount));
                     pstmt.setDouble(2, sellprice);
                     pstmt.setDouble(3, getTaxe(buyamount, sellamount));
                     pstmt.setDouble(4, getFee(buyfee, sellfee));
@@ -128,7 +128,7 @@ public class Update {
                     pstmt.setLong(13, OrderId);
 
                     pstmt.executeUpdate();
-                    System.out.println("Update in Hist!");
+                    //System.out.println("Update in Hist!");
 
                 } catch (SQLException e) {
                     System.err.println("Error updating HIST: " + e.getMessage());
@@ -166,7 +166,7 @@ public class Update {
                     trade_fee = trade_fee + Fee;
                 }
 
-                if (round.three(trade_quantity) != round.three(Double.valueOf(order.getExecutedQty()))) {
+                if (TradingRulesFormatter.formatQuantity(currency, trade_quantity) != TradingRulesFormatter.formatQuantity(currency, Double.valueOf(order.getExecutedQty()))) {
                     System.out.println("Die Mengen stimmen nicht überein!");
                     continue;
                 }
@@ -188,8 +188,8 @@ public class Update {
 
                     pstmt.setDouble(1, BuyPriceFromExchange);
                     pstmt.setDouble(2, BuyPriceFromExchange);
-                    pstmt.setDouble(3, RoundCurrency.forQuantity(Quantity, currency));
-                    pstmt.setDouble(4, RoundCurrency.BuyAmount(BuyAmount, currency));
+                    pstmt.setDouble(3, TradingRulesFormatter.formatQuantity(currency, Quantity));
+                    pstmt.setDouble(4, TradingRulesFormatter.formatPrice(currency, BuyAmount));
                     pstmt.setInt(5, 1);
                     pstmt.setString(6, TradingConstants.STATUS_FILLED_CHECKED);
                     pstmt.setLong(7, OrderId);
@@ -209,13 +209,13 @@ public class Update {
 
                     pstmt.setDouble(1, BuyPriceFromExchange);
                     pstmt.setDouble(2, BuyPriceFromExchange);
-                    pstmt.setDouble(3, RoundCurrency.forQuantity(Quantity, currency));
-                    pstmt.setDouble(4, RoundCurrency.BuyAmount(BuyAmount, currency));
+                    pstmt.setDouble(3, TradingRulesFormatter.formatQuantity(currency, Quantity));
+                    pstmt.setDouble(4, TradingRulesFormatter.formatPrice(currency, BuyAmount));
                     pstmt.setDouble(5, BuyFee);
                     pstmt.setLong(6, OrderId);
 
                     pstmt.executeUpdate();
-                    System.out.println("Update in Hist!");
+                    // System.out.println("Update in Hist!");
 
                 } catch (SQLException err) {
                     System.out.println("Fehler beim Aktualisieren der HIST-Tabelle: " + err.getMessage());

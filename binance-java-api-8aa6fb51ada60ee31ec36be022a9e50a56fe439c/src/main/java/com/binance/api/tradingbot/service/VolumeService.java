@@ -3,7 +3,6 @@ package com.binance.api.tradingbot.service;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.market.TickerStatistics;
 import com.binance.api.client.exception.BinanceApiException;
-import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.domain.VolumeData;
 import org.slf4j.Logger;

@@ -14,7 +14,6 @@ import com.binance.api.client.domain.TimeInForce;
 import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
-import com.binance.api.tradingbot.HelperFunctions.RoundCurrency;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
@@ -41,7 +40,7 @@ public class BuyOrderPocess {
         while (BuyOrderCalc) {
 
             Ath = Ath - ((Ath / 100) / grid);
-            BuyPrice = RoundCurrency.forTickerPrice(Ath, currency);
+            BuyPrice = TradingRulesFormatter.formatPrice(currency, Ath);
 
             if (TickerPrice >= BuyPrice) {
 
@@ -54,7 +53,7 @@ public class BuyOrderPocess {
             if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {           
 
                 VolumeService service = VolumeService.getInstance();
-                boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("10000000"));
+                boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("300000"));
                 if (!hasVolume) {
                     System.out.println("Das Handelsvolumen für " + currency + " ist zu gering");
                 }
@@ -69,8 +68,8 @@ public class BuyOrderPocess {
                 }
 
                 String buyprice = TradingRulesFormatter.formatOrderPrice(currency, BuyPrice);
-                String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency, new BigDecimal(BuyAmaunt),
-                        new BigDecimal(LivePrice.get(0)));
+                String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency, BigDecimal.valueOf(BuyAmaunt),
+                        BigDecimal.valueOf(LivePrice.get(0)));
 
                 if (!TradingRulesFormatter.isOrderValid(
                         currency, new BigDecimal(buyprice), new BigDecimal(Quantity))) {

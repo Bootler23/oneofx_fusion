@@ -35,28 +35,6 @@ public class SettingsRepository {
             return 0.0;
         }
     }    
-  
-    // public static boolean setDouble(String columnName, double value, int roundDigits) {
-    //     String sql = "UPDATE SETTING SET " + columnName + " = ?";
-        
-    //     try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-    //          PreparedStatement ps = con.prepareStatement(sql)) {
-            
-    //         double roundedValue = roundDigits > 0 ? roundValue(value, roundDigits) : value;
-    //         ps.setDouble(1, roundedValue);
-            
-    //         int rowsAffected = ps.executeUpdate();
-    //         if (rowsAffected > 0) {
-    //             logger.debug("{} erfolgreich auf {} gesetzt", columnName, roundedValue);
-    //             return true;
-    //         }
-    //         return false;
-            
-    //     } catch (SQLException err) {
-    //         logger.error("Fehler beim Setzen von {} auf {}: {}", columnName, value, err.getMessage());
-    //         return false;
-    //     }
-    // }    
 
     public static void setDouble(String columnName, double value, int roundDigits) {
         String sql = "UPDATE SETTING SET " + columnName + " = ?";
