@@ -2,23 +2,20 @@ package com.binance.api.tradingbot.service;
 
 import java.util.List;
 import java.util.ArrayList;
+
+import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
-public class PortfolioMonitor {
-    
-    /**
-     * Zeigt den Portfolio-Status mit durchschnittlichem PnL an.
-     * 
-     * @param currency Das Währungspaar (z.B. "LTCEUR")
-     * @param currentPrice Der aktuelle Preis
-     */
+public class PortfolioMonitor {    
+   
     public static double showPortfolioStatus(String currency, double currentPrice) {
         
         List<String> positions = new ArrayList<>();
         POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, positions);
         
         if (positions.isEmpty()) {
+            empty.Line();
             System.out.println("[PORTFOLIO] Keine offenen Positionen fuer " + currency);
             return 0.0;
         }
@@ -51,27 +48,20 @@ public class PortfolioMonitor {
 
         if (avgPnLPercent > SETSQL.getPnL_Reverense()) {
             SETSQL.setPnL_Reverense(avgPnLPercent);
-        }
-        
-        
-        System.out.println("[PORTFOLIO] " + currency + ": " + positionCount + " Positionen | Avg PnL: " 
-                + String.format("%.2f", avgPnLPercent) + "%");
-                
+        }        
+        empty.Line();
+        System.out.println("[PORTFOLIO] " + currency + ": " + positionCount + " Positionen | Avg PnL: " + String.format("%.2f", avgPnLPercent) + "%");                
+
         return avgPnLPercent;
-    }
-    
-    /**
-     * Erweiterte Portfolio-Analyse mit mehr Details.
-     * 
-     * @param currency Das Währungspaar
-     * @param currentPrice Der aktuelle Preis
-     */
+    }    
+  
     public static void showDetailedPortfolioStatus(String currency, double currentPrice) {
         
         List<String> positions = new ArrayList<>();
         POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, positions);
         
         if (positions.isEmpty()) {
+            empty.Line();
             System.out.println("[PORTFOLIO] Keine offenen Positionen fuer " + currency);
             return;
         }
@@ -123,8 +113,7 @@ public class PortfolioMonitor {
         System.out.println("  Im Gewinn: " + profitablePositions);
         System.out.println("  Im Verlust: " + losingPositions);
         System.out.println("Avg PnL: " + String.format("%.2f", avgPnLPercent) + "%");
-        System.out.println("Preis-Range: EUR " + String.format("%.2f", lowestBuyPrice) 
-                + " - EUR " + String.format("%.2f", highestBuyPrice));
+        System.out.println("Preis-Range: EUR " + String.format("%.2f", lowestBuyPrice) + " - EUR " + String.format("%.2f", highestBuyPrice));
         System.out.println("========================");
     }
 }

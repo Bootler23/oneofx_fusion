@@ -133,6 +133,24 @@ public class POSSQL {
         }
         return 0.0;
     }
+    
+    public static double getSumQuantityForCurrency(String currencyPair) {
+        try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
+                PreparedStatement pstmt = con.prepareStatement(
+                        "SELECT SUM(Qty) AS SumQuantity FROM POS WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+
+            pstmt.setString(1, currencyPair);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getDouble("SumQuantity");
+            }
+
+        } catch (SQLException err) {
+            System.out.println("Fehler beim Abrufen der SumQuantity für " + currencyPair + ": " + err.getMessage());
+        }
+        return 0.0;
+    }
 
     public static double getSumColumnWith(final String Url, String columnName, String tableName) {
         try (Connection con = DriverManager.getConnection(Url);

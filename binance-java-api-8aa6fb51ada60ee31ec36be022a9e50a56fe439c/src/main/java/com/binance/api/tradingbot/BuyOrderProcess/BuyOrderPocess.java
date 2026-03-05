@@ -56,6 +56,7 @@ public class BuyOrderPocess {
                 boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("300000"));
                 if (!hasVolume) {
                     System.out.println("Das Handelsvolumen für " + currency + " ist zu gering");
+                    return;
                 }
 
                 empty.Line();
