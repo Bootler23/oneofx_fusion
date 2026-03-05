@@ -164,10 +164,10 @@ public class LTC_EUR_Live {
                     state = set.Currency(BuyCurrencies, state);
                     String currency = BuyCurrencies[state];
 
-                    // int sleepMs = getSleepMs();
-                    // sleep.valueOffMillieSeconds(sleepMs);
+                    int sleepMs = getSleepMs();
+                    sleep.valueOffMillieSeconds(sleepMs);
 
-                    sleep.for_05_second();
+                    //sleep.for_05_second();
 
                     // Hole Stream für die aktuelle Währung
                     UltraFastStream currentStream = priceStreams.get(currency);
@@ -230,13 +230,7 @@ public class LTC_EUR_Live {
                     if (CurrencySQL.isStale(currency)) {
                         StochRSI_4h(currency);
                         StochRSI_2h(currency);
-                    }
-
-                    // CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
-                    // if (currencyRRR != null) {
-                    //     System.out.println(currencyRRR.toWeightedBreakdownString());
-                    //     System.out.println("RRR: " + round.two(currencyRRR.calculateRRR()));
-                    // }
+                    }                    
 
                     // Buy
                     if (SETSQL.getStatus("currency", "buystatus", currency)) {
@@ -301,7 +295,7 @@ public class LTC_EUR_Live {
             sleepMs = 1200;
             System.out.println("⚠️ Gewicht über 1200, setze Sleep auf 1200 ms");
         } else {
-            sleepMs = 200 + (currentWeight * 1000 / 1200);
+            sleepMs = 300 + (currentWeight * 1000 / 1200);
             sleepMs = ((sleepMs + 50) / 100) * 100;
         }
         return sleepMs;

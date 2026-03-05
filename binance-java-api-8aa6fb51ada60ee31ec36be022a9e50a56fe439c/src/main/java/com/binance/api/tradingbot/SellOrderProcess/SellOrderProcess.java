@@ -63,28 +63,35 @@ public class SellOrderProcess {
 
             double takeProfitTarget = (BuyPrice_Double / 100) * (100 + percent);
             // double stopLossTarget = BuyPrice_Double * (1 + (dynamicStopLoss / 100));
-            double stopLossTarget = BuyPrice_Double * (1 + (-2.3 / 100));
+            double stopLossTarget = BuyPrice_Double * (1 + (-1.0 / 100));
+            double[] stoch = CurrencySQL.getStochRSI(currency);
+            double k2h = stoch[2], d2h = stoch[3];
 
             boolean hitStopLoss = currentPrice <= stopLossTarget;
             boolean hitTakeProfit = currentPrice >= takeProfitTarget;
 
             if (hitStopLoss) {
-                // empty.Line();
-                // System.out.println("🔴 STOP-LOSS: " + currency + " bei " + dynamicStopLoss +
-                // "%");
-                // System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " +
-                // currentPrice);
-                // executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice,
-                // BuyPrice_Double, true);
+                empty.Line();
 
-                // erst verkaufen wenn es dazu positive gibt
+                if (k2h < d2h) {
+                    CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
+                    if (currencyRRR != null) {
+                        System.out.println(currencyRRR.toWeightedBreakdownString());
+                        System.out.println("RRR: " + round.two(currencyRRR.calculateRRR()));
+                        if (currencyRRR.calculateRRR() < 1.5) {
+                            System.out.println("⚠️ RRR zu schlecht, warte auf besseres Chance-Risiko-Verhältnis...");
+                            return;
+                        }
+                    }
+                } else {
+                    System.out.println("⏳ Warte auf besseren StochRSI...");
+                    return;
+                }              
 
-                // CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
-                // if (currencyRRR != null) {
-                // System.out.println(currencyRRR.toWeightedBreakdownString());
-                // System.out.println("RRR: " + round.two(currencyRRR.calculateRRR()));
-                // }
-                return; // Todo
+                System.out.println("🔴 STOP-LOSS: " + currency + " bei " + dynamicStopLoss + "%");
+                System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " + currentPrice);
+                executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, true);               
+                return;
 
             } else if (hitTakeProfit) {
 
@@ -177,7 +184,8 @@ public class SellOrderProcess {
                 ps.setDouble(8, round.five(Double.parseDouble(orderResponse.getExecutedQty())));
                 ps.executeUpdate();
 
-                // System.out.println("📊 Performance-Eintrag erstellt für SellOrderId: " + orderResponse.getOrderId());
+                // System.out.println("📊 Performance-Eintrag erstellt für SellOrderId: " +
+                // orderResponse.getOrderId());
             }
 
         } catch (SQLException err) {

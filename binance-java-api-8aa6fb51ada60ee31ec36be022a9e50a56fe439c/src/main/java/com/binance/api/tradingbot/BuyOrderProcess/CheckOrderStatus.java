@@ -5,7 +5,9 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.OrderStatus;
@@ -13,6 +15,7 @@ import com.binance.api.client.domain.account.Account;
 import com.binance.api.client.domain.account.AssetBalance;
 import com.binance.api.client.domain.account.Order;
 import com.binance.api.client.domain.account.request.CancelOrderRequest;
+import com.binance.api.client.domain.account.request.OrderRequest;
 import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.Database.dbUrl;
@@ -27,74 +30,150 @@ import com.binance.api.tradingbot.Settings.set;
 
 public class CheckOrderStatus {
 
+    /**
+     * Prüft den Status aller offenen Buy-Orders für eine Währung.
+     *
+     * Verwendet getOpenOrders() (Weight: 6) für ALLE Fälle:
+     * - 0 Orders: Kein API-Call (Early Return)
+     * - 1-2 Orders: getOpenOrders() → Weight 6, spart Roundtrips bei 2 Orders
+     *
+     * Orders die nicht mehr offen sind (FILLED/CANCELED/EXPIRED)
+     * werden einzeln nachgefragt (selten, nur wenn gerade gefüllt).
+     *
+     * @param currency       Währungspaar (z.B. "LTCEUR")
+     * @param client         Binance API Client
+     * @param BuyOrderIdList Liste der Buy-Order-IDs mit Status=0 aus DB
+     * @param LivePrice      Aktueller Preis
+     */
     public static void OrderStatus(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList, List<Double> LivePrice) {
 
-        for (Long buyOrderId : BuyOrderIdList) {
+        if (BuyOrderIdList.isEmpty()) {
+            return;
+        }
 
-            try {
-                Order order = client.getOrderStatus(new OrderStatusRequest(currency, buyOrderId));
+        checkOrdersViaBatch(currency, client, BuyOrderIdList, LivePrice);
+    }
+
+    /**
+     * Holt alle offenen Orders per Batch (Weight: 6) und gleicht mit der DB-Liste ab.
+     * Orders die nicht mehr offen sind werden einzeln nachgefragt.
+     */
+    private static void checkOrdersViaBatch(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList, List<Double> LivePrice) {
+        try {
+            // EIN API-Call für alle offenen Orders dieser Währung (Weight: 6)
+            List<Order> openOrders = client.getOpenOrders(new OrderRequest(currency));
+
+            // Set für schnellen Lookup: welche unserer DB-Orders sind noch offen bei Binance?
+            Set<Long> openOrderIds = new HashSet<>();
+            for (Order order : openOrders) {
+                openOrderIds.add(order.getOrderId());
+            }
+
+            // 1) Offene Orders verarbeiten (NEW, PARTIALLY_FILLED) – ohne Extra-API-Call
+            for (Order order : openOrders) {
+                Long orderId = order.getOrderId();
+
+                if (!BuyOrderIdList.contains(orderId)) {
+                    continue; // Nicht unsere Buy-Order (z.B. Sell-Order oder andere)
+                }
+
                 Double orderPrice = Double.parseDouble(order.getPrice());
 
                 if (order.getStatus() == OrderStatus.NEW) {
-                    BUY_NEW(currency, client, LivePrice, buyOrderId, orderPrice);
+                    BUY_NEW(currency, client, LivePrice, orderId, orderPrice);
+                } else if (order.getStatus() == OrderStatus.PARTIALLY_FILLED) {
+                    PARTIALLY_FILLED(currency, client, LivePrice, orderId, orderPrice, order);
+                }
+            }
+
+            // 2) Orders die in DB (Status=0) stehen aber NICHT mehr offen sind
+            //    → FILLED, CANCELED oder EXPIRED. Einzeln nachfragen (selten).
+            for (Long buyOrderId : BuyOrderIdList) {
+                if (openOrderIds.contains(buyOrderId)) {
+                    continue; // Bereits oben als offene Order verarbeitet
                 }
 
-                if (order.getStatus() == OrderStatus.PARTIALLY_FILLED) {
-                    PARTIALLY_FILLED(currency, client, LivePrice, buyOrderId, orderPrice, order);
-                }
+                // Diese Order ist nicht mehr offen → Status einzeln abfragen
+                try {
+                    Order order = client.getOrderStatus(new OrderStatusRequest(currency, buyOrderId));
 
-                if (order.getStatus() == OrderStatus.FILLED) {
-                    BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
-                }
-
-                if (order.getStatus() == OrderStatus.EXPIRED_IN_MATCH) {
-                    DeleteOrderWithOrderId(buyOrderId);
-                }
-
-                if (order.getStatus() == OrderStatus.CANCELED) {
-                    CancelOrderFromOutside(order);
-                }
-
-            } catch (BinanceApiException e) {
-                // Prüfe ob es sich um einen Jackson Deserialisierung Fehler handelt
-                if (e.getMessage().contains("InvalidFormatException") ||
-                        e.getMessage().contains("EXPIRED_IN_MATCH") ||
-                        e.getMessage().contains("not one of declared Enum instance names")) {
-                    System.out.println("Jackson Deserialisierung Fehler (unbekannter OrderStatus): " + e.getMessage());
-                    System.out.println("Überspringe Order " + buyOrderId
-                            + " - wahrscheinlich neuer OrderStatus von Binance: EXPIRED_IN_MATCH");
-                    continue;
-                }
-
-                System.out.println("Fehler beim Abrufen des Binance-API-Service: " + e.getMessage());
-
-                if (e.getMessage().contains("timeout") || e.getMessage().contains("SocketTimeoutException")) {
-                    System.out.println("Netzwerk-Timeout erkannt. Warte 5 Sekunden und versuche es später erneut...");
-                    try {
-                        Thread.sleep(5000); // 5 Sekunden warten
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
+                    if (order.getStatus() == OrderStatus.FILLED) {
+                        BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
+                    } else if (order.getStatus() == OrderStatus.CANCELED) {
+                        CancelOrderFromOutside(order);
+                    } else if (order.getStatus() == OrderStatus.EXPIRED_IN_MATCH) {
+                        DeleteOrderWithOrderId(buyOrderId);
                     }
-                }
 
-                continue;
-            } catch (Exception e) {
-                // Prüfe auch hier auf Jackson-Fehler falls sie als andere Exception kommen
-                if (e.getMessage().contains("InvalidFormatException") ||
-                        e.getMessage().contains("EXPIRED_IN_MATCH") ||
-                        e.getMessage().contains("not one of declared Enum instance names")) {
-                    System.out.println("Jackson Deserialisierung Fehler (unbekannter OrderStatus): " + e.getMessage());
-                    System.out.println(
-                            "Überspringe Order " + buyOrderId + " - wahrscheinlich neuer OrderStatus von Binance");
-                    continue;
+                } catch (BinanceApiException e) {
+                    handleBinanceException(e, buyOrderId);
+                } catch (Exception e) {
+                    handleGeneralException(e, buyOrderId);
                 }
+            }
 
-                System.out.println("Unerwarteter Fehler beim Prüfen der Order " + buyOrderId + ": " + e.getMessage());
-                e.printStackTrace();
-                // Bei unerwarteten Fehlern auch weitermachen
-                continue;
+        } catch (BinanceApiException e) {
+            System.err.println("Fehler beim Abrufen der offenen Orders für " + currency + ": " + e.getMessage());
+
+            if (e.getMessage() != null &&
+                    (e.getMessage().contains("timeout") || e.getMessage().contains("SocketTimeoutException"))) {
+                System.out.println("Netzwerk-Timeout bei getOpenOrders. Warte 5 Sekunden...");
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("Unerwarteter Fehler in OrderStatus für " + currency + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Behandelt BinanceApiException beim Order-Status-Check.
+     * Jackson-Deserialisierungsfehler (z.B. EXPIRED_IN_MATCH) → Order aus DB löschen.
+     * Timeout → 5 Sekunden warten.
+     */
+    private static void handleBinanceException(BinanceApiException e, Long buyOrderId) {
+        if (e.getMessage() != null && (e.getMessage().contains("InvalidFormatException") ||
+                e.getMessage().contains("EXPIRED_IN_MATCH") ||
+                e.getMessage().contains("not one of declared Enum instance names"))) {
+            System.out.println("Jackson Deserialisierung Fehler: " + e.getMessage());
+            System.out.println("Überspringe Order " + buyOrderId
+                    + " - wahrscheinlich EXPIRED_IN_MATCH, entferne aus DB");
+            DeleteOrderWithOrderId(buyOrderId);
+            return;
+        }
+
+        System.out.println("Fehler beim Abrufen des Order-Status für " + buyOrderId + ": " + e.getMessage());
+
+        if (e.getMessage() != null &&
+                (e.getMessage().contains("timeout") || e.getMessage().contains("SocketTimeoutException"))) {
+            System.out.println("Netzwerk-Timeout erkannt. Warte 5 Sekunden...");
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
             }
         }
+    }
+
+    /**
+     * Behandelt allgemeine Exceptions beim Order-Status-Check.
+     */
+    private static void handleGeneralException(Exception e, Long buyOrderId) {
+        if (e.getMessage() != null && (e.getMessage().contains("InvalidFormatException") ||
+                e.getMessage().contains("EXPIRED_IN_MATCH") ||
+                e.getMessage().contains("not one of declared Enum instance names"))) {
+            System.out.println("Jackson Deserialisierung Fehler: " + e.getMessage());
+            DeleteOrderWithOrderId(buyOrderId);
+            return;
+        }
+
+        System.out.println("Unerwarteter Fehler beim Prüfen der Order " + buyOrderId + ": " + e.getMessage());
+        e.printStackTrace();
     }
 
     private static void DeleteOrderWithOrderId(Long buyOrderId) {
@@ -223,8 +302,7 @@ public class CheckOrderStatus {
                     if (i == 3) {
                         if (CancelPrice > orderPrice) {
                             client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
-                            System.out.println("Order gecancelt: " + currency + " orderPrice=" + orderPrice
-                                    + " cancelThreshold=" + CancelPrice);
+                            System.out.println("Order gecancelt: " + currency + " orderPrice " + orderPrice);
 
                             DeleteOrderWithOrderId(BuyOrderId);
                             calc = false;
