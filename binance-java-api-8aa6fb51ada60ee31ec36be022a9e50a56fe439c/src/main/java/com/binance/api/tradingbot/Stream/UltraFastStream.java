@@ -72,6 +72,7 @@ public class UltraFastStream {
     
     // Reconnect-Tracking
     private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
+    private volatile long lastReconnectTime = 0;
     
     // Scheduler für Reconnect und Health-Check
     private ScheduledExecutorService scheduler;
@@ -117,7 +118,7 @@ public class UltraFastStream {
         this.active = true;
         this.status = ConnectionStatus.RECONNECTING;
         
-        logger.info("[START] Starte UltraFastStream für: {}", this.symbol);
+        // logger.info("[START] Starte UltraFastStream für: {}", this.symbol);
         
         // WebSocket-Verbindung starten
         connectWebSocket();
@@ -139,7 +140,7 @@ public class UltraFastStream {
             
             // Symbol in Kleinbuchstaben für Binance WebSocket API
             String wsSymbol = symbol.toLowerCase();
-            logger.info("[WS] Verbinde WebSocket für Symbol: {} (WS: {})", symbol, wsSymbol);
+            // logger.info("[WS] Verbinde WebSocket für Symbol: {} (WS: {})", symbol, wsSymbol);
             
             // WebSocket starten
             this.connection = webSocketClient.onTickerEvent(wsSymbol, 
@@ -155,7 +156,7 @@ public class UltraFastStream {
                     }
                 });
             
-            logger.info("[OK] WebSocket-Verbindung hergestellt fuer {}", symbol);
+            // logger.info("[OK] WebSocket-Verbindung hergestellt fuer {}", symbol);
             
         } catch (Exception e) {
             logger.error("[ERROR] Fehler beim WebSocket-Verbindungsaufbau: {}", e.getMessage(), e);
@@ -172,7 +173,7 @@ public class UltraFastStream {
         
         // Debug: Zeige was ankommt
         if (currentPrice == null) {
-            logger.info("[TICKER] Erster Ticker empfangen: Symbol={}, Preis={}", tickerSymbol, priceStr);
+            // logger.info("[TICKER] Erster Ticker empfangen: Symbol={}, Preis={}", tickerSymbol, priceStr);
         }
         
         if (priceStr != null) {
@@ -185,13 +186,23 @@ public class UltraFastStream {
                 // Erfolgreiche Verbindung - Status aktualisieren
                 if (status != ConnectionStatus.CONNECTED) {
                     status = ConnectionStatus.CONNECTED;
-                    reconnectAttempts.set(0);
                     reconnecting = false;
                     
                     // Falls REST-Fallback aktiv war, stoppen
                     stopRestFallback();
                     
-                    logger.info("[OK] Stream CONNECTED - Empfange Live-Preise für {} = EUR {}", symbol, price);
+                    // logger.info("[OK] Stream CONNECTED - Empfange Live-Preise für {} = EUR {}", symbol, price);
+                }
+                
+                // reconnectAttempts erst zurücksetzen wenn Verbindung stabil ist
+                // (mindestens STALE_DATA_THRESHOLD_MS ohne Reconnect)
+                if (reconnectAttempts.get() > 0 && lastReconnectTime > 0) {
+                    long stableSince = System.currentTimeMillis() - lastReconnectTime;
+                    if (stableSince > TradingConstants.STREAM_STALE_DATA_THRESHOLD_MS) {
+                        reconnectAttempts.set(0);
+                        logger.info("[OK] Verbindung stabil seit {}s - Reconnect-Counter zurückgesetzt für {}", 
+                            stableSince / 1000, symbol);
+                    }
                 }
                 // Preis-Updates werden nicht mehr geloggt (zu viel Output)
                 
@@ -229,6 +240,7 @@ public class UltraFastStream {
         
         reconnecting = true;
         status = ConnectionStatus.RECONNECTING;
+        lastReconnectTime = System.currentTimeMillis();
         
         long delay = calculateBackoff(attempts);
         logger.info("[RECONNECT] Versuch {}/{} in {}ms für {}", 

@@ -21,26 +21,33 @@ public class PortfolioMonitor {
         }
         
         double totalPnLPercent = 0.0;
+        double totalPnLEur = 0.0;
         int positionCount = 0;
         
         for (String dataRecord : positions) {
             String[] parts = dataRecord.split(", ");
             
-            // parts[5] ist der BuyPrice laut Logik
+            // parts[3]=Qty, parts[4]=BuyAmount(EUR), parts[5]=BuyPrice
             if (parts.length < 6) {
                 continue;
             }
             
-            String buyPriceString = parts[5];
-            double buyPrice = Double.valueOf(buyPriceString);
+            double buyPrice = Double.parseDouble(parts[5]);
             
             if (buyPrice <= 0) {
                 continue;
             }
             
-            // PnL pro Position in Prozent berechnen
+            // PnL in Prozent
             double pnlPercent = ((currentPrice - buyPrice) / buyPrice) * 100;
             totalPnLPercent += pnlPercent;
+
+            // PnL in EUR: Qty × (aktuellerPreis − Kaufpreis)
+            try {
+                double qty = Double.parseDouble(parts[3]);
+                totalPnLEur += qty * (currentPrice - buyPrice);
+            } catch (NumberFormatException ignored) {}
+
             positionCount++;
         }
         
@@ -50,7 +57,9 @@ public class PortfolioMonitor {
             SETSQL.setPnL_Reverense(avgPnLPercent);
         }        
         empty.Line();
-        System.out.println("[PORTFOLIO] " + currency + ": " + positionCount + " Positionen | Avg PnL: " + String.format("%.2f", avgPnLPercent) + "%");                
+        System.out.println("[PORTFOLIO] " + currency + ": " + positionCount + " Positionen | Avg PnL: "
+                + String.format("%.2f", avgPnLPercent) + "% | PnL: "
+                + String.format("%.2f", totalPnLEur) + " EUR");                
 
         return avgPnLPercent;
     }    

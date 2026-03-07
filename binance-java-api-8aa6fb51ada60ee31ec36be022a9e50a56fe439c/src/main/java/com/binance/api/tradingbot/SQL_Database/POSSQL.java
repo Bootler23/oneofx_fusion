@@ -47,7 +47,7 @@ public class POSSQL {
     public static boolean positionExistsAtPrice(String currencyPair, double price) {
         try (Connection con = DriverManager.getConnection(dbUrl.getPOS());
                 PreparedStatement pstmt = con.prepareStatement(
-                        "SELECT COUNT(*) as count FROM POS WHERE Status IN (0, 1, 5) AND Währung = ? AND OrderPrice = ?")) {
+                        "SELECT COUNT(*) as count FROM POS WHERE Status IN (0, 1, 5) AND Währung = ? AND ABS(OrderPrice - ?) < 0.0001")) {
 
             pstmt.setString(1, currencyPair);
             pstmt.setDouble(2, price);
@@ -55,13 +55,15 @@ public class POSSQL {
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
                 int count = rs.getInt("count");
-                return count > 0; // true wenn mindestens eine Position existiert
+                return count > 0; // true = Position existiert → kein Kauf
             }
         } catch (SQLException err) {
             System.out.println("SQL-Fehler in positionExistsAtPrice: " + err.getMessage());
+            return true; // Safe Default: bei DB-Fehler Kauf blockieren
         }
         return false;
     }
+    
 
     public static void get_BuyOrderId_WhereStatusZero(List<Long> orderIdList, String currencyPair) {
         try {

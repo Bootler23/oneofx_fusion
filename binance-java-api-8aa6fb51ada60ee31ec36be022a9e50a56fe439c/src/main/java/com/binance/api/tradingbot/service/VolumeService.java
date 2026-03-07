@@ -176,11 +176,11 @@ public class VolumeService {
 
         boolean hasMinVolume = volumeData.hasMinimumVolume(minVolume);
         
-        logger.debug("{} Mindestvolumen-Check: {} EUR {} {} EUR", 
-                    symbol, 
-                    volumeData.getVolumeQuote().setScale(0, RoundingMode.HALF_UP),
-                    hasMinVolume ? ">=" : "<",
-                    minVolume);
+        // logger.debug("{} Mindestvolumen-Check: {} EUR {} {} EUR", 
+        //             symbol, 
+        //             volumeData.getVolumeQuote().setScale(0, RoundingMode.HALF_UP),
+        //             hasMinVolume ? ">=" : "<",
+        //             minVolume);
 
         return hasMinVolume;
     }
