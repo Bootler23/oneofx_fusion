@@ -19,6 +19,7 @@ import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.SQL_Database.ATHSQL;
+import com.binance.api.tradingbot.SQL_Database.CurrencySQL;
 import com.binance.api.tradingbot.SQL_Database.POSSQL;
 import com.binance.api.tradingbot.Settings.set;
 import com.binance.api.tradingbot.constants.TradingConstants;
@@ -50,14 +51,14 @@ public class BuyOrderPocess {
                 }
             }
 
-            if ((TickerPrice >= BuyPrice) && (unten > BuyPrice) && (BuyOrderCalc)) {           
+            if ((TickerPrice >= BuyPrice) && (BuyOrderCalc) && !POSSQL.positionExistsAtPrice(currency, BuyPrice)) {
 
-                VolumeService service = VolumeService.getInstance();
-                boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("300000"));
-                if (!hasVolume) {
-                    System.out.println("Das Handelsvolumen für " + currency + " ist zu gering");
-                    return;
-                }
+                // VolumeService service = VolumeService.getInstance();
+                // boolean hasVolume = service.hasMinimumVolume(currency, new BigDecimal("300000"));
+                // if (!hasVolume) {
+                //     System.out.println("Das Handelsvolumen für " + currency + " ist zu gering");
+                //     return;
+                // }
 
                 empty.Line();
                 System.out.println("Setze mal eine Order bei: " + BuyPrice);
@@ -68,9 +69,20 @@ public class BuyOrderPocess {
                     return;
                 }
 
+                // BuyAmount = abhängig vom STOCH RSI 4h
+                double[] stoch = CurrencySQL.getStochRSI(currency);
+                double k4h = stoch[0], d4h = stoch[1];
+
+                if (d4h > k4h) {
+                    BuyAmaunt = (BuyAmaunt * ((100 - (k4h + d4h)) / 100));
+                    System.out.println("Buyamount " + BuyAmaunt + " angepasst aufgrund StochRSI 4h: K=" + k4h + " D=" + d4h);
+                    if (BuyAmaunt < 10.0) {
+                        BuyAmaunt = 10.0;
+                    }
+                }
+
                 String buyprice = TradingRulesFormatter.formatOrderPrice(currency, BuyPrice);
-                String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency, BigDecimal.valueOf(BuyAmaunt),
-                        BigDecimal.valueOf(LivePrice.get(0)));
+                String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency, BigDecimal.valueOf(BuyAmaunt), BigDecimal.valueOf(LivePrice.get(0)));
 
                 if (!TradingRulesFormatter.isOrderValid(
                         currency, new BigDecimal(buyprice), new BigDecimal(Quantity))) {

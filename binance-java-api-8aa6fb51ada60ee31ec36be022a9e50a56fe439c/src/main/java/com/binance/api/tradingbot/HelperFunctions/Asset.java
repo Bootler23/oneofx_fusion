@@ -70,11 +70,6 @@ public class Asset {
             double bnbTotalEur = round.five(bnbPrice * bnbTotal);
             double bnbInPositionsEur = round.five(bnbPrice * bnbInPositions);
 
-            // System.out.println();
-            // System.out.println("BNB Gesamt: " + round.five(bnbTotal) + " BNB (" + bnbTotalEur + " EUR)");
-            // System.out.println("BNB in Positionen: " + round.five(bnbInPositions) + " BNB (" + bnbInPositionsEur + " EUR)");
-            // System.out.println("BNB verfügbar (Fee-Reserve): " + round.five(bnbAvailable) + " BNB (" + bnbAvailableEur + " EUR)");
-
             if (bnbAvailableEur < 10.0) {
                 System.out.println("BNB Fee-Reserve unter 10 EUR -> Nachkauf wird ausgelöst!");
                 buy_bnb(client);

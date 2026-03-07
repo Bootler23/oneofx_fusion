@@ -67,7 +67,7 @@ public class SellOrderProcess {
             double[] stoch = CurrencySQL.getStochRSI(currency);
             double k2h = stoch[2], d2h = stoch[3];
 
-            boolean hitStopLoss = currentPrice <= stopLossTarget;
+            boolean hitStopLoss = false; // currentPrice <= stopLossTarget;
             boolean hitTakeProfit = currentPrice >= takeProfitTarget;
 
             if (hitStopLoss) {

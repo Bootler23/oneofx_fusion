@@ -14,7 +14,8 @@ public class CurrencyConfig {
     public static String[] getBuyCurrencies() {
         List<String> currencies = new ArrayList<>();
 
-        String sql = "SELECT currency FROM currency";
+        // Nur Währungen laden bei denen buystatus = 'true' oder '1'
+        String sql = "SELECT currency FROM currency WHERE buystatus = 'true' OR buystatus = '1'";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
@@ -32,9 +33,9 @@ public class CurrencyConfig {
         }
 
         if (currencies.isEmpty()) {
-            System.err.println("Keine Währungen in der Tabelle 'currency' gefunden! Bitte Datenbank prüfen.");
+            System.err.println("Keine aktiven Währungen (buystatus=true) in der Tabelle 'currency' gefunden!");
         } else {
-            System.out.println("Währungen aus DB geladen: " + currencies);
+            System.out.println("Aktive Währungen (buystatus=true) aus DB geladen: " + currencies);
         }
 
         return currencies.toArray(new String[0]);

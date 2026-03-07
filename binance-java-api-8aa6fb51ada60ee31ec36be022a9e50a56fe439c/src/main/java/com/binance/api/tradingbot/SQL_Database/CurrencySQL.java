@@ -12,8 +12,8 @@ public class CurrencySQL {
 
     private static final int STALE_THRESHOLD_SECONDS = 60;
 
-    public static void saveStochRSI(String currency, double k4h, double d4h, double k2h, double d2h) {
-        String sql = "UPDATE currency SET k4h = ?, d4h = ?, k2h = ?, d2h = ?, updateTime = datetime('now') WHERE currency = ?";
+    public static void saveStochRSI(String currency, double k4h, double d4h, double k2h, double d2h, double volume24h) {
+        String sql = "UPDATE currency SET k4h = ?, d4h = ?, k2h = ?, d2h = ?, volume24h = ?, updateTime = datetime('now', 'localtime') WHERE currency = ?";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
@@ -22,7 +22,8 @@ public class CurrencySQL {
             ps.setDouble(2, d4h);
             ps.setDouble(3, k2h);
             ps.setDouble(4, d2h);
-            ps.setString(5, currency);
+            ps.setDouble(5, volume24h);
+            ps.setString(6, currency);
             ps.executeUpdate();
 
         } catch (Exception e) {
@@ -31,7 +32,7 @@ public class CurrencySQL {
     }
 
     public static boolean isStale(String currency) {
-        String sql = "SELECT CASE WHEN updateTime IS NULL OR (strftime('%s','now') - strftime('%s', updateTime)) > ? THEN 1 ELSE 0 END AS stale FROM currency WHERE currency = ?";
+        String sql = "SELECT CASE WHEN updateTime IS NULL OR (strftime('%s', datetime('now', 'localtime')) - strftime('%s', updateTime)) > ? THEN 1 ELSE 0 END AS stale FROM currency WHERE currency = ?";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
