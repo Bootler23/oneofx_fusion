@@ -470,14 +470,7 @@ public class oneofx {
         } catch (Exception e) {
             System.err.println("Fehler beim Berechnen des CCI 4h fuer " + currency + ": " + e.getMessage());
         }
-    }
-
-    private static void StochRSI_12h(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.TWELVE_HOURLY);
-        stochCache_k12h = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d12h = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-    }
+    }   
 
     private static void StochRSI_1d(String currency) {
         StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
