@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title} ?: 'Konto erstellen'">Konto erstellen</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .signup-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80vh;
+            padding: 2rem;
+        }
+
+        .signup-card {
+            background: rgba(34, 34, 34, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 178, 200, 0.2);
+            width: 100%;
+            max-width: 500px;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .beta-banner {
+            background: rgba(255, 152, 0, 0.15);
+            border: 1px solid rgba(255, 152, 0, 0.4);
+            border-left: 4px solid #ff9800;
+            padding: 0.8rem 1.5rem;
+            text-align: center;
+            color: #ffb74d;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin: 1rem 0;
+        }
+
+        .signup-card h1 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2rem;
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #00b2c8;
+            box-shadow: 0 0 0 2px rgba(0, 178, 200, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .form-group input::placeholder {
+            color: #888;
+        }
+
+        .password-strength {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        .password-strength.weak { color: #e74c3c; }
+        .password-strength.medium { color: #f39c12; }
+        .password-strength.strong { color: #27ae60; }
+
+        .error-message {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid rgba(231, 76, 60, 0.5);
+            color: #e74c3c;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .success-message {
+            background: rgba(39, 174, 96, 0.2);
+            border: 1px solid rgba(39, 174, 96, 0.5);
+            color: #27ae60;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .signup-button {
+            width: 100%;
+            padding: 0.8rem;
+            background: linear-gradient(45deg, #00b2c8, #7877c6);
+            border: none;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .signup-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 178, 200, 0.4);
+        }
+
+        .signup-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .form-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .form-footer a {
+            color: #00b2c8;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .form-footer a:hover {
+            color: #7877c6;
+        }
+
+        .requirements {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+        }
+
+        .requirements li {
+            margin: 0.25rem 0;
+        }
+    </style>
+</head>
+<body class="dark-bg">
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">oneofx.app</div>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Home</a></li>
+                <li><a href="/dashboard" class="nav-link">Dashboard</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Beta Banner -->
+    <div class="beta-banner">
+        ⚠️ Beta-Version – Projekt im Aufbau
+    </div>
+
+    <div class="signup-container">
+        <div class="signup-card">
+            <h1>Neues Konto erstellen</h1>
+
+            <!-- Error Message -->
+            <div th:if="${errorMessage}" class="error-message">
+                <span th:text="${errorMessage}">Fehler</span>
+            </div>
+
+            <!-- Success Message -->
+            <div th:if="${successMessage}" class="success-message">
+                <span th:text="${successMessage}">Erfolg</span>
+            </div>
+
+            <form th:action="@{/dashboard/create-account}" method="post" id="signupForm">
+                <!-- Vorname -->
+                <div class="form-group">
+                    <label for="vorname">Vorname</label>
+                    <input type="text" 
+                           id="vorname" 
+                           name="vorname" 
+                           placeholder="Max"
+                           maxlength="100"
+                           required>
+                </div>
+
+                <!-- Nachname -->
+                <div class="form-group">
+                    <label for="nachname">Nachname</label>
+                    <input type="text" 
+                           id="nachname" 
+                           name="nachname" 
+                           placeholder="Mustermann"
+                           maxlength="100"
+                           required>
+                </div>
+
+                <!-- Benutzername -->
+                <div class="form-group">
+                    <label for="username">Benutzername</label>
+                    <input type="text" 
+                           id="username" 
+                           name="username" 
+                           placeholder="max_mustermann"
+                           maxlength="100"
+                           pattern="[a-zA-Z0-9_-]+"
+                           title="Nur Buchstaben, Zahlen, - und _"
+                           required>
+                </div>
+
+                <!-- E-Mail -->
+                <div class="form-group">
+                    <label for="email">E-Mail-Adresse</label>
+                    <input type="email" 
+                           id="email" 
+                           name="email" 
+                           placeholder="max@example.com"
+                           maxlength="100"
+                           required>
+                </div>
+
+                <!-- Passwort -->
+                <div class="form-group">
+                    <label for="password">Passwort</label>
+                    <input type="password" 
+                           id="password" 
+                           name="password" 
+                           placeholder="Mindestens 8 Zeichen"
+                           maxlength="100"
+                           minlength="8"
+                           required>
+                    <div id="passwordStrength" class="password-strength"></div>
+                    <ul class="requirements">
+                        <li>Mindestens 8 Zeichen</li>
+                        <li>Groß- und Kleinbuchstaben</li>
+                        <li>Mindestens eine Zahl</li>
+                    </ul>
+                </div>
+
+                <!-- Passwort wiederholen -->
+                <div class="form-group">
+                    <label for="passwordRepeat">Passwort wiederholen</label>
+                    <input type="password" 
+                           id="passwordRepeat" 
+                           name="passwordRepeat" 
+                           placeholder="Passwort erneut eingeben"
+                           maxlength="100"
+                           required>
+                </div>
+
+                <button type="submit" class="signup-button">Konto erstellen</button>
+            </form>
+
+            <div class="form-footer">
+                <p style="color: #888; margin-bottom: 0.5rem;">Bereits ein Konto?</p>
+                <a href="/dashboard">Zurück zum Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Password Strength Indicator
+        const passwordInput = document.getElementById('password');
+        const strengthIndicator = document.getElementById('passwordStrength');
+
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            let strength = 0;
+
+            if (password.length >= 8) strength++;
+            if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength++;
+            if (password.match(/[0-9]/)) strength++;
+            if (password.match(/[^a-zA-Z0-9]/)) strength++;
+
+            if (strength === 0) {
+                strengthIndicator.textContent = '';
+                strengthIndicator.className = 'password-strength';
+            } else if (strength <= 2) {
+                strengthIndicator.textContent = 'Schwach';
+                strengthIndicator.className = 'password-strength weak';
+            } else if (strength === 3) {
+                strengthIndicator.textContent = 'Mittel';
+                strengthIndicator.className = 'password-strength medium';
+            } else {
+                strengthIndicator.textContent = 'Stark';
+                strengthIndicator.className = 'password-strength strong';
+            }
+        });
+
+        // Form Validation
+        document.getElementById('signupForm').addEventListener('submit', function(e) {
+            const password = document.getElementById('password').value;
+            const passwordRepeat = document.getElementById('passwordRepeat').value;
+
+            if (password !== passwordRepeat) {
+                e.preventDefault();
+                alert('Die Passwörter stimmen nicht überein!');
+                return false;
+            }
+
+            if (password.length < 8) {
+                e.preventDefault();
+                alert('Das Passwort muss mindestens 8 Zeichen lang sein!');
+                return false;
+            }
+        });
+    </script>
+</body>
+</html>
