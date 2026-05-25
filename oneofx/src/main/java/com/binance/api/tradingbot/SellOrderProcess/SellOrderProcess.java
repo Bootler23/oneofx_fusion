@@ -7,7 +7,6 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,32 +21,31 @@ import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.RiskRewardRatio.CurrencyRRR;
 import com.binance.api.tradingbot.SQL_Database.PerformanceSQL;
-import com.binance.api.tradingbot.SQL_Database.CurrencySQL;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.CurrencyDAO;
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.HelperFunctions.Slippage;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
+import com.binance.api.tradingbot.domain.HistoryPosition;
+import com.binance.api.tradingbot.domain.Position;
 import java.math.BigDecimal;
 
 public class SellOrderProcess {
 
+    private static final PositionDAO positionDAO = new PositionDAO();
+    private static final HistDAO histDAO = new HistDAO();
+    private static final CurrencyDAO currencyDAO = new CurrencyDAO();
+
     public static void setSellOrder(String currency, BinanceApiRestClient client,
-            List<String> GetRecordFromDataBase_POS, List<Double> LivePrice, double PnL) {
+            List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
         double currentPrice = LivePrice.get(0);
         double percent = SETSQL.getPercentToSell();
 
         if (percent <= 0) {
             percent = 0.5;
-        }
-
-        String today = Time.getCurrentDate();
-        double dynamicStopLoss = round.two(PerformanceSQL.calculateCurrentDynamicStopLoss(currency, today));
-        // double currentRRR = PerformanceSQL.getCurrentWeightedRRR(currency, today);
-        // System.out.println("📊 Aktuelles RRR: " + currentRRR + " | Dynamic Stop-Loss:
-        // " + dynamicStopLoss + "%");
-
-
+        }       
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
@@ -63,67 +61,42 @@ public class SellOrderProcess {
                 continue;
             }
 
-            double takeProfitTarget = (BuyPrice_Double / 100) * (100 + percent);
-            // double stopLossTarget = BuyPrice_Double * (1 + (dynamicStopLoss / 100));
-            double stopLossTarget = BuyPrice_Double * (1 + (- 2.0 / 100));
-            double[] stoch = CurrencySQL.getStochRSI(currency);
-            double k2h = stoch[2], d2h = stoch[3];
-
-            boolean hitStopLoss = currentPrice <= stopLossTarget;
+            double takeProfitTarget = (BuyPrice_Double / 100) * (100 + percent);   
             boolean hitTakeProfit = currentPrice >= takeProfitTarget;
 
-            if (hitStopLoss) {
-                // empty.Line();
-
-                // if (k2h < d2h) {
-                    CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
-                    if (currencyRRR != null) {
-                        System.out.println(currencyRRR.toWeightedBreakdownString());
-                        System.out.println("RRR: " + round.three(currencyRRR.calculateRRR()));
-                    }
-                // } else {
-                //     // System.out.println("⏳ Warte auf besseren StochRSI...");
-                //     return;
-                // }              
-
-                System.out.println("🔴 STOP-LOSS: " + currency + " bei " + "-2" + "%");
-                System.out.println("Kaufpreis: " + BuyPrice_Double + " -> Aktuell: " + currentPrice);
-                executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, true);               
-                return;
-
-            }
+            // executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
 
             // ---- Trailing Stop Loss ------------------------------------------
-            boolean tslEnabled = CurrencySQL.getTSL(currency);
-            if (tslEnabled) {
-                double tslActivatePercent = CurrencySQL.getTSLActivate(currency);
-                double tslDeclinePercent  = CurrencySQL.getTSLDecline(currency);
-                double tslActivationPrice = BuyPrice_Double * (1.0 + tslActivatePercent / 100.0);
+            // boolean tslEnabled = currencyDAO.getTSL(currency);
+            // if (tslEnabled) {
+            //     double tslActivatePercent = currencyDAO.getTSLActivate(currency);
+            //     double tslDeclinePercent = currencyDAO.getTSLDecline(currency);
+            //     double tslActivationPrice = BuyPrice_Double * (1.0 + tslActivatePercent / 100.0);
 
-                double peakPrice = POSSQL.getPeakPrice(BuyOrderId);
-                if (currentPrice > peakPrice) {
-                    POSSQL.updatePeakPrice(BuyOrderId, currentPrice);
-                    peakPrice = currentPrice;
-                }
+            //     double peakPrice = positionDAO.getPeakPrice(BuyOrderId);
+            //     if (currentPrice > peakPrice) {
+            //         positionDAO.updatePeakPrice(BuyOrderId, currentPrice);
+            //         peakPrice = currentPrice;
+            //     }
 
-                if (peakPrice >= tslActivationPrice) {
-                    double tslTriggerPrice = peakPrice * (1.0 - tslDeclinePercent / 100.0);
-                    if (currentPrice <= tslTriggerPrice) {
-                        empty.Line();
-                        System.out.println("🟡 TRAILING STOP-LOSS: " + currency
-                                + " | Kaufpreis: " + BuyPrice_Double
-                                + " | Peak: " + round.four(peakPrice)
-                                + " | Trigger: " + round.four(tslTriggerPrice)
-                                + " | Aktuell: " + currentPrice);
-                        executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
-                        return;
-                    }
-                }
+            //     if (peakPrice >= tslActivationPrice) {
+            //         double tslTriggerPrice = peakPrice * (1.0 - tslDeclinePercent / 100.0);
+            //         if (currentPrice <= tslTriggerPrice) {
+            //             empty.Line();
+            //             System.out.println("🟡 TRAILING STOP-LOSS: " + currency
+            //                     + " | Kaufpreis: " + BuyPrice_Double
+            //                     + " | Peak: " + round.four(peakPrice)
+            //                     + " | Trigger: " + round.four(tslTriggerPrice)
+            //                     + " | Aktuell: " + currentPrice);
+            //             executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
+            //             return;
+            //         }
+            //     }
 
-            } else if (hitTakeProfit) {
+            if (hitTakeProfit) {
 
                 if (!Slippage.isProfitableAfterSlippage(currency, client, Double.parseDouble(Quantity_String),
-                        BuyPrice_Double, 0.5)) {
+                        BuyPrice_Double, 0.53)) {
                     System.out.println("⏳ Warte auf besseres Orderbuch...");
                     return;
                 }
@@ -135,10 +108,9 @@ public class SellOrderProcess {
                 }
 
                 empty.Line();
-                
                 executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
 
-                CurrencyRRR currencyRRR = CurrencySQL.getCurrencyRRR(currency);
+                CurrencyRRR currencyRRR = currencyDAO.getCurrencyRRR(currency);
                 if (currencyRRR != null) {
                     System.out.println(currencyRRR.toWeightedBreakdownString());
                     System.out.println("RRR: " + round.three(currencyRRR.calculateRRR()));
@@ -155,10 +127,10 @@ public class SellOrderProcess {
     private static void executeSell(String currency, BinanceApiRestClient client, String BuyOrderId,
             String Quantity_String, List<Double> LivePrice, double buyprice, boolean isStopLoss) {
 
-        try {           
+        try {
             String validatedQuantity = TradingRulesFormatter.formatOrderQuantity(currency,
                     new BigDecimal(Quantity_String));
-           
+
             if (!TradingRulesFormatter.isQuantityValid(currency, new BigDecimal(validatedQuantity))) {
                 System.out.println("⚠️ Quantity ungültig für " + currency + ": " + validatedQuantity);
                 return;
@@ -167,7 +139,6 @@ public class SellOrderProcess {
             NewOrderResponse orderResponse = getNewSellOrderResponse(currency, client, validatedQuantity);
 
             System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId + " " + currency);
-       
 
             update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(), orderResponse);
             update_POS_AfterMarketSell(BuyOrderId);
@@ -200,7 +171,7 @@ public class SellOrderProcess {
                 ps.setDouble(4, round.two(newTotalBuffer));
                 ps.setString(5, Time.getCurrentDate());
                 ps.setString(6, Time.getCurrentTime_HHmmss());
-                ps.setInt(7, POSSQL.getCountPOS(currency));
+                ps.setInt(7, positionDAO.getCountPOS(currency));
                 ps.setDouble(8, round.five(Double.parseDouble(orderResponse.getExecutedQty())));
                 ps.executeUpdate();
 
@@ -235,50 +206,23 @@ public class SellOrderProcess {
     }
 
     private static void delete_POS_AfterMarketSell(String BuyOrderId) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement pstmt = con.prepareStatement(
-                        "DELETE FROM positions WHERE BuyOrderId = ?")) {
-
-            pstmt.setString(1, BuyOrderId);
-            pstmt.executeUpdate();
-
-        } catch (SQLException err) {
-            System.err.println("Fehler beim Löschen: " + err.getMessage());
-            err.printStackTrace();
-        }
+        positionDAO.delete(BuyOrderId);
     }
 
     private static void update_HIST_AfterMarketSell(String BuyOrderId, String SellTime,
             String SellDate, NewOrderResponse newOrderResponse) {
-
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement pstmt = con.prepareStatement(
-                        "UPDATE HIST SET Status = ?, SellOrderId = ?, SellTime = ?, SellDate = ? WHERE BuyOrderId = ?")) {
-
-            pstmt.setInt(1, 0);
-            pstmt.setLong(2, newOrderResponse.getOrderId());
-            pstmt.setString(3, SellTime);
-            pstmt.setString(4, SellDate);
-            pstmt.setString(5, BuyOrderId);
-
-            pstmt.executeUpdate();
-
-        } catch (SQLException err) {
-            System.err.println("Fehler beim Aktualisieren: " + err.getMessage());
-            err.printStackTrace();
-        }
+        histDAO.updateByBuyOrderId(new HistoryPosition.Builder(null, BuyOrderId)
+                .status(0)
+                .sellOrderId(String.valueOf(newOrderResponse.getOrderId()))
+                .sellTime(SellTime)
+                .sellDate(SellDate)
+                .build());
     }
 
     private static void update_POS_AfterMarketSell(String BuyOrderId) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                Statement stmt = con.createStatement()) {
-
-            String UpdateSQL = "UPDATE positions SET Status = 2 WHERE BuyOrderId = '" + BuyOrderId + "';";
-            stmt.executeUpdate(UpdateSQL);
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Aktualisieren: " + err.getMessage());
-        }
+        positionDAO.update(new Position.Builder(null, BuyOrderId)
+                .status(2)
+                .build());
     }
 
     public static NewOrderResponse getNewSellOrderResponse(String CurrencyPair, BinanceApiRestClient client,
@@ -289,9 +233,8 @@ public class SellOrderProcess {
 
     public static void handleSellProcess(String currency, BinanceApiRestClient client) {
 
-        List<String> BuyAmountRecord = new ArrayList<String>();
-
-        POSSQL.getPositionWithMaxInMinus(BuyAmountRecord, currency, client);
+        double livePrice = Ticker.getAssetPrice(currency, client);
+        List<String> BuyAmountRecord = positionDAO.getPositionWithMaxInMinus(currency, livePrice);
 
         String record = BuyAmountRecord.get(0);
         String[] recordParts = record.split(", ");

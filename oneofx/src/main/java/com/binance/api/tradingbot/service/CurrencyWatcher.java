@@ -2,7 +2,7 @@ package com.binance.api.tradingbot.service;
 
 import com.binance.api.tradingbot.Settings.CurrencyConfig;
 import com.binance.api.tradingbot.SQL_Database.TradingRulesSQL;
-import com.binance.api.tradingbot.Stream.CombinedTickerStream;
+import com.binance.api.tradingbot.Stream.PricePoller;
 import com.binance.api.tradingbot.TradingMain.oneofx;
 import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.domain.TradingRules;
@@ -19,34 +19,23 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Ueberwacht die currency-Tabelle auf neu aktivierte Waehrungen (buystatus=true).
- *
- * Pollt alle {@link TradingConstants#CURRENCY_WATCH_INTERVAL_SECONDS} Sekunden die DB.
- * Wenn neue Waehrungen erkannt werden (buystatus von false auf true gewechselt),
- * werden diese automatisch zum CombinedTickerStream und zum Trading-Loop hinzugefuegt.
- *
- * Bereits aktive Waehrungen werden NICHT entfernt wenn buystatus auf false wechselt —
- * die bestehende Buy-Guard-Logik in der Main-Loop verhindert neue Kaeufe,
- * Check/Sell laufen weiter.
- */
 public class CurrencyWatcher {
 
     private static final Logger logger = LoggerFactory.getLogger(CurrencyWatcher.class);
 
-    private final CombinedTickerStream combinedStream;
+    private final PricePoller pricePoller;
     private ScheduledExecutorService scheduler;
 
     /**
      * Erstellt einen neuen CurrencyWatcher.
      *
-     * @param combinedStream Der laufende WebSocket-Stream, zu dem neue Symbole hinzugefuegt werden
+     * @param pricePoller Der laufende REST-Preis-Poller, zu dem neue Symbole hinzugefuegt werden
      */
-    public CurrencyWatcher(CombinedTickerStream combinedStream) {
-        if (combinedStream == null) {
-            throw new IllegalArgumentException("CombinedTickerStream darf nicht null sein");
+    public CurrencyWatcher(PricePoller pricePoller) {
+        if (pricePoller == null) {
+            throw new IllegalArgumentException("PricePoller darf nicht null sein");
         }
-        this.combinedStream = combinedStream;
+        this.pricePoller = pricePoller;
     }
 
     /**
@@ -96,7 +85,7 @@ public class CurrencyWatcher {
      * Bei neuen Waehrungen:
      * 1. Trading-Rules von Binance laden und in DB speichern
      * 2. Waehrungs-Array in LTC_EUR_Live erweitern (atomarer Swap)
-     * 3. CombinedTickerStream um neue Symbole erweitern (Reconnect)
+     * 3. PricePoller um neue Symbole erweitern
      */
     private void checkForNewCurrencies() {
         try {
@@ -156,9 +145,9 @@ public class CurrencyWatcher {
             }
             oneofx.setActiveCurrencies(merged);
 
-            // 3. CombinedTickerStream um neue Symbole erweitern
+            // 3. PricePoller um neue Symbole erweitern
             String[] newSymbolsArray = newCurrencies.toArray(new String[0]);
-            combinedStream.addSymbols(newSymbolsArray);
+            pricePoller.addSymbols(newSymbolsArray);
 
             logger.info("[CURRENCY-WATCHER] Aktivierung abgeschlossen — {} neue Waehrung(en), " +
                             "{} Trading-Rules geladen, {} Symbole total im Bot",

@@ -12,6 +12,8 @@ import com.binance.api.tradingbot.RiskRewardRatio.CurrencyRRR;
 
 public class PerformanceSQL {
 
+    private static final PositionDAO positionDAO = new PositionDAO();
+
     public static double calculateCurrentDynamicStopLoss(String currency, String date) {
         try {
             String sql = "SELECT " +
@@ -34,7 +36,7 @@ public class PerformanceSQL {
                 }
             }
 
-            int openPositions = POSSQL.getCountPOS(currency);
+            int openPositions = positionDAO.getCountPOS(currency);
             double baseStopLoss = SETSQL.getBaseStopLossPercent();
             return RRR.calculateDynamicStopLoss(totalBuffer, openPositions, baseStopLoss);
 

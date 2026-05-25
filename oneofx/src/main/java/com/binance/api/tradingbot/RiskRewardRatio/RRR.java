@@ -1,9 +1,11 @@
 package com.binance.api.tradingbot.RiskRewardRatio;
 
 import com.binance.api.tradingbot.HelperFunctions.round;
-import com.binance.api.tradingbot.SQL_Database.HISTSQL;
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
 
 public class RRR {
+
+    private static final HistDAO histDAO = new HistDAO();
    
     private static final double MAX_STOP_LOSS = -5.0;  // Niemals weiter als -5%
     private static final double MIN_STOP_LOSS = -0.5;  // Niemals enger als -0.5%
@@ -13,8 +15,8 @@ public class RRR {
     }
 
     private static double getRiskRewardRatio(final String Url, String tableName) {
-        double profit = HISTSQL.getSumColumnToday(Url, "GewinnAfterTax", tableName);
-        double loss = HISTSQL.getSumColumnToday(Url, "LossAfterTax", tableName);
+        double profit = histDAO.getSumColumnToday(Url, "GewinnAfterTax", tableName);
+        double loss = histDAO.getSumColumnToday(Url, "LossAfterTax", tableName);
         return calculateRiskRewardRatio(profit, loss);
     }
 

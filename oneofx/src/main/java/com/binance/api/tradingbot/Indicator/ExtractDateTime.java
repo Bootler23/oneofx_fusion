@@ -9,7 +9,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
+import com.binance.api.tradingbot.domain.HistoryPosition;
+
 public class ExtractDateTime {
+
+    private static final HistDAO histDAO = new HistDAO();
 
     public static void getDataRecordsIDBuyTime(final String SQL, List<String> dataRecords) {
         try {
@@ -20,9 +25,9 @@ public class ExtractDateTime {
             ResultSet rs = query.executeQuery(SQL1);
 
             while (rs.next()) {
-                String BuyOrderId = rs.getString("BuyOrderId"); // 0
-                String BuyTime = rs.getString("BuyTime"); // 1
-                String SellTime = rs.getString("SellTime"); // 2
+                String BuyOrderId = rs.getString("BuyOrderId");
+                String BuyTime = rs.getString("BuyTime");
+                String SellTime = rs.getString("SellTime");
 
                 String dataRecord = BuyOrderId + ", " + BuyTime + ", " + SellTime;
                 dataRecords.add(dataRecord);
@@ -39,46 +44,25 @@ public class ExtractDateTime {
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
-        // Iteriere durch die Datensätze in dataRecords
         for (String dataRecord : dataRecords) {
-            // Trenne den Eintrag in BuyOrderId und das Datum (dataValue)
             String[] parts = dataRecord.split(", ");
-            String BuyOrderId = parts[0]; // Die BuyOrderId
-            //String BuyValues = parts[1]; // Das Datum (dataValue)
-            String SellValues = parts[2]; // Die Uhrzeit (timeValue)
+            String BuyOrderId = parts[0];
+            String SellValues = parts[2];
 
             try {
                 LocalDateTime dateTime = LocalDateTime.parse(SellValues, formatter);
 
-                // Extrahiere das Datum und die Uhrzeit
                 String formattedDate = dateTime.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
                 String formattedTime = dateTime.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
 
-                // Gib die getrennten Werte aus
-                // System.out.println("BuyDate: " + formattedDate);
-                // System.out.println("BuyTime: " + formattedTime);
-
-                Connection con_update = DriverManager.getConnection(SQL);
-                Statement update = con_update.createStatement();
-                String SQL_update = "UPDATE HIST SET "
-                        + "SellTime = '" + formattedTime + "', "
-                        + "SellDate = '" + formattedDate + "' "
-                        + "WHERE BuyOrderId = " + BuyOrderId + ";";
-
-                update.executeUpdate(SQL_update);
-                con_update.close();
-                update.close();
-
-                //System.out.println("");
-                //System.out.println("DATE TIME UPDATED IN HIST");
-
-            } catch (SQLException err) {
-                System.out.println(err.getMessage());
+                histDAO.updateByBuyOrderId(new HistoryPosition.Builder(null, BuyOrderId)
+                        .sellTime(formattedTime)
+                        .sellDate(formattedDate)
+                        .build());
 
             } catch (Exception e) {
                 System.out.println("Fehler beim Parsen des Datums: " + e.getMessage());
             }
         }
-
     }
 }

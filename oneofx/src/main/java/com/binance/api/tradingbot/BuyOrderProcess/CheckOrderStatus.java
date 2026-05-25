@@ -1,10 +1,5 @@
 package com.binance.api.tradingbot.BuyOrderProcess;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -18,17 +13,22 @@ import com.binance.api.client.domain.account.request.CancelOrderRequest;
 import com.binance.api.client.domain.account.request.OrderRequest;
 import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.exception.BinanceApiException;
-import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.Indicator.Updates;
-import com.binance.api.tradingbot.SQL_Database.ATHSQL;
-import com.binance.api.tradingbot.SQL_Database.HISTSQL;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.CurrencyDAO;
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.Settings.set;
+import com.binance.api.tradingbot.domain.HistoryPosition;
+import com.binance.api.tradingbot.domain.Position;
 
 public class CheckOrderStatus {
+
+    private static final PositionDAO positionDAO = new PositionDAO();
+    private static final HistDAO histDAO = new HistDAO();
+    private static final CurrencyDAO currencyDAO = new CurrencyDAO();
 
     /**
      * Prüft den Status aller offenen Buy-Orders für eine Währung.
@@ -177,30 +177,13 @@ public class CheckOrderStatus {
     }
 
     private static void DeleteOrderWithOrderId(Long buyOrderId) {
-        // System.out.println("Gecancelte Order gefunden: " + buyOrderId);
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement pstmt = con.prepareStatement(
-                        "DELETE FROM positions WHERE BuyOrderId = ?")) {
-
-            pstmt.setLong(1, buyOrderId);
-            pstmt.executeUpdate();
-            // System.out.println("Order aus Datenbank entfernt: " + buyOrderId);
-
-        } catch (SQLException err) {
-            System.err.println("Datenbankfehler beim Löschen: " + err.getMessage());
-        }
+        positionDAO.delete(String.valueOf(buyOrderId));
     }
 
     private static void CancelOrderFromOutside(Order order) {
         double OrderPrice = round.two(Double.valueOf(order.getPrice()));
         System.out.println("CANCEL FROM OUTSIDE: " + OrderPrice);
-
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                Statement delete = con.createStatement()) {
-            delete.execute("DELETE FROM positions WHERE BuyOrderId = " + order.getOrderId());
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
+        positionDAO.delete(String.valueOf(order.getOrderId()));
     }
 
     private static void BUY_FILLED(String currency, BinanceApiRestClient client, Long BuyOrderId, Order order, List<Double> LivePrice) {
@@ -209,66 +192,43 @@ public class CheckOrderStatus {
         String BuyDate = Time.getCurrentDate();
         String BuyTime = Time.getCurrentTime_HHmmss();
 
-        Updates.NewCounterPosition();
-        Updates.addminBuyAmount();
-        // Updates.ratioBalanceToBA();
-        Updates.calcPercentToAddForNextBuy();
+        Updates.NewCounterPosition();       
         Updates.setExpectationCounter();
 
-        try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
-                Statement update = con_update.createStatement()) {
-
-            String SQL_update = "UPDATE positions SET "
-                    + "OrderPrice = " + OrderPrice + ", "
-                    + "Status = 5, "
-                    + "statusCode = 'FILLED', "
-                    + "BuyTime = '" + Time.getCurrentTime_HHmmss() + "', "
-                    + "BuyDate = '" + Time.getCurrentDate() + "' "
-                    + "WHERE BuyOrderId = " + BuyOrderId;
-
-            update.executeUpdate(SQL_update);
-            // System.out.println("BUY FILLED - Vollzogen: " + currency + " " + OrderPrice);
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
-        }
+        positionDAO.update(new Position.Builder(currency, String.valueOf(BuyOrderId))
+                .orderPrice(OrderPrice)
+                .status(5)
+                .statusCode("FILLED")
+                .buyTime(Time.getCurrentTime_HHmmss())
+                .buyDate(Time.getCurrentDate())
+                .build());
        
-        String asset = currency.replace("EUR", ""); // z.B. "LTCEUR" -> "LTC", "BNBEUR" -> "BNB"
+        String asset = currency.replace("EUR", "");
         BalanceInfo balances = getBalances(asset, client);
-        double taxe = HISTSQL.getTaxe();
+        double taxe = histDAO.getTaxe();
 
-        try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement insert_HIST = con_insert_HIST.prepareStatement(
-                        "INSERT INTO HIST (Währung, BuyOrderId, OrigPrice, BuyDate, BuyTime, Balance_atBuy, Asset_atBuy, BalanceToAsset_atBuy, POS_count, X) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+        double eurBalance = round.eight((balances.eurBalance - taxe));
+        double assetQuantityPrice = round.five(balances.assetQuantity * LivePrice.get(0));
 
-            insert_HIST.setString(1, currency);
-            insert_HIST.setLong(2, BuyOrderId);
-            insert_HIST.setDouble(3, OrderPrice);
-            insert_HIST.setString(4, BuyDate);
-            insert_HIST.setString(5, BuyTime);
-
-            double eurBalance = round.eight((balances.eurBalance - taxe));
-            insert_HIST.setDouble(6, eurBalance);
-
-            double assetQuantityPrice = round.five(balances.assetQuantity * LivePrice.get(0));
-            insert_HIST.setDouble(7, assetQuantityPrice);    
-
-            double balanceToAssetRatio = 0.0;
-            if (balances.assetQuantity > 0) {
-                balanceToAssetRatio = round.three((eurBalance -  HISTSQL.getTaxe()) / assetQuantityPrice);
-            }
-            insert_HIST.setDouble(8, balanceToAssetRatio);
-
-            int countPosition = POSSQL.getCountPOS(currency);
-            insert_HIST.setInt(9, countPosition);  
-            insert_HIST.setDouble(10, round.five(countPosition/balanceToAssetRatio)); // TODO -> Balance/BA
-
-            insert_HIST.executeUpdate();
-            System.out.println("Save Hist & Pos " + currency + " " + OrderPrice);
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
+        double balanceToAssetRatio = 0.0;
+        if (balances.assetQuantity > 0) {
+            balanceToAssetRatio = round.three((eurBalance - histDAO.getTaxe()) / assetQuantityPrice);
         }
+
+        int countPosition = positionDAO.getCountPOS(currency);
+
+        histDAO.insert(new HistoryPosition.Builder(currency, String.valueOf(BuyOrderId))
+                .origPrice(OrderPrice)
+                .buyDate(BuyDate)
+                .buyTime(BuyTime)
+                .balanceAtBuy(eurBalance)
+                .assetAtBuy(assetQuantityPrice)
+                .balanceToAssetAtBuy(balanceToAssetRatio)
+                .posCount(countPosition)
+                .x(round.five(countPosition / balanceToAssetRatio))
+                .build());
+
+        System.out.println("Save Hist & Pos " + currency + " " + OrderPrice);
     }
 
     private static double getBuyPrice(Order order) {
@@ -280,41 +240,40 @@ public class CheckOrderStatus {
             Long BuyOrderId, Double orderPrice) {
 
         try {
-            double athPrice = ATHSQL.getAllTimeHigh(currency);
-            double CancelPrice = athPrice;
-            double LiveKurs = LivePrice.get(0);
-            int i = 0;
+            double athPrice = currencyDAO.getAllTimeHigh(currency);
             int grid = set.getGridforCurrency(currency);
-            double stepSize = athPrice / 100.0 / grid;  // präziser Step ohne Runden
+            double livePrice = LivePrice.get(0);
 
-            boolean calc = true;
-            int maxIterations = 10000;
-            int iteration = 0;
-            while (calc && iteration++ < maxIterations) {
-                CancelPrice = CancelPrice - stepSize;  // kein round.two hier
+            // Proportionaler Walk vom ATH (identisch zu BuyOrderProcess)
+            double price = athPrice;
+            int stepsBelow = 0;
+            boolean found = false;
 
-                if (LiveKurs > CancelPrice) {
-                    i++;
-                    if (i > 5) {
-                        calc = false;
-                        break;
-                    }
-                    if (i == 3) {
-                        if (CancelPrice > orderPrice) {
-                            client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
-                            System.out.println("Order gecancelt: " + currency + " orderPrice " + orderPrice);
+            for (int iteration = 0; iteration < 10000; iteration++) {
+                price = price - (price / 100.0 / grid);
+                double formatted = TradingRulesFormatter.formatPrice(currency, price);
 
-                            DeleteOrderWithOrderId(BuyOrderId);
-                            calc = false;
-                            break;
-                        }
-                    }
+                if (livePrice > formatted) {
+                    stepsBelow++;
                 }
+
+                if (orderPrice > 0 && Math.abs(formatted - orderPrice) / orderPrice < 0.001) {
+                    found = true;
+                    break;
+                }
+
+                if (formatted < orderPrice * 0.9) break;
             }
 
+            if (found && stepsBelow > 3) {
+                client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
+                System.out.println("Order gecancelt (zu weit weg): " + currency
+                        + " orderPrice=" + orderPrice + " livePrice=" + livePrice
+                        + " steps=" + stepsBelow);
+                positionDAO.delete(String.valueOf(BuyOrderId));
+            }
         } catch (Exception e) {
             System.err.println("Fehler in BUY_NEW für Order " + BuyOrderId + ": " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
@@ -323,27 +282,32 @@ public class CheckOrderStatus {
             Order order) {
 
         try {
-            double athPrice = ATHSQL.getAllTimeHigh(currency);
-            double CancelPrice = athPrice;
-            double LiveKurs = LivePrice.get(0);
-            int i = 0;
+            double athPrice = currencyDAO.getAllTimeHigh(currency);
             int grid = set.getGridforCurrency(currency);
-            double stepSize = athPrice / 100.0 / grid;  // präziser Step ohne Runden
+            double livePrice = LivePrice.get(0);
 
-            boolean calc = true;
-            int maxIterations = 10000;
-            int iteration = 0;
-            while (calc && iteration++ < maxIterations) {
-                CancelPrice = CancelPrice - stepSize;  // kein round.two hier
+            // Proportionaler Walk vom ATH (identisch zu BuyOrderProcess)
+            double price = athPrice;
+            int stepsBelow = 0;
+            boolean shouldCancel = false;
 
-                if (LiveKurs > CancelPrice) {
-                    i++;
-                    if (i > 5) {
-                        calc = false;
-                        break;
-                    }
-                    if (i == 3) {
-                        if (CancelPrice > orderPrice) {
+            for (int iteration = 0; iteration < 10000; iteration++) {
+                price = price - (price / 100.0 / grid);
+                double formatted = TradingRulesFormatter.formatPrice(currency, price);
+
+                if (livePrice > formatted) {
+                    stepsBelow++;
+                }
+
+                if (orderPrice > 0 && Math.abs(formatted - orderPrice) / orderPrice < 0.001) {
+                    shouldCancel = stepsBelow > 3;
+                    break;
+                }
+
+                if (formatted < orderPrice * 0.9) break;
+            }
+
+            if (shouldCancel) {
                             System.out.println("Order teilweise gefüllt: " + orderPrice + " - " + BuyOrderId);
 
                             int Status;
@@ -359,58 +323,30 @@ public class CheckOrderStatus {
                                 Status = 3;
                             }
 
-                            try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
-                                    PreparedStatement pstmt = con_update.prepareStatement(
-                                            "UPDATE positions SET BuyPrice = ?, Qty = ?, Währung = ?, BuyAmount = ?, " +
-                                                    "Status = ?, BuyTime = ?, BuyDate = ? WHERE BuyOrderId = ?")) {
+                            positionDAO.update(new Position.Builder(currency, String.valueOf(BuyOrderId))
+                                    .buyPrice(BuyPrice)
+                                    .quantity(Quantity)
+                                    .buyAmount(partially_BuyAmount)
+                                    .status(Status)
+                                    .buyTime(BuyTime)
+                                    .buyDate(BuyDate)
+                                    .build());
 
-                                pstmt.setDouble(1, BuyPrice);
-                                pstmt.setDouble(2, Quantity);
-                                pstmt.setString(3, currency);
-                                pstmt.setDouble(4, partially_BuyAmount);
-                                pstmt.setInt(5, Status);
-                                pstmt.setString(6, BuyTime);
-                                pstmt.setString(7, BuyDate);
-                                pstmt.setLong(8, BuyOrderId);
-
-                                pstmt.executeUpdate();
-
-                            } catch (SQLException err) {
-                                System.err.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
-                                err.printStackTrace();
-                            }
-
-                            try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getoneOfX());
-                                    PreparedStatement pstmt = con_insert_HIST.prepareStatement(
-                                            "INSERT INTO HIST (Währung, BuyOrderId, BuyPrice, Quantity, BuyAmount, BuyDate, BuyTime) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
-
-                                pstmt.setString(1, currency);
-                                pstmt.setLong(2, BuyOrderId);
-                                pstmt.setDouble(3, BuyPrice);
-                                pstmt.setDouble(4, Quantity);
-                                pstmt.setDouble(5, partially_BuyAmount);
-                                pstmt.setString(6, BuyDate);
-                                pstmt.setString(7, BuyTime);
-
-                                pstmt.executeUpdate();
-
-                            } catch (SQLException err) {
-                                System.err.println("Fehler beim Einfügen in die HIST-Tabelle: " + err.getMessage());
-                                err.printStackTrace();
-                            }
+                            histDAO.insert(new HistoryPosition.Builder(currency, String.valueOf(BuyOrderId))
+                                    .buyPrice(BuyPrice)
+                                    .quantity(Quantity)
+                                    .buyAmount(partially_BuyAmount)
+                                    .buyDate(BuyDate)
+                                    .buyTime(BuyTime)
+                                    .build());
 
                             // Cancel der verbleibenden offenen Order
                             client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
-                            System.out.println("Verbleibende Order gecancelt: " + BuyOrderId);
-
-                            calc = false;
-                            break;
-                        }
-                    }
-                }
+                            System.out.println("Verbleibende Order gecancelt: " + BuyOrderId
+                                    + " steps=" + stepsBelow);
             }
         } catch (Exception e) {
-            System.err.println("Fehler in Test_PARTIALLY_FILLED für Order " + BuyOrderId + ": " + e.getMessage());
+            System.err.println("Fehler in PARTIALLY_FILLED für Order " + BuyOrderId + ": " + e.getMessage());
             e.printStackTrace();
         }
     }

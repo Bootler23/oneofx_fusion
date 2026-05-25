@@ -34,10 +34,10 @@ import java.util.List;
 public class StochRSI {
 
     // Standard Parameter (wie TradingView)
-    private static final int DEFAULT_RSI_PERIOD = 14;
-    private static final int DEFAULT_STOCH_PERIOD = 14;
-    private static final int DEFAULT_K_PERIOD = 3;
-    private static final int DEFAULT_D_PERIOD = 3;
+    private static final int DEFAULT_RSI_PERIOD = 21;
+    private static final int DEFAULT_STOCH_PERIOD = 21;
+    private static final int DEFAULT_K_PERIOD = 5;
+    private static final int DEFAULT_D_PERIOD = 4;
     
     // Overbought/Oversold Schwellenwerte (0-1 Skala)
     private static final double OVERBOUGHT_THRESHOLD = 0.80;

@@ -7,13 +7,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.binance.api.tradingbot.HelperFunctions.empty;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
-import com.binance.api.tradingbot.Stream.CombinedTickerStream;
+import com.binance.api.tradingbot.Stream.PricePoller;
 
 public class PortfolioMonitor {
 
     private static final Logger logger = LoggerFactory.getLogger(PortfolioMonitor.class);
+    private static final PositionDAO positionDAO = new PositionDAO();
 
     // Gecachte Gesamt-Werte – werden alle 60s aktualisiert, jede Sekunde angezeigt
     private static volatile int    cachedTotalPositions  = 0;
@@ -36,12 +37,12 @@ public class PortfolioMonitor {
 
     /**
      * Zeigt den Portfolio-Status fuer alle uebergebenen Waehrungspaare in einem Block an.
-     * Der aktuelle Preis wird fuer jedes Paar direkt aus dem CombinedTickerStream gelesen.
+     * Der aktuelle Preis wird fuer jedes Paar direkt aus dem PricePoller gelesen.
      *
      * @param currencies Alle aktiven Waehrungspaare (z.B. ["LTCEUR", "ETHEUR", "BNBEUR"])
-     * @param stream     Laufender CombinedTickerStream mit gecachten Live-Preisen
+     * @param stream     Laufender PricePoller mit gecachten REST-Preisen
      */
-    public static void showAllPortfolioStatus(String[] currencies, CombinedTickerStream stream) {
+    public static void showAllPortfolioStatus(String[] currencies, PricePoller stream) {
         int    totalPositions = 0;
         double totalPnLEur    = 0.0;
         double totalPnLPct    = 0.0;
@@ -100,8 +101,7 @@ public class PortfolioMonitor {
      */
     private static double[] calculateAndPrintPortfolio(String currency, double currentPrice) {
 
-        List<String> positions = new ArrayList<>();
-        POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, positions);
+        List<String> positions = positionDAO.getDataRecordsWhereStatusOneOrSeven(currency);
 
         if (positions.isEmpty()) {
             System.out.println("[PORTFOLIO] " + currency + ": Keine offenen Positionen");
@@ -154,8 +154,7 @@ public class PortfolioMonitor {
 
     public static void showDetailedPortfolioStatus(String currency, double currentPrice) {
         
-        List<String> positions = new ArrayList<>();
-        POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, positions);
+        List<String> positions = positionDAO.getDataRecordsWhereStatusOneOrSeven(currency);
         
         if (positions.isEmpty()) {
             empty.Line();

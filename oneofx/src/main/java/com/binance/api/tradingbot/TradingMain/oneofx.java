@@ -1,6 +1,5 @@
 package com.binance.api.tradingbot.TradingMain;
 
-import com.binance.api.tradingbot.BuyOrderProcess.BuyAmountFunktion;
 import com.binance.api.tradingbot.BuyOrderProcess.BuyOrderPocess;
 import com.binance.api.tradingbot.BuyOrderProcess.CheckOrderStatus;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
@@ -9,9 +8,11 @@ import com.binance.api.tradingbot.HelperFunctions.BalanceReconciliation;
 import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
 import com.binance.api.tradingbot.Indicator.Merge;
-import com.binance.api.tradingbot.SQL_Database.ATHSQL;
-import com.binance.api.tradingbot.SQL_Database.HISTSQL;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.Indicator.StochRSI;
+import com.binance.api.client.domain.market.CandlestickInterval;
+import com.binance.api.tradingbot.SQL_Database.CurrencyDAO;
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.SQL_Database.WPDSQL;
 import com.binance.api.tradingbot.SQL_Database.TradingRulesSQL;
@@ -27,59 +28,29 @@ import com.binance.api.tradingbot.service.TradingRulesService;
 import com.binance.api.tradingbot.domain.TradingRules;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.service.RateLimitTracker;
-import com.binance.api.tradingbot.service.PortfolioMonitor;
-import com.binance.api.tradingbot.service.CurrencyWatcher;
-import com.binance.api.tradingbot.Stream.CombinedTickerStream;
-import com.binance.api.tradingbot.HelperFunctions.round;
-import com.binance.api.tradingbot.Indicator.StochRSI;
-import com.binance.api.tradingbot.Indicator.CCI;
-import com.binance.api.tradingbot.Indicator.ATR;
-import com.binance.api.tradingbot.Indicator.RSI;
-import com.binance.api.tradingbot.Indicator.EMA;
-import com.binance.api.tradingbot.SQL_Database.CurrencySQL;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.binance.api.tradingbot.Stream.PricePoller;
 import com.binance.api.client.exception.BinanceApiException;
 
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.util.List;
 import java.util.ArrayList;
 
 public class oneofx {
 
     private static volatile boolean running = true;
-    private static CombinedTickerStream combinedStream;
-    private static CurrencyWatcher currencyWatcher;
-    private static long lastBnbBalanceCheck = 0;
+
+    private static final CurrencyDAO currencyDAO = new CurrencyDAO();
+    private static final HistDAO histDAO = new HistDAO();
+    private static final PositionDAO positionDAO = new PositionDAO();
+    private static PricePoller pricePoller;
 
     /**
-     * Aktives Waehrungs-Array. Wird vom CurrencyWatcher zur Laufzeit erweitert
-     * wenn neue Waehrungen in der DB auf buystatus=true gesetzt werden.
-     * Volatile fuer sicheren Zugriff aus Main-Loop und CurrencyWatcher-Thread.
+     * Aktives Waehrungs-Array — wird im Update-Zyklus direkt aus der DB geladen.
+     * Volatile fuer sicheren Zugriff aus dem Main-Loop.
      */
     private static volatile String[] activeCurrencies = new String[0];
-
-    // Zwischenspeicher fuer StochRSI aller Timeframes + CCI 4h + ATR 4h + RSI 4h.
-    // StochRSI_2h() schreibt alle Werte gemeinsam in die DB.
-    private static double stochCache_k4h = 0.0;
-    private static double stochCache_d4h = 0.0;
-    private static double stochCache_k12h = 0.0;
-    private static double stochCache_d12h = 0.0;
-    private static double stochCache_k1d = 0.0;
-    private static double stochCache_d1d = 0.0;
-    private static double stochCache_k3d = 0.0;
-    private static double stochCache_d3d = 0.0;
-    private static double stochCache_k1w = 0.0;
-    private static double stochCache_d1w = 0.0;
-    private static double stochCache_k1m = 0.0;
-    private static double stochCache_d1m = 0.0;
-    private static double stochCache_k5m = 0.0;
-    private static double stochCache_d5m = 0.0;
-    private static double stochCache_cci4h = 0.0;
-    private static double stochCache_atr4h = 0.0;
-    private static double stochCache_rsi4h = 0.0;
-    private static double stochCache_emaFast = 0.0;
-    private static double stochCache_emaSlow = 0.0;
-
-    private static double PnL = 0.0;
 
     /**
      * Stoppt den Trading Bot.
@@ -87,14 +58,9 @@ public class oneofx {
     public static void stop() {
         running = false;
 
-        // CurrencyWatcher stoppen
-        if (currencyWatcher != null) {
-            currencyWatcher.stop();
-        }
-
-        // Combined WebSocket Stream stoppen
-        if (combinedStream != null) {
-            combinedStream.stop();
+        // PricePoller stoppen
+        if (pricePoller != null) {
+            pricePoller.stop();
         }
 
         // Rate-Limit-Tracker stoppen
@@ -134,10 +100,20 @@ public class oneofx {
 
         running = true;
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Shutdown-Signal empfangen – stoppe Bot...");
-            stop();
-        }, "ShutdownHook-Thread"));
+        // ========== Schutz gegen Doppelstart ==========
+        try {
+            FileChannel lockChannel = new RandomAccessFile("oneofx.lock", "rw").getChannel();
+            FileLock lock = lockChannel.tryLock();
+            if (lock == null) {
+                System.err.println("⛔ Eine andere Instanz läuft bereits. Abbruch.");
+                System.exit(1);
+            }
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try { lock.release(); lockChannel.close(); } catch (Exception ignored) {}
+            }));
+        } catch (Exception e) {
+            System.err.println("⚠️ Lock-Datei konnte nicht erstellt werden: " + e.getMessage());
+        }
 
         if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
             RateLimitTracker rateLimitTracker = RateLimitTracker.getInstance();
@@ -176,40 +152,18 @@ public class oneofx {
 
         String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
 
-        System.out.println(
-                "📡 Starte Combined WebSocket Stream für " + BuyCurrencies.length + " Währungen (1 Connection)...");
+        System.out.println("📡 Starte REST-Preis-Polling für " + BuyCurrencies.length + " Währungen...");
 
-        combinedStream = new CombinedTickerStream();
-        combinedStream.start(BuyCurrencies);
+        pricePoller = new PricePoller();
+        pricePoller.start(BuyCurrencies);
 
-        // Warte auf erste Daten (max. 15 Sekunden)
-        System.out.println("⏳ Warte auf WebSocket-Daten...");
-        long timeout = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < timeout) {
-            if (combinedStream.getActiveSymbolCount() == BuyCurrencies.length)
-                break;
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-
-        int activeStreams = combinedStream.getActiveSymbolCount();
-        System.out.println("✅ " + activeStreams + "/" + BuyCurrencies.length + " Symbole empfangen Daten");
-        if (activeStreams < BuyCurrencies.length) {
-            System.out.println("⚠️ Einige Symbole ohne Daten - REST-Fallback wird genutzt");
-        }
+        int activeStreams = pricePoller.getActiveSymbolCount();
+        System.out.println("✅ " + activeStreams + "/" + BuyCurrencies.length + " Symbole verfügbar");
         // ========== Aktives Waehrungs-Array initialisieren und CurrencyWatcher starten
         // ==========
 
         activeCurrencies = BuyCurrencies;
 
-        currencyWatcher = new CurrencyWatcher(combinedStream);
-        currencyWatcher.start();
-        System.out.println("\uD83D\uDD0D CurrencyWatcher gestartet \u2014 pruefe alle "
-                + TradingConstants.CURRENCY_WATCH_INTERVAL_SECONDS + "s auf neue Waehrungen");
         while (running) {
             try {
 
@@ -249,10 +203,10 @@ public class oneofx {
                     int sleepMs = getSleepMs();
                     sleep.valueOffMillieSeconds(sleepMs);
 
-                    sleep.for_1_second();
+                    // sleep.for_05_second();
 
-                    // Hole Preis aus dem Combined Stream
-                    Double livePrice = combinedStream.getPrice(currency);
+                    // Hole Preis via REST-Polling
+                    Double livePrice = pricePoller.getPrice(currency);
 
                     if (livePrice == null || livePrice == 0.0) {
                         System.out.println("x");
@@ -269,9 +223,14 @@ public class oneofx {
                         LivePrice.add(livePrice);
                     }
 
-                    ATHSQL.CheckForNewAllTimeHigh(currency, LivePrice);
+                    currencyDAO.checkForNewAllTimeHigh(currency, LivePrice);
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
+
+                        // Waehrungen aus DB aktualisieren (buystatus true/false)
+                        String[] dbCurrencies = CurrencyConfig.getBuyCurrencies();
+                        pricePoller.addSymbols(dbCurrencies);
+                        activeCurrencies = dbCurrencies;
 
                         getTradeInformation.RecordsByStatus(dbUrl.getoneOfX(),
                                 TradingConstants.TABLE_HIST, 0,
@@ -285,7 +244,8 @@ public class oneofx {
 
                         SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
 
-                        HISTSQL.getDataRecords_WhereStatusOne(currency, getDataRecords);
+                        getDataRecords.clear();
+                        getDataRecords.addAll(histDAO.getDataRecordsWhereStatusOne(currency));
                         Merge.splitValue(currency, getDataRecords);
 
                         WPDSQL.getGewinnAfterTax();
@@ -295,53 +255,20 @@ public class oneofx {
                     }
 
                     count++;
-
                     System.out.print(".");
 
-                    long currentTime = System.currentTimeMillis();
-                    if (currentTime - lastBnbBalanceCheck >= 60 * 1000) {
-                        Asset.getBNB_Balance("BNBEUR", "BNB", bnb.getClient());
-
-                        SETSQL.getAVG_BalanceToAsset_atBuy();
-
-                        // Balance-Abgleich: Exchange vs. Datenbank pro Waehrungspaar
-                        BalanceReconciliation.reconcileAll(currentCurrencies, bnb.getClient());
-
-                        // Portfolio aller aktiven Waehrungspaare in einem Block anzeigen
-                        PortfolioMonitor.showAllPortfolioStatus(currentCurrencies, combinedStream);
-
-                        lastBnbBalanceCheck = currentTime;
-                    }
-
-                    if (CurrencySQL.isStale(currency)) {
-                        StochRSI_4h(currency);
-                        // StochRSI_12h(currency);
-                        // StochRSI_1d(currency);
-                        // StochRSI_3d(currency);
-                        // StochRSI_1w(currency);
-                        // StochRSI_1m(currency);
-                        StochRSI_5m(currency);
-                        // CCI_4h(currency);
-                        // ATR_4h(currency);
-                        // RSI_4h(currency);
-                        // EMA(currency);
-                        // StochRSI_2h(currency); // schreibt alle Werte in die DB
-                    }
-
                     // Buy
-                    double[] stoch = CurrencySQL.getStochRSI(currency);
-                    double k2h = stoch[2], d2h = stoch[3];                
-                    if (k2h > d2h) {
-                        BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);
-                    }
+                    BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);                    
 
                     // Check
-                    POSSQL.get_BuyOrderId_WhereStatusZero(OrderIdList, currency);
+                    OrderIdList.clear();
+                    OrderIdList.addAll(positionDAO.getBuyOrderIdsWhereStatusZero(currency));
                     CheckOrderStatus.OrderStatus(currency, bnb.getClient(), OrderIdList, LivePrice);
 
                     // Sell
-                    POSSQL.getDataRecords_WhereStatusOneOrSeven(currency, getDataRecords);
-                    SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice, PnL);
+                    getDataRecords.clear();
+                    getDataRecords.addAll(positionDAO.getDataRecordsWhereStatusOneOrSeven(currency));
+                    SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice);
                 }
 
             } catch (BinanceApiException e) {
@@ -364,133 +291,6 @@ public class oneofx {
                 continue;
             }
         }       
-    }
-
-    private static void StochRSI_4h(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.FOUR_HOURLY);
-
-        stochCache_k4h = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d4h = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-    }
-
-    private static void StochRSI_2h(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.TWO_HOURLY);
-
-        double k2h = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        double d2h = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-
-        // 24h-Volumen holen (1 API-Call, Weight=1)
-        double volume24h = 0.0;
-        try {
-            com.binance.api.client.domain.market.TickerStatistics ticker = bnb.getClient()
-                    .get24HrPriceStatistics(currency);
-            double baseVolume = Double.parseDouble(ticker.getVolume());
-            double lastPrice = Double.parseDouble(ticker.getLastPrice());
-            volume24h = round.two(baseVolume * lastPrice); // Quote-Volume in EUR/USDC
-        } catch (Exception e) {
-            System.err.println("Fehler beim Abrufen des 24h-Volumens fuer " + currency + ": " + e.getMessage());
-        }
-
-        // Alle Timeframe-Werte gemeinsam in die DB schreiben
-        CurrencySQL.saveStochRSI(currency,
-                stochCache_k4h, stochCache_d4h,
-                k2h, d2h,
-                stochCache_k12h, stochCache_d12h,
-                stochCache_k1d, stochCache_d1d,
-                stochCache_k3d, stochCache_d3d,
-                stochCache_k1w, stochCache_d1w,
-                stochCache_k1m, stochCache_d1m,
-                stochCache_k5m, stochCache_d5m,
-                stochCache_cci4h,
-                stochCache_atr4h,
-                stochCache_rsi4h,
-                volume24h,
-                stochCache_emaFast,
-                stochCache_emaSlow);
-    }
-
-    /**
-     * Berechnet EMA 20 (fast) und EMA 50 (slow) fuer den 4h-Timeframe.
-     */
-    private static void EMA(String currency) {
-        try {
-            stochCache_emaFast = round.two(
-                    EMA.getValue(bnb.getClient(), currency, CandlestickInterval.FIVE_MINUTES, 20));
-            stochCache_emaSlow = round.two(
-                    EMA.getValue(bnb.getClient(), currency, CandlestickInterval.FIVE_MINUTES, 50));
-        } catch (Exception e) {
-            System.err.println("Fehler beim Berechnen der EMA 20/50 fuer " + currency + ": " + e.getMessage());
-        }
-    }
-
-    private static void StochRSI_1m(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.MONTHLY);
-        stochCache_k1m = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d1m = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-    }
-
-    private static void StochRSI_5m(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.FIVE_MINUTES);
-        stochCache_k5m = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d5m = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-    }
-
-    private static void RSI_4h(String currency) {
-        try {
-            stochCache_rsi4h = round.two(
-                    RSI.getRSI(bnb.getClient(), currency, CandlestickInterval.FOUR_HOURLY, 14));
-        } catch (Exception e) {
-            System.err.println("Fehler beim Berechnen des RSI 4h fuer " + currency + ": " + e.getMessage());
-        }
-    }
-
-    private static void ATR_4h(String currency) {
-        try {
-            ATR.ATRResult result = ATR.getATR(bnb.getClient(), currency,
-                    CandlestickInterval.FIVE_MINUTES);
-            stochCache_atr4h = round.two(result.getATR());
-        } catch (Exception e) {
-            System.err.println("Fehler beim Berechnen des ATR 5m fuer " + currency + ": " + e.getMessage());
-        }
-    }
-
-    /**
-     * Berechnet den CCI (Commodity Channel Index) fuer den 4h-Timeframe.
-     * Periode: 20 (Standard)
-     * Wertebereich: typisch -200 bis +200; Overbought > 100, Oversold < -100
-     */
-    private static void CCI_4h(String currency) {
-        try {
-            stochCache_cci4h = CCI.getCCI(bnb.getClient(), currency,
-                    CandlestickInterval.FOUR_HOURLY, 20);
-        } catch (Exception e) {
-            System.err.println("Fehler beim Berechnen des CCI 4h fuer " + currency + ": " + e.getMessage());
-        }
-    }   
-
-    private static void StochRSI_1d(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.DAILY);
-        stochCache_k1d = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d1d = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-    }
-
-    private static void StochRSI_3d(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.THREE_DAILY);
-        stochCache_k3d = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d3d = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
-    }
-
-    private static void StochRSI_1w(String currency) {
-        StochRSI.StochRSIResult result = StochRSI.getStochRSI(bnb.getClient(), currency,
-                CandlestickInterval.WEEKLY);
-        stochCache_k1w = Math.max(0.0, Math.min(100.0, round.two(result.getK() * 100)));
-        stochCache_d1w = Math.max(0.0, Math.min(100.0, round.two(result.getD() * 100)));
     }
 
     private static int getSleepMs() {

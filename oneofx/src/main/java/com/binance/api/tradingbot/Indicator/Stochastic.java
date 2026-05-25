@@ -23,9 +23,9 @@ import java.util.List;
  * - Slow %D = SMA(Slow %K, dPeriod)   [Standard: 3]
  * 
  * Standard-Parameter:
- * - Periode: 14 (für High/Low Berechnung)
- * - K-Slowing: 3
- * - D-Periode: 3
+ * - Periode: 21 (für High/Low Berechnung)
+ * - K-Slowing: 5
+ * - D-Periode: 4
  * 
  * Signale:
  * - Überkauft: %K >= 80
@@ -36,9 +36,9 @@ import java.util.List;
 public class Stochastic {
 
     // Standard Parameter
-    private static final int DEFAULT_PERIOD = 14;
-    private static final int DEFAULT_K_SLOWING = 3;
-    private static final int DEFAULT_D_PERIOD = 3;
+    private static final int DEFAULT_PERIOD = 21;
+    private static final int DEFAULT_K_SLOWING = 5;
+    private static final int DEFAULT_D_PERIOD = 4;
     
     // Overbought/Oversold Schwellenwerte
     private static final double OVERBOUGHT_THRESHOLD = 80.0;
