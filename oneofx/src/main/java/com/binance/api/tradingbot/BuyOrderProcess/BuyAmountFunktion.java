@@ -3,16 +3,20 @@ package com.binance.api.tradingbot.BuyOrderProcess;
 import java.util.List;
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.tradingbot.HelperFunctions.round;
-import com.binance.api.tradingbot.SQL_Database.ATHSQL;
-import com.binance.api.tradingbot.SQL_Database.CurrencySQL;
-import com.binance.api.tradingbot.SQL_Database.HISTSQL;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.CurrencyDAO;
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.Settings.CurrencyConfig;
 import com.binance.api.tradingbot.Settings.bnb;
 import com.binance.api.tradingbot.Settings.set;
+import com.binance.api.tradingbot.HelperFunctions.Asset;
 
 public class BuyAmountFunktion {
+
+    private static final CurrencyDAO currencyDAO = new CurrencyDAO();
+    private static final HistDAO histDAO = new HistDAO();
+    private static final PositionDAO positionDAO = new PositionDAO();
 
     static final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";
 
@@ -20,27 +24,17 @@ public class BuyAmountFunktion {
             boolean wahr) {
 
         int grid = set.getGridforCurrency(currencyPair);
-
-        if (wahr) {
-            SETSQL.CompareBalanceInSQLWithBinanceBalance(client);
-        }
-
-        double BuyPrice = ATHSQL.getAllTimeHigh(currencyPair);
-        double unten = POSSQL.getLastDownSidePrice(currencyPair, LivePrice);
+        double BuyPrice = currencyDAO.getAllTimeHigh(currencyPair);
+        double unten = positionDAO.getLastDownSidePrice(currencyPair, LivePrice);
 
         double getBuyAmount = 0.0;
         boolean Loop1 = true;
         boolean Loop2 = true;
         int count_PositionToBottom = 0;
-        int count_20 = 0;
-        int restPosition = 0;
-        // int currentPositionNumber = POSSQL.getCountPOS(currencyPair) + 1;
-        double minBuyAmount = SETSQL.getminBuyAmount();
-        // double maxBuyAmount = SETSQL.getmaxBuyAmount();
-        double Tax = HISTSQL.getTaxe();
-        double freeBalance = SETSQL.getBalance_SQL();
-
-        freeBalance = (freeBalance - Tax - 5000);
+        double priceBottom = (currencyDAO.getAllTimeHigh(currencyPair) * 0.23);
+        double minBuyAmount = currencyDAO.getMinBuyAmount(currencyPair);
+        double Tax = histDAO.getTaxe();
+        double freeBalance = Asset.getFree_Balance("USDC", client);
 
         while (Loop1) {
             while (Loop2) {
@@ -50,9 +44,9 @@ public class BuyAmountFunktion {
 
                     count_PositionToBottom++;
 
-                    // if (LPP > BuyPrice) {
-                    // Loop2 = false;
-                    // }
+                    if (priceBottom > BuyPrice) {
+                        Loop2 = false;
+                    }
                 }
             }
             Loop1 = false;
@@ -60,34 +54,25 @@ public class BuyAmountFunktion {
 
         getBuyAmount = (freeBalance - (count_PositionToBottom * minBuyAmount));
 
-        if (getBuyAmount < minBuyAmount) {
-            getBuyAmount = minBuyAmount;
+        if (minBuyAmount < getBuyAmount) {
+            currencyDAO.setMinBuyAmount(currencyPair, minBuyAmount + 0.01);            
         }
 
-        if (wahr) {
-            if (minBuyAmount < getBuyAmount) {
-                SETSQL.setminBuyAmount(minBuyAmount + 0.01);
-            }
+        if (getBuyAmount < minBuyAmount) {
+            getBuyAmount = minBuyAmount;
+        } else if (getBuyAmount > 250) {
+            getBuyAmount = currencyDAO.getMinBuyAmount(currencyPair);
         }
+      
         return round.five(getBuyAmount);
     }
 
-    public static double getsimplebuyamount() {
-        double minBuyAmount = SETSQL.getminBuyAmount();
-        double AVGminBuyAmount = POSSQL.getAverageBuyAmount();
-
-        // if (minBuyAmount <= 0 || minBuyAmount > (AVGminBuyAmount * 5)) {
-        // minBuyAmount = round.two(POSSQL.getAverageBuyAmount());
-        // if (minBuyAmount <= 0) {
-        // minBuyAmount = SETSQL.getminBuyAmount();
-        // }
-        // }
-
-        return round.two(minBuyAmount);
+    public static double getsimplebuyamount(String currencyPair) {
+        return round.two(currencyDAO.getMinBuyAmount(currencyPair));
     }
 
     public static double getBuyAmountFromStochRSI(String currency) {
-        double[] stoch = CurrencySQL.getStochRSI(currency);
+        double[] stoch = currencyDAO.getStoch(currency);
         double k4h = stoch[0];
         SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
         double totalBalance = SETSQL.getBalance_SQL();

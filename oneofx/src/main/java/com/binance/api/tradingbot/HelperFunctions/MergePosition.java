@@ -1,15 +1,15 @@
 package com.binance.api.tradingbot.HelperFunctions;
 
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
-import java.util.ArrayList;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import java.util.List;
 
 public class MergePosition {
 
+    private static final PositionDAO positionDAO = new PositionDAO();
+
     public static void mergeTwoPositions(String currency, List<Double> LivePrice) {
 
-        List<String> dataRecords = new ArrayList<>();
-        POSSQL.getTwoPositions(currency, dataRecords);
+        List<String> dataRecords = positionDAO.getTwoPositions(currency);
 
         double currentPrice = LivePrice.get(0);
         double price1 = 0.0;

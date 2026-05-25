@@ -13,6 +13,8 @@ import com.binance.api.tradingbot.HelperFunctions.CalcDays;
 
 public class WPDSQL {
 
+    private static final HistDAO histDAO = new HistDAO();
+
     // Bei jedem Soll sol WPD aktualisiert werden
     // Schaue zuerst ob es das Datum als eintrag schon gibt
     // Wenn ja, dann ak
@@ -33,8 +35,8 @@ public class WPDSQL {
             while (cal.before(today) || cal.equals(today)) {
                 String currentDate = sdf.format(cal.getTime());
 
-                if (!HISTSQL.getDate(currentDate)) {
-                    HISTSQL.transferHISTToWPD(currentDate);
+                if (!histDAO.dateExistsInWPD(currentDate)) {
+                    histDAO.transferHISTToWPD(currentDate);
                 }
                 // zähle einen Tag nach oben und gehe durch alle Datum´s
                 cal.add(Calendar.DAY_OF_YEAR, 1);

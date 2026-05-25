@@ -1,17 +1,19 @@
 package com.binance.api.tradingbot.Indicator;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.List;
 
-import com.binance.api.tradingbot.Database.dbUrl;
+import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.round;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
+import com.binance.api.tradingbot.Settings.bnb;
+import com.binance.api.tradingbot.domain.HistoryPosition;
+import com.binance.api.tradingbot.domain.Position;
 
 public class Merge {
+
+    private static final PositionDAO positionDAO = new PositionDAO();
+    private static final HistDAO histDAO = new HistDAO();
 
     public static void splitValue(String currency, List<String> SplitRecords) {
         boolean splitComplete = false;
@@ -27,8 +29,7 @@ public class Merge {
             String currency_Split = parts[2];
             double profitSplitValue_Double = Double.valueOf(profitSplitValue);
 
-            List<String> BuyAmountRecord = new ArrayList<String>();
-            POSSQL.getDataRecordsPOS_WithMaxInMinus(currency, BuyAmountRecord);
+            List<String> BuyAmountRecord = positionDAO.getDataRecordsWithMaxInMinus(currency, Ticker.getAssetPrice(currency, bnb.getClient()));
 
             if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01) && currency_Split.equals(currency)) { 
                                                                                   
@@ -53,66 +54,27 @@ public class Merge {
 
                 System.out.println("New Position: " + BuyOrderId_POS + " - " + Quantity + " - " + new_Buymount + " - " + new_BuyPrice);
 
-                updateOrderPOS("POS", new_Buymount, new_BuyPrice, BuyOrderId_POS);
-                updateOrderHIST("HIST", new_Buymount, new_BuyPrice, BuyOrderId_POS);
-                updateHIST_Status("HIST", BuyOrderId_Split);
+                positionDAO.update(new Position.Builder(currency, BuyOrderId_POS)
+                        .buyPrice(new_BuyPrice)
+                        .buyAmount(new_Buymount)
+                        .status(7)
+                        .build());
+
+                histDAO.updateByBuyOrderId(new HistoryPosition.Builder(currency, BuyOrderId_POS)
+                        .buyPrice(new_BuyPrice)
+                        .buyAmount(new_Buymount)
+                        .build());
+
+                histDAO.updateByBuyOrderId(new HistoryPosition.Builder(null, BuyOrderId_Split)
+                        .status(2)
+                        .build());
 
                 splitComplete = true;
             } else {
-                updateHIST_Status("HIST", BuyOrderId_Split);
+                histDAO.updateByBuyOrderId(new HistoryPosition.Builder(null, BuyOrderId_Split)
+                        .status(2)
+                        .build());
             }
-        }
-    }   
-
-    public static void updateOrderPOS(final String tableName, double BuyAmount, double Price, String BuyOrderId) {
-
-        try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
-                Statement update = con_update.createStatement()) {
-
-            String SQL = "UPDATE " + tableName + " SET "
-                    + "BuyPrice = " + Price + ", "
-                    + "BuyAmount = " + BuyAmount + ", "
-                    + "Status = 7 "
-                    + "WHERE BuyOrderId = '" + BuyOrderId + "';";
-
-            update.executeUpdate(SQL);
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Aktualisieren der Daten: " +
-                    err.getMessage());
-        }
-    }
-
-    public static void updateOrderHIST(final String tableName, double BuyAmount,
-            double Price, String BuyOrderId) {
-        try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
-                Statement update = con_update.createStatement()) {
-
-            String SQL = "UPDATE " + tableName + " SET "
-                    + "BuyPrice = " + Price + ", "
-                    + "BuyAmount = " + BuyAmount + " "
-                    + "WHERE BuyOrderId = '" + BuyOrderId + "';";
-
-            update.executeUpdate(SQL);
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Aktualisieren der Daten: " +
-                    err.getMessage());
-        }
-    }
-
-    private static void updateHIST_Status(final String tableName, String BuyOrderId) {
-        try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
-                Statement update = con_update.createStatement()) {
-
-            String SQL = "UPDATE " + tableName + " SET "
-                    + "Status = 2 "
-                    + "WHERE BuyOrderId = '" + BuyOrderId + "';";
-
-            update.executeUpdate(SQL);
-
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
         }
     }
 }

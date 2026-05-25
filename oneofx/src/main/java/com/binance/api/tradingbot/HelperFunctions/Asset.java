@@ -7,10 +7,12 @@ import com.binance.api.client.domain.account.NewOrderResponse;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 
 public class Asset {
+
+    private static final PositionDAO positionDAO = new PositionDAO();
 
     public static double getFree_Balance(String currency, BinanceApiRestClient client) {
         try {
@@ -62,7 +64,7 @@ public class Asset {
             double bnbPrice = Double.valueOf(client.getPrice(currencyPeer).getPrice());
 
             // BNB die in offenen BNBEUR-Positionen gebunden sind
-            double bnbInPositions = POSSQL.getSumQuantityForCurrency(currencyPeer);
+            double bnbInPositions = positionDAO.getSumQuantityForCurrency(currencyPeer);
 
             // Verfügbare BNB = Gesamt minus Positionen
             double bnbAvailable = bnbTotal - bnbInPositions;

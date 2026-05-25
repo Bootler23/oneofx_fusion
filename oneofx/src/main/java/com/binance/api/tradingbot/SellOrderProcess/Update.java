@@ -1,9 +1,5 @@
 package com.binance.api.tradingbot.SellOrderProcess;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -14,16 +10,21 @@ import com.binance.api.client.domain.account.Trade;
 import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.exception.BinanceApiException;
 import com.binance.api.tradingbot.BuyOrderProcess.Ticker;
-import com.binance.api.tradingbot.Database.dbUrl;
 import com.binance.api.tradingbot.HelperFunctions.CalcSplit;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
-import com.binance.api.tradingbot.SQL_Database.HISTSQL;
+import com.binance.api.tradingbot.SQL_Database.HistDAO;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.SQL_Database.SETSQL;
 import com.binance.api.tradingbot.constants.TradingConstants;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
+import com.binance.api.tradingbot.domain.HistoryPosition;
+import com.binance.api.tradingbot.domain.Position;
 
 public class Update {
+
+    private static final HistDAO histDAO = new HistDAO();
+    private static final PositionDAO positionDAO = new PositionDAO();
 
     public static void getSellTradeInformation(BinanceApiRestClient client, List<String> dataRecords) {
 
@@ -58,7 +59,7 @@ public class Update {
                     continue;
                 }
 
-                HISTSQL.setsellfee(sellorderID, trade_fee);
+                histDAO.setSellFee(sellorderID, trade_fee);
                 double bnb_price = SETSQL.get_BNB_price();
                 if (bnb_price == 0) {
                     continue;
@@ -66,10 +67,10 @@ public class Update {
 
                 double Qty = Double.valueOf(order.getExecutedQty());
 
-                double buyamount = HISTSQL.getbuyamount(sellorderID);
+                double buyamount = histDAO.getBuyAmount(sellorderID);
                 double sellamount = Double.valueOf(order.getCummulativeQuoteQty());
 
-                double buyfee = HISTSQL.getbuyfee(sellorderID);
+                double buyfee = histDAO.getBuyFee(sellorderID);
                 double sellfee = round.eight(trade_fee * bnb_price);
 
                 if (sellfee > 10) { // TODO wenn kein BNB da ist dann wird in Euro bezahlt
@@ -79,7 +80,7 @@ public class Update {
                 double SplitValue = 0;
                 double LossAfterTax = 0;
 
-                double buyprice = HISTSQL.getbuyprice(sellorderID);
+                double buyprice = histDAO.getBuyPrice(sellorderID);
                 double sellprice = TradingRulesFormatter.formatPrice(currency, sellamount / Qty);
                 double GewinnAfterTax = getGewinnAfterTaxAndFeeSimple(buyamount, sellamount, buyfee, sellfee);
 
@@ -87,21 +88,21 @@ public class Update {
                     continue;
                 }
 
-                if (SETSQL.getStatus("currency", "ROI", currency)) {
-                    if (GewinnAfterTax > 0) {
-                        SplitValue = CalcSplit.calcROI(currency, GewinnAfterTax);
+                // if (SETSQL.getStatus("currency", "ROI", currency)) {
+                //     if (GewinnAfterTax > 0) {
+                //         SplitValue = CalcSplit.calcROI(currency, GewinnAfterTax);
 
-                        if (SplitValue == 0) {
-                            continue;
-                        }
+                //         if (SplitValue == 0) {
+                //             continue;
+                //         }
 
-                        if (SplitValue > TradingConstants.MIN_SPLIT_VALUE) {
-                            GewinnAfterTax = (GewinnAfterTax - SplitValue);
-                        } else {
-                            SplitValue = 0;
-                        }
-                    }
-                }
+                //         if (SplitValue > TradingConstants.MIN_SPLIT_VALUE) {
+                //             GewinnAfterTax = (GewinnAfterTax - SplitValue);
+                //         } else {
+                //             SplitValue = 0;
+                //         }
+                //     }
+                // }
 
                 if (GewinnAfterTax < 0) {
                     LossAfterTax = GewinnAfterTax;
@@ -110,33 +111,21 @@ public class Update {
                     LossAfterTax = 0;
                 }
 
-                try (Connection conUpdateHIST = DriverManager.getConnection(dbUrl.getoneOfX());
-                        PreparedStatement pstmt = conUpdateHIST.prepareStatement(
-                                "UPDATE HIST SET SellAmount = ?, SellPrice = ?, Tax = ?, Fee = ?, Gewinn = ?, " +
-                                        "GewinnAfterTax = ?, LossAfterTax = ?, Profit = ?, SellFee = ?, " +
-                                        "Split = ?, Status = ?, statusCode = ? WHERE SellOrderId = ?")) {
-
-                    pstmt.setDouble(1, TradingRulesFormatter.formatPrice(currency, sellamount));
-                    pstmt.setDouble(2, sellprice);
-                    pstmt.setDouble(3, getTaxe(buyamount, sellamount));
-                    pstmt.setDouble(4, getFee(buyfee, sellfee));
-                    pstmt.setDouble(5, getRevenuePerTrade(buyamount, sellamount));
-                    pstmt.setDouble(6, round.five(GewinnAfterTax));
-                    pstmt.setDouble(7, round.five(LossAfterTax));
-                    pstmt.setDouble(8, getProfitinPercent(buyprice, sellprice));
-                    pstmt.setDouble(9, sellfee);
-                    pstmt.setDouble(10, round.five(SplitValue));
-                    pstmt.setInt(11, 1);
-                    pstmt.setString(12, TradingConstants.STATUS_FILLED_CHECKED);
-                    pstmt.setLong(13, OrderId);
-
-                    pstmt.executeUpdate();
-                    //System.out.println("Update in Hist!");
-
-                } catch (SQLException e) {
-                    System.err.println("Error updating HIST: " + e.getMessage());
-                    e.printStackTrace();
-                }
+                histDAO.updateBySellOrderId(new HistoryPosition.Builder(null, null)
+                        .sellOrderId(sellorderID)
+                        .sellAmount(TradingRulesFormatter.formatPrice(currency, sellamount))
+                        .sellPrice(sellprice)
+                        .tax(getTaxe(buyamount, sellamount))
+                        .fee(getFee(buyfee, sellfee))
+                        .gewinn(getRevenuePerTrade(buyamount, sellamount))
+                        .gewinnAfterTax(round.five(GewinnAfterTax))
+                        .lossAfterTax(round.five(LossAfterTax))
+                        .profit(getProfitinPercent(buyprice, sellprice))
+                        .sellFee(sellfee)
+                        .split(round.five(SplitValue))
+                        .status(1)
+                        .statusCode(TradingConstants.STATUS_FILLED_CHECKED)
+                        .build());
             }
         }
     }
@@ -184,45 +173,23 @@ public class Update {
                 double BuyPriceFromExchange = Double.valueOf(order.getPrice());
                 double BuyFee = round.eight(trade_fee * bnb_price);
 
-                try (Connection con_update = DriverManager.getConnection(dbUrl.getoneOfX());
-                        PreparedStatement pstmt = con_update.prepareStatement(
-                                "UPDATE positions SET BuyPrice = ?, OrigPrice = ?, Qty = ?, BuyAmount = ?, " +
-                                        "Status = ?, statusCode = ? WHERE BuyOrderId = ?")) {
+                positionDAO.update(new Position.Builder(currency, BuyOrderId)
+                        .buyPrice(BuyPriceFromExchange)
+                        .origPrice(BuyPriceFromExchange)
+                        .quantity(TradingRulesFormatter.formatQuantity(currency, Quantity))
+                        .buyAmount(TradingRulesFormatter.formatPrice(currency, BuyAmount))
+                        .status(1)
+                        .statusCode(TradingConstants.STATUS_FILLED_CHECKED)
+                        .build());
+                System.out.println("Update BuyDataInformation");
 
-                    pstmt.setDouble(1, BuyPriceFromExchange);
-                    pstmt.setDouble(2, BuyPriceFromExchange);
-                    pstmt.setDouble(3, TradingRulesFormatter.formatQuantity(currency, Quantity));
-                    pstmt.setDouble(4, TradingRulesFormatter.formatPrice(currency, BuyAmount));
-                    pstmt.setInt(5, 1);
-                    pstmt.setString(6, TradingConstants.STATUS_FILLED_CHECKED);
-                    pstmt.setLong(7, OrderId);
-
-                    pstmt.executeUpdate();
-                    System.out.println("Update BuyDataInformation");
-
-                } catch (SQLException err) {
-                    System.out.println("Fehler beim Aktualisieren der Daten: " + err.getMessage());
-                }
-
-                try (Connection con_insert_HIST = DriverManager.getConnection(dbUrl.getoneOfX());
-                        PreparedStatement pstmt = con_insert_HIST.prepareStatement(
-                                "UPDATE HIST SET BuyPrice = ?, OrigPrice = ?, Quantity = ?, BuyAmount = ?, BuyFee = ? "
-                                        +
-                                        "WHERE BuyOrderId = ?")) {
-
-                    pstmt.setDouble(1, BuyPriceFromExchange);
-                    pstmt.setDouble(2, BuyPriceFromExchange);
-                    pstmt.setDouble(3, TradingRulesFormatter.formatQuantity(currency, Quantity));
-                    pstmt.setDouble(4, TradingRulesFormatter.formatPrice(currency, BuyAmount));
-                    pstmt.setDouble(5, BuyFee);
-                    pstmt.setLong(6, OrderId);
-
-                    pstmt.executeUpdate();
-                    // System.out.println("Update in Hist!");
-
-                } catch (SQLException err) {
-                    System.out.println("Fehler beim Aktualisieren der HIST-Tabelle: " + err.getMessage());
-                }
+                histDAO.updateByBuyOrderId(new HistoryPosition.Builder(currency, BuyOrderId)
+                        .buyPrice(BuyPriceFromExchange)
+                        .origPrice(BuyPriceFromExchange)
+                        .quantity(TradingRulesFormatter.formatQuantity(currency, Quantity))
+                        .buyAmount(TradingRulesFormatter.formatPrice(currency, BuyAmount))
+                        .buyFee(BuyFee)
+                        .build());
             }
         }
     }

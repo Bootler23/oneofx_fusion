@@ -4,8 +4,8 @@ import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.account.Account;
 import com.binance.api.client.domain.account.AssetBalance;
 import com.binance.api.client.exception.BinanceApiException;
-import com.binance.api.tradingbot.SQL_Database.CurrencySQL;
-import com.binance.api.tradingbot.SQL_Database.POSSQL;
+import com.binance.api.tradingbot.SQL_Database.CurrencyDAO;
+import com.binance.api.tradingbot.SQL_Database.PositionDAO;
 import com.binance.api.tradingbot.constants.TradingConstants;
 
 import org.slf4j.Logger;
@@ -24,6 +24,8 @@ public class BalanceReconciliation {
 
     /** Schwellwert ab dem eine Differenz als Warnung geloggt wird */
     private static final double DIFF_WARN_THRESHOLD = 0.001;
+    private static final PositionDAO positionDAO = new PositionDAO();
+    private static final CurrencyDAO currencyDAO = new CurrencyDAO();
 
     /**
      * Fuehrt den Balance-Abgleich fuer alle uebergebenen Waehrungspaare durch.
@@ -68,13 +70,13 @@ public class BalanceReconciliation {
         double exchangeBalance = getExchangeBalance(asset, account);
 
         // Datenbank-Balance: SUM(Qty) offener Positionen (Status 0, 1, 5)
-        double databaseBalance = POSSQL.getSumQuantityForCurrency(currencyPair);
+        double databaseBalance = positionDAO.getSumQuantityForCurrency(currencyPair);
 
         // Differenz berechnen
         double differenz = round.eight(exchangeBalance - databaseBalance);
 
         // In currency-Tabelle speichern
-        CurrencySQL.updateBalanceInfo(currencyPair, exchangeBalance, databaseBalance, differenz);
+        currencyDAO.updateBalanceInfo(currencyPair, exchangeBalance, databaseBalance, differenz);
 
         // Bei relevanter Differenz warnen
         if (Math.abs(differenz) > DIFF_WARN_THRESHOLD) {
