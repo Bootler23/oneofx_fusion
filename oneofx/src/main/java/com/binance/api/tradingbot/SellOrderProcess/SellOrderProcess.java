@@ -19,13 +19,9 @@ import com.binance.api.tradingbot.HelperFunctions.Time;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
 import com.binance.api.tradingbot.HelperFunctions.sleep;
-import com.binance.api.tradingbot.RiskRewardRatio.CurrencyRRR;
-import com.binance.api.tradingbot.SQL_Database.PerformanceSQL;
 import com.binance.api.tradingbot.SQL_Database.CurrencyDAO;
 import com.binance.api.tradingbot.SQL_Database.HistDAO;
 import com.binance.api.tradingbot.SQL_Database.PositionDAO;
-import com.binance.api.tradingbot.SQL_Database.SETSQL;
-import com.binance.api.tradingbot.HelperFunctions.Slippage;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.domain.HistoryPosition;
 import com.binance.api.tradingbot.domain.Position;
@@ -41,17 +37,11 @@ public class SellOrderProcess {
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
         double currentPrice = LivePrice.get(0);
-        double percent = SETSQL.getPercentToSell();
-
-        if (percent <= 0) {
-            percent = 0.5;
-        }       
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
 
             String BuyOrderId = parts[0];
-            String OrigPrice_String = parts[2];
             String Quantity_String = parts[3];
             String BuyPrice_String = parts[5];
 
@@ -61,65 +51,58 @@ public class SellOrderProcess {
                 continue;
             }
 
-            double takeProfitTarget = (BuyPrice_Double / 100) * (100 + percent);   
-            boolean hitTakeProfit = currentPrice >= takeProfitTarget;
+            // ---- Dynamischer Trailing Stop Loss --------------------------------
+            // Aktivierung: highestProfitPct >= TSLactivate (z.B. 1.2 %)
+            // Stop wird proportional gezogen:
+            //   trailingFactor   = (TSLactivate - TSLdecline) / TSLactivate   (z.B. 0.6667)
+            //   trailingStopPct  = highestProfitPct * trailingFactor
+            //   tslTriggerPrice  = buyPrice * (1 + trailingStopPct/100)
+            // → Je höher der Peak, desto größer der Abstand zum Stop.
+            if (currencyDAO.getTSL(currency)) {
+                double tslActivatePct = currencyDAO.getTSLActivate(currency);
+                double tslDeclinePct  = currencyDAO.getTSLDecline(currency);
 
-            // executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
-
-            // ---- Trailing Stop Loss ------------------------------------------
-            // boolean tslEnabled = currencyDAO.getTSL(currency);
-            // if (tslEnabled) {
-            //     double tslActivatePercent = currencyDAO.getTSLActivate(currency);
-            //     double tslDeclinePercent = currencyDAO.getTSLDecline(currency);
-            //     double tslActivationPrice = BuyPrice_Double * (1.0 + tslActivatePercent / 100.0);
-
-            //     double peakPrice = positionDAO.getPeakPrice(BuyOrderId);
-            //     if (currentPrice > peakPrice) {
-            //         positionDAO.updatePeakPrice(BuyOrderId, currentPrice);
-            //         peakPrice = currentPrice;
-            //     }
-
-            //     if (peakPrice >= tslActivationPrice) {
-            //         double tslTriggerPrice = peakPrice * (1.0 - tslDeclinePercent / 100.0);
-            //         if (currentPrice <= tslTriggerPrice) {
-            //             empty.Line();
-            //             System.out.println("🟡 TRAILING STOP-LOSS: " + currency
-            //                     + " | Kaufpreis: " + BuyPrice_Double
-            //                     + " | Peak: " + round.four(peakPrice)
-            //                     + " | Trigger: " + round.four(tslTriggerPrice)
-            //                     + " | Aktuell: " + currentPrice);
-            //             executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
-            //             return;
-            //         }
-            //     }
-
-            if (hitTakeProfit) {
-
-                if (!Slippage.isProfitableAfterSlippage(currency, client, Double.parseDouble(Quantity_String),
-                        BuyPrice_Double, 0.53)) {
-                    System.out.println("⏳ Warte auf besseres Orderbuch...");
-                    return;
+                double peakPrice = positionDAO.getPeakPrice(BuyOrderId);
+                if (peakPrice <= 0) {
+                    peakPrice = Math.max(BuyPrice_Double, currentPrice);
+                    positionDAO.updatePeakPrice(BuyOrderId, peakPrice);
+                } else if (currentPrice > peakPrice) {
+                    peakPrice = currentPrice;
+                    positionDAO.updatePeakPrice(BuyOrderId, peakPrice);
                 }
 
-                Ticker.get_CurrencyPair_Price(currency, client, LivePrice);
-                double polledPrice = LivePrice.get(0);
-                if (polledPrice != currentPrice) {
-                    LivePrice.set(0, polledPrice);
+                double highestProfitPct = (peakPrice - BuyPrice_Double) / BuyPrice_Double * 100.0;
+
+                // Profit immer aktualisieren (positiv oder negativ)
+                double profitPct = round.three((currentPrice - BuyPrice_Double) / BuyPrice_Double * 100.0);
+                positionDAO.update(new Position.Builder(null, BuyOrderId)
+                        .profit(profitPct)
+                        .build());
+
+                if (tslActivatePct > 0 && highestProfitPct >= tslActivatePct) {
+                    // TSL aktiv → Status in DB setzen
+                    positionDAO.update(new Position.Builder(null, BuyOrderId)
+                            .tsl("active")
+                            .build());
+
+                    double trailingFactor  = (tslActivatePct - tslDeclinePct) / tslActivatePct;
+                    double trailingStopPct = highestProfitPct * trailingFactor;
+                    double tslTriggerPrice = BuyPrice_Double * (1.0 + trailingStopPct / 100.0);
+
+                    if (currentPrice <= tslTriggerPrice) {
+                        empty.Line();
+                        System.out.println("🟡 TRAILING STOP-LOSS: " + currency
+                                + " | Buy: " + BuyPrice_Double
+                                + " | Peak: " + round.four(peakPrice)
+                                + " | HighProfit%: " + round.three(highestProfitPct)
+                                + " | StopProfit%: " + round.three(trailingStopPct)
+                                + " | Trigger: " + round.four(tslTriggerPrice)
+                                + " | Aktuell: " + currentPrice);
+                        executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice,
+                                BuyPrice_Double, true);
+                        continue;
+                    }
                 }
-
-                empty.Line();
-                executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice, BuyPrice_Double, false);
-
-                CurrencyRRR currencyRRR = currencyDAO.getCurrencyRRR(currency);
-                if (currencyRRR != null) {
-                    System.out.println(currencyRRR.toWeightedBreakdownString());
-                    System.out.println("RRR: " + round.three(currencyRRR.calculateRRR()));
-                }
-
-                // double currentRRR = PerformanceSQL.getCurrentWeightedRRR(currency, today);
-                // System.out.println("📊 Aktuelles RRR: " + currentRRR + " | Dynamic
-                // Stop-Loss:// " + dynamicStopLoss + "%");
-                // return; // Todo
             }
         }
     }
@@ -157,7 +140,6 @@ public class SellOrderProcess {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
 
             double currentProfit = Update.getProfitinPercent(buyprice, livePrice);
-            String today = Time.getCurrentDate();
             double lastBuffer = getLastTotalBuffer(currency);
             double newTotalBuffer = lastBuffer + currentProfit;
 

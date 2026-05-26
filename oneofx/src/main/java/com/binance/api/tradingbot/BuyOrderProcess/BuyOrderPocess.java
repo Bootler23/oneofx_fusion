@@ -1,16 +1,15 @@
 package com.binance.api.tradingbot.BuyOrderProcess;
 
-import static com.binance.api.client.domain.account.NewOrder.limitBuy;
-
 import java.math.BigDecimal;
 import java.util.List;
 
 import com.binance.api.client.BinanceApiRestClient;
+import com.binance.api.client.domain.OrderSide;
+import com.binance.api.client.domain.OrderType;
 import com.binance.api.client.domain.TimeInForce;
+import com.binance.api.client.domain.account.NewOrder;
 import com.binance.api.client.domain.account.NewOrderResponse;
-import com.binance.api.client.domain.market.CandlestickInterval;
 import com.binance.api.client.exception.BinanceApiException;
-import com.binance.api.tradingbot.HelperFunctions.Asset;
 import com.binance.api.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.binance.api.tradingbot.HelperFunctions.empty;
 import com.binance.api.tradingbot.HelperFunctions.round;
@@ -30,11 +29,9 @@ public class BuyOrderPocess {
 
     public static void setBuyOrder(String currency, BinanceApiRestClient client, List<Double> LivePrice) {
 
-        double BuyAmount;
-        double Ath = currencyDAO.getAllTimeHigh(currency);      
-        double BuyPrice = 0.0;      
+        double Ath = currencyDAO.getAllTimeHigh(currency);
         double TickerPrice = LivePrice.get(0);
-        int grid = set.getGridforCurrency(currency);        
+        int grid = set.getGridforCurrency(currency);
 
         if (Ath <= 0.0) {
             System.err.println("⚠️ ATH für " + currency + " ist 0 - Buy-Order wird übersprungen.");
@@ -43,78 +40,105 @@ public class BuyOrderPocess {
 
         if (positionDAO.countPendingOrders(currency) >= 2) {
             return;
-        }      
+        }
 
-        int stepsBelow = 0;
-        int count = 0;
-        boolean buyOrderCalc = true;
+        if (TickerPrice >= Ath) {
+            // Kurs ist auf/über ATH -> keine Grid-Stufe oberhalb verfügbar
+            return;
+        }
 
-        while (buyOrderCalc) {
+        // Suche die letzten zwei Grid-Stufen ÜBER dem TickerPrice
+        double stopLevel = 0.0;    // erste Stufe über Ticker -> stopPrice (Trigger)
+        double limitLevel = 0.0;   // zweite Stufe darüber    -> limitPrice (Maximalpreis)
+        double prevLevel = 0.0;
+        double prevPrevLevel = 0.0;
+        double currentLevel = Ath;
+        boolean foundStopLevel = false;
 
-            Ath = Ath - ((Ath / 100.0) / grid);
-            BuyPrice = TradingRulesFormatter.formatPrice(currency, Ath);
-            double orderPrice = BuyPrice;
+        for (int count = 0; count < MAX_GRID_STEPS; count++) {
+            currentLevel = currentLevel - ((currentLevel / 100.0) / grid);
+            double gridPrice = TradingRulesFormatter.formatPrice(currency, currentLevel);
 
-            if (TickerPrice >= BuyPrice) {
-                count++;
-                stepsBelow++;
-                if (count >= MAX_GRID_STEPS) {
-                    buyOrderCalc = false;
+            if (gridPrice <= TickerPrice) {
+                // Grid ist unter den Ticker gefallen -> die letzten zwei Stufen
+                // davor sind unsere Trigger/Limit-Kandidaten.
+                if (prevLevel > 0.0 && prevPrevLevel > 0.0) {
+                    stopLevel = prevLevel;
+                    limitLevel = prevPrevLevel;
+                    foundStopLevel = true;
                 }
-            }
-            boolean preisPasst = TickerPrice >= orderPrice;
-
-            // Nur die erste Grid-Stufe unter dem LivePrice ordern
-            if (stepsBelow > 1) {
                 break;
             }
 
-            if (preisPasst && buyOrderCalc && !positionDAO.positionExistsAtPrice(currency, orderPrice)) {
+            prevPrevLevel = prevLevel;
+            prevLevel = gridPrice;
+        }
 
-                empty.Line();
-                System.out.println("Setze mal eine Order bei: " + BuyPrice);
+        if (!foundStopLevel) {
+            // Keine zwei vollständigen Stufen über dem Ticker gefunden -> Order skippen
+            return;
+        }
 
-                BuyAmount = BuyAmountFunktion.getBuyAmount(currency, client, LivePrice, preisPasst);      
-                
-                if (BuyAmount < 0) {
-                    BuyAmount = currencyDAO.getMinBuyAmount(currency);
-                }
-                
-                String buyprice = TradingRulesFormatter.formatOrderPrice(currency, BuyPrice);
-                String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency,
-                        BigDecimal.valueOf(BuyAmount), BigDecimal.valueOf(LivePrice.get(0)));
+        if (positionDAO.positionExistsAtPrice(currency, stopLevel)) {
+            return;
+        }
 
-                if (!TradingRulesFormatter.isOrderValid(
-                        currency, new BigDecimal(buyprice), new BigDecimal(Quantity))) {
-                    System.out.println("⚠️ Order ist ungültig gemäß Binance Trading-Regeln für " + currency);
-                    System.out.println("   Preis: " + buyprice + ", Quantity: " + Quantity);
-                    return;
-                }
+        double BuyAmount = BuyAmountFunktion.getsimplebuyamount(currency);
+        if (BuyAmount <= 0) {
+            BuyAmount = currencyDAO.getMinBuyAmount(currency);
+        }
 
-                try {
-                    NewOrderResponse newOrderResponse = client
-                            .newOrder(limitBuy(currency, TimeInForce.GTC, Quantity, buyprice));
+        String stopPriceStr = TradingRulesFormatter.formatOrderPrice(currency, stopLevel);
+        String limitPriceStr = TradingRulesFormatter.formatOrderPrice(currency, limitLevel);
+        // Quantity über limitPrice berechnen (worst-case Preis, sichert Notional ab)
+        String Quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency,
+                BigDecimal.valueOf(BuyAmount), new BigDecimal(limitPriceStr));
 
-                    positionDAO.insert(new Position.Builder(currency, String.valueOf(newOrderResponse.getOrderId()))
-                            .orderPrice(new BigDecimal(newOrderResponse.getPrice()).doubleValue())
-                            .status(0)
-                            .statusCode(TradingConstants.STATUS_NEW)
-                            .build());
+        if (!TradingRulesFormatter.isOrderValid(
+                currency, new BigDecimal(stopPriceStr), new BigDecimal(Quantity))) {
+            System.out.println("⚠️ Stop-Limit Order ist ungültig gemäß Binance Trading-Regeln für " + currency);
+            System.out.println("   stopPrice: " + stopPriceStr
+                    + ", limitPrice: " + limitPriceStr
+                    + ", Quantity: " + Quantity);
+            return;
+        }
 
-                    System.out.println("NEW_POSITION in DataBase: " + BuyPrice + " EUR");
-                    System.out.println("BUY AMOUNT bei..........: " + round.three(BuyAmount) + " EUR");
-                    System.out.println("Quantity bei............: " + Quantity + " " + currency);
-                    System.out.println("");
-                    // return;
+        empty.Line();
+        System.out.println("Setze STOP_LOSS_LIMIT BUY für " + currency);
+        System.out.println("  TickerPrice: " + TickerPrice);
+        System.out.println("  stopPrice  : " + stopPriceStr + " (Trigger)");
+        System.out.println("  limitPrice : " + limitPriceStr + " (Max-Preis)");
 
-                } catch (BinanceApiException ex) {
-                    System.err.println("Fehler beim Kauf: Nicht genügend Geld verfügbar - " + ex.getMessage());
-                    sleep.for_60_seconds();
-                } catch (Exception ex) {
-                    System.err.println("Unerwarteter Fehler: " + ex.getMessage());
-                    ex.printStackTrace();
-                }
-            }
+        try {
+            NewOrder stopLimitBuy = new NewOrder(
+                    currency,
+                    OrderSide.BUY,
+                    OrderType.STOP_LOSS_LIMIT,
+                    TimeInForce.GTC,
+                    Quantity,
+                    limitPriceStr)
+                    .stopPrice(stopPriceStr);
+
+            NewOrderResponse newOrderResponse = client.newOrder(stopLimitBuy);
+
+            positionDAO.insert(new Position.Builder(currency, String.valueOf(newOrderResponse.getOrderId()))
+                    .orderPrice(new BigDecimal(stopPriceStr).doubleValue())
+                    .status(0)
+                    .statusCode(TradingConstants.STATUS_NEW)
+                    .build());
+
+            System.out.println("NEW_POSITION in DataBase: stop=" + stopPriceStr
+                    + " EUR / limit=" + limitPriceStr + " EUR");
+            System.out.println("BUY AMOUNT bei..........: " + round.three(BuyAmount) + " EUR");
+            System.out.println("Quantity bei............: " + Quantity + " " + currency);
+            System.out.println("");
+
+        } catch (BinanceApiException ex) {
+            System.err.println("Fehler beim Kauf (Stop-Limit): " + ex.getMessage());
+            sleep.for_60_seconds();
+        } catch (Exception ex) {
+            System.err.println("Unerwarteter Fehler: " + ex.getMessage());
+            ex.printStackTrace();
         }
     }
 }

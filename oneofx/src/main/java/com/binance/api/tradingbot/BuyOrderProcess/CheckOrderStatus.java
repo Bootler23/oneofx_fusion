@@ -188,21 +188,30 @@ public class CheckOrderStatus {
 
     private static void BUY_FILLED(String currency, BinanceApiRestClient client, Long BuyOrderId, Order order, List<Double> LivePrice) {
 
-        double OrderPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getPrice()));
+        // OrderPrice = stopPrice = der Preis, zu dem wir die Order am Markt platziert haben (Trigger).
+        // BuyPrice   = tatsächlicher Ausführungspreis = cummulativeQuoteQty / executedQty.
+        double OrderPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getStopPrice()));
+        double ActualBuyPrice = computeActualFillPrice(currency, order, OrderPrice);
+        double Quantity = TradingRulesFormatter.formatQuantity(currency, Double.valueOf(order.getExecutedQty()));
+        double BuyAmount = round.five(ActualBuyPrice * Quantity);
+
         String BuyDate = Time.getCurrentDate();
         String BuyTime = Time.getCurrentTime_HHmmss();
 
-        Updates.NewCounterPosition();       
+        Updates.NewCounterPosition();
         Updates.setExpectationCounter();
 
         positionDAO.update(new Position.Builder(currency, String.valueOf(BuyOrderId))
                 .orderPrice(OrderPrice)
+                .buyPrice(ActualBuyPrice)
+                .quantity(Quantity)
+                .buyAmount(BuyAmount)
                 .status(5)
                 .statusCode("FILLED")
-                .buyTime(Time.getCurrentTime_HHmmss())
-                .buyDate(Time.getCurrentDate())
+                .buyTime(BuyTime)
+                .buyDate(BuyDate)
                 .build());
-       
+
         String asset = currency.replace("EUR", "");
         BalanceInfo balances = getBalances(asset, client);
         double taxe = histDAO.getTaxe();
@@ -219,6 +228,9 @@ public class CheckOrderStatus {
 
         histDAO.insert(new HistoryPosition.Builder(currency, String.valueOf(BuyOrderId))
                 .origPrice(OrderPrice)
+                .buyPrice(ActualBuyPrice)
+                .quantity(Quantity)
+                .buyAmount(BuyAmount)
                 .buyDate(BuyDate)
                 .buyTime(BuyTime)
                 .balanceAtBuy(eurBalance)
@@ -228,7 +240,23 @@ public class CheckOrderStatus {
                 .x(round.five(countPosition / balanceToAssetRatio))
                 .build());
 
-        System.out.println("Save Hist & Pos " + currency + " " + OrderPrice);
+        System.out.println("Save Hist & Pos " + currency + " orderPrice=" + OrderPrice
+                + " buyPrice=" + ActualBuyPrice);
+    }
+
+    /**
+     * Berechnet den tatsächlichen Ausführungspreis aus cummulativeQuoteQty / executedQty.
+     * Fallback: limitPrice der Order, falls executedQty == 0 (sollte bei FILLED nicht vorkommen).
+     */
+    private static double computeActualFillPrice(String currency, Order order, double fallbackPrice) {
+        try {
+            double cumQuote = Double.parseDouble(order.getCummulativeQuoteQty());
+            double execQty  = Double.parseDouble(order.getExecutedQty());
+            if (execQty > 0 && cumQuote > 0) {
+                return TradingRulesFormatter.formatPrice(currency, cumQuote / execQty);
+            }
+        } catch (Exception ignored) { }
+        return fallbackPrice;
     }
 
     private static double getBuyPrice(Order order) {
@@ -244,32 +272,13 @@ public class CheckOrderStatus {
             int grid = set.getGridforCurrency(currency);
             double livePrice = LivePrice.get(0);
 
-            // Proportionaler Walk vom ATH (identisch zu BuyOrderProcess)
-            double price = athPrice;
-            int stepsBelow = 0;
-            boolean found = false;
+            int stepsBetween = gridStepsBetweenOrderAndLive(currency, athPrice, grid, orderPrice, livePrice);
 
-            for (int iteration = 0; iteration < 10000; iteration++) {
-                price = price - (price / 100.0 / grid);
-                double formatted = TradingRulesFormatter.formatPrice(currency, price);
-
-                if (livePrice > formatted) {
-                    stepsBelow++;
-                }
-
-                if (orderPrice > 0 && Math.abs(formatted - orderPrice) / orderPrice < 0.001) {
-                    found = true;
-                    break;
-                }
-
-                if (formatted < orderPrice * 0.9) break;
-            }
-
-            if (found && stepsBelow > 3) {
+            if (stepsBetween > 3) {
                 client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
-                System.out.println("Order gecancelt (zu weit weg): " + currency
+                System.out.println("Order gecancelt (Markt zu weit unter Order): " + currency
                         + " orderPrice=" + orderPrice + " livePrice=" + livePrice
-                        + " steps=" + stepsBelow);
+                        + " stepsBetween=" + stepsBetween);
                 positionDAO.delete(String.valueOf(BuyOrderId));
             }
         } catch (Exception e) {
@@ -286,32 +295,16 @@ public class CheckOrderStatus {
             int grid = set.getGridforCurrency(currency);
             double livePrice = LivePrice.get(0);
 
-            // Proportionaler Walk vom ATH (identisch zu BuyOrderProcess)
-            double price = athPrice;
-            int stepsBelow = 0;
-            boolean shouldCancel = false;
-
-            for (int iteration = 0; iteration < 10000; iteration++) {
-                price = price - (price / 100.0 / grid);
-                double formatted = TradingRulesFormatter.formatPrice(currency, price);
-
-                if (livePrice > formatted) {
-                    stepsBelow++;
-                }
-
-                if (orderPrice > 0 && Math.abs(formatted - orderPrice) / orderPrice < 0.001) {
-                    shouldCancel = stepsBelow > 3;
-                    break;
-                }
-
-                if (formatted < orderPrice * 0.9) break;
-            }
+            int stepsBetween = gridStepsBetweenOrderAndLive(currency, athPrice, grid, orderPrice, livePrice);
+            boolean shouldCancel = stepsBetween > 3;
 
             if (shouldCancel) {
                             System.out.println("Order teilweise gefüllt: " + orderPrice + " - " + BuyOrderId);
 
                             int Status;
-                            double BuyPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getPrice()));
+                            // OrderPrice = stopPrice (Platzierungspreis), BuyPrice = tatsächlicher Ausführungspreis
+                            double OrderPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getStopPrice()));
+                            double BuyPrice = computeActualFillPrice(currency, order, OrderPrice);
                             String BuyDate = Time.getCurrentDate();
                             String BuyTime = Time.getCurrentTime_HHmmss();
                             double Quantity = TradingRulesFormatter.formatQuantity(currency, Double.valueOf(order.getExecutedQty()));
@@ -324,6 +317,7 @@ public class CheckOrderStatus {
                             }
 
                             positionDAO.update(new Position.Builder(currency, String.valueOf(BuyOrderId))
+                                    .orderPrice(OrderPrice)
                                     .buyPrice(BuyPrice)
                                     .quantity(Quantity)
                                     .buyAmount(partially_BuyAmount)
@@ -333,6 +327,7 @@ public class CheckOrderStatus {
                                     .build());
 
                             histDAO.insert(new HistoryPosition.Builder(currency, String.valueOf(BuyOrderId))
+                                    .origPrice(OrderPrice)
                                     .buyPrice(BuyPrice)
                                     .quantity(Quantity)
                                     .buyAmount(partially_BuyAmount)
@@ -343,12 +338,61 @@ public class CheckOrderStatus {
                             // Cancel der verbleibenden offenen Order
                             client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
                             System.out.println("Verbleibende Order gecancelt: " + BuyOrderId
-                                    + " steps=" + stepsBelow);
+                                    + " stepsBetween=" + stepsBetween);
             }
         } catch (Exception e) {
             System.err.println("Fehler in PARTIALLY_FILLED für Order " + BuyOrderId + ": " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Zählt die Grid-Stufen strikt zwischen orderPrice (über dem Markt) und livePrice.
+     * Strategie-Kontext: STOP_LOSS_LIMIT BUY liegt ÜBER dem Markt. Fällt der Markt,
+     * wächst der Abstand - veraltete Orders sollten gecancelt werden.
+     *
+     * @return Anzahl Stufen zwischen Order und Markt, 0 wenn Order schon unter/auf Markt,
+     *         -1 wenn Order nicht auf dem Grid liegt.
+     */
+    private static int gridStepsBetweenOrderAndLive(String currency, double athPrice, int grid,
+            double orderPrice, double livePrice) {
+
+        if (orderPrice <= 0 || livePrice <= 0 || athPrice <= 0 || grid <= 0) {
+            return -1;
+        }
+        if (orderPrice <= livePrice) {
+            return 0;
+        }
+
+        double price = athPrice;
+        boolean passedOrder = false;
+        int stepsBetween = 0;
+
+        for (int i = 0; i < 10000; i++) {
+            price = price - (price / 100.0 / grid);
+            double formatted = TradingRulesFormatter.formatPrice(currency, price);
+
+            if (!passedOrder) {
+                if (Math.abs(formatted - orderPrice) / orderPrice < 0.001) {
+                    passedOrder = true;
+                    continue;
+                }
+                if (formatted < orderPrice * 0.999) {
+                    return -1;
+                }
+            } else {
+                if (formatted > livePrice) {
+                    stepsBetween++;
+                } else {
+                    return stepsBetween;
+                }
+            }
+
+            if (formatted < livePrice * 0.5) {
+                return passedOrder ? stepsBetween : -1;
+            }
+        }
+        return -1;
     }
 
     public static class BalanceInfo {
