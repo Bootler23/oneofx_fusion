@@ -18,6 +18,8 @@ public class Position {
     private Integer status;
     private String statusCode;
     private Double peakPrice;
+    private String tsl;
+    private Double profit;
 
     private Position(Builder builder) {
         this.currency = builder.currency;
@@ -32,6 +34,8 @@ public class Position {
         this.status = builder.status;
         this.statusCode = builder.statusCode;
         this.peakPrice = builder.peakPrice;
+        this.tsl = builder.tsl;
+        this.profit = builder.profit;
     }
 
     public String getCurrency() { return currency; }
@@ -46,6 +50,8 @@ public class Position {
     public Integer getStatus() { return status; }
     public String getStatusCode() { return statusCode; }
     public Double getPeakPrice() { return peakPrice; }
+    public String getTsl() { return tsl; }
+    public Double getProfit() { return profit; }
 
     public static class Builder {
         private final String currency;
@@ -60,6 +66,8 @@ public class Position {
         private Integer status;
         private String statusCode;
         private Double peakPrice;
+        private String tsl;
+        private Double profit;
 
         public Builder(String currency, String buyOrderId) {
             this.currency = currency;
@@ -76,6 +84,8 @@ public class Position {
         public Builder status(Integer status) { this.status = status; return this; }
         public Builder statusCode(String statusCode) { this.statusCode = statusCode; return this; }
         public Builder peakPrice(Double peakPrice) { this.peakPrice = peakPrice; return this; }
+        public Builder tsl(String tsl) { this.tsl = tsl; return this; }
+        public Builder profit(Double profit) { this.profit = profit; return this; }
 
         public Position build() {
             return new Position(this);

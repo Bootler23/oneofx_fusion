@@ -40,6 +40,8 @@ public class PositionDAO {
         if (pos.getStatus() != null)      { columns.add("Status");      values.add(pos.getStatus()); }
         if (pos.getStatusCode() != null)  { columns.add("statusCode");  values.add(pos.getStatusCode()); }
         if (pos.getPeakPrice() != null)   { columns.add("peakPrice");   values.add(pos.getPeakPrice()); }
+        if (pos.getTsl() != null)         { columns.add("TSL");         values.add(pos.getTsl()); }
+        if (pos.getProfit() != null)      { columns.add("Profit");      values.add(pos.getProfit()); }
 
         String cols = String.join(", ", columns);
         String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
@@ -72,6 +74,8 @@ public class PositionDAO {
         if (pos.getStatus() != null)      { setClauses.add("Status = ?");      values.add(pos.getStatus()); }
         if (pos.getStatusCode() != null)  { setClauses.add("statusCode = ?");  values.add(pos.getStatusCode()); }
         if (pos.getPeakPrice() != null)   { setClauses.add("peakPrice = ?");   values.add(pos.getPeakPrice()); }
+        if (pos.getTsl() != null)         { setClauses.add("TSL = ?");         values.add(pos.getTsl()); }
+        if (pos.getProfit() != null)      { setClauses.add("Profit = ?");      values.add(pos.getProfit()); }
         if (pos.getCurrency() != null)    { setClauses.add("Währung = ?");     values.add(pos.getCurrency()); }
 
         if (setClauses.isEmpty()) return;
