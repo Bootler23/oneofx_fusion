@@ -1,0 +1,414 @@
+package com.oneofx.fusion.tradingbot.SQL_Database;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.oneofx.fusion.tradingbot.Database.dbUrl;
+import com.oneofx.fusion.tradingbot.domain.Position;
+
+/**
+ * DAO für die positions-Tabelle. Ersetzt POSSQL (statisch) durch Instanz-Methoden
+ * mit modularem insert/update (nur non-null Felder) und PreparedStatements überall.
+ */
+public class PositionDAO {
+
+    private Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(dbUrl.getoneOfX());
+    }
+
+    // ===================== INSERT (modular) =====================
+
+    public void insert(Position pos) {
+        List<String> columns = new ArrayList<>();
+        List<Object> values = new ArrayList<>();
+
+        columns.add("Währung");    values.add(pos.getCurrency());
+        columns.add("BuyOrderId"); values.add(pos.getBuyOrderId());
+
+        if (pos.getOrderPrice() != null)  { columns.add("OrderPrice");  values.add(pos.getOrderPrice()); }
+        if (pos.getOrigPrice() != null)   { columns.add("OrigPrice");   values.add(pos.getOrigPrice()); }
+        if (pos.getQuantity() != null)    { columns.add("Qty");         values.add(pos.getQuantity()); }
+        if (pos.getBuyAmount() != null)   { columns.add("BuyAmount");   values.add(pos.getBuyAmount()); }
+        if (pos.getBuyPrice() != null)    { columns.add("BuyPrice");    values.add(pos.getBuyPrice()); }
+        if (pos.getBuyDate() != null)     { columns.add("BuyDate");     values.add(pos.getBuyDate()); }
+        if (pos.getBuyTime() != null)     { columns.add("BuyTime");     values.add(pos.getBuyTime()); }
+        if (pos.getStatus() != null)      { columns.add("Status");      values.add(pos.getStatus()); }
+        if (pos.getStatusCode() != null)  { columns.add("statusCode");  values.add(pos.getStatusCode()); }
+        if (pos.getPeakPrice() != null)   { columns.add("peakPrice");   values.add(pos.getPeakPrice()); }
+        if (pos.getTsl() != null)         { columns.add("TSL");         values.add(pos.getTsl()); }
+        if (pos.getProfit() != null)      { columns.add("Profit");      values.add(pos.getProfit()); }
+
+        String cols = String.join(", ", columns);
+        String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+        String sql = "INSERT INTO positions (" + cols + ") VALUES (" + placeholders + ")";
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            for (int i = 0; i < values.size(); i++) {
+                ps.setObject(i + 1, values.get(i));
+            }
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Fehler beim Insert in positions: " + e.getMessage());
+        }
+    }
+
+    // ===================== UPDATE (modular) =====================
+
+    public void update(Position pos) {
+        List<String> setClauses = new ArrayList<>();
+        List<Object> values = new ArrayList<>();
+
+        if (pos.getOrderPrice() != null)  { setClauses.add("OrderPrice = ?");  values.add(pos.getOrderPrice()); }
+        if (pos.getOrigPrice() != null)   { setClauses.add("OrigPrice = ?");   values.add(pos.getOrigPrice()); }
+        if (pos.getQuantity() != null)    { setClauses.add("Qty = ?");         values.add(pos.getQuantity()); }
+        if (pos.getBuyAmount() != null)   { setClauses.add("BuyAmount = ?");   values.add(pos.getBuyAmount()); }
+        if (pos.getBuyPrice() != null)    { setClauses.add("BuyPrice = ?");    values.add(pos.getBuyPrice()); }
+        if (pos.getBuyDate() != null)     { setClauses.add("BuyDate = ?");     values.add(pos.getBuyDate()); }
+        if (pos.getBuyTime() != null)     { setClauses.add("BuyTime = ?");     values.add(pos.getBuyTime()); }
+        if (pos.getStatus() != null)      { setClauses.add("Status = ?");      values.add(pos.getStatus()); }
+        if (pos.getStatusCode() != null)  { setClauses.add("statusCode = ?");  values.add(pos.getStatusCode()); }
+        if (pos.getPeakPrice() != null)   { setClauses.add("peakPrice = ?");   values.add(pos.getPeakPrice()); }
+        if (pos.getTsl() != null)         { setClauses.add("TSL = ?");         values.add(pos.getTsl()); }
+        if (pos.getProfit() != null)      { setClauses.add("Profit = ?");      values.add(pos.getProfit()); }
+        if (pos.getCurrency() != null)    { setClauses.add("Währung = ?");     values.add(pos.getCurrency()); }
+
+        if (setClauses.isEmpty()) return;
+
+        String sql = "UPDATE positions SET " + String.join(", ", setClauses) + " WHERE BuyOrderId = ?";
+        values.add(pos.getBuyOrderId());
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            for (int i = 0; i < values.size(); i++) {
+                ps.setObject(i + 1, values.get(i));
+            }
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Fehler beim Update in positions: " + e.getMessage());
+        }
+    }
+
+    // ===================== DELETE =====================
+
+    public void delete(String buyOrderId) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("DELETE FROM positions WHERE BuyOrderId = ?")) {
+            ps.setString(1, buyOrderId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Fehler beim Löschen aus positions: " + e.getMessage());
+        }
+    }
+
+    public void delete(Long buyOrderId) {
+        delete(String.valueOf(buyOrderId));
+    }
+
+    // ===================== Queries (aus POSSQL migriert) =====================
+
+    public double getLastDownSidePrice(String currencyPair, List<Double> livePrice) {
+        double priceMin = Double.MAX_VALUE;
+        boolean found = false;
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT OrderPrice FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+            ps.setString(1, currencyPair);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                double p = rs.getDouble("OrderPrice");
+                if (p < priceMin) { priceMin = p; found = true; }
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+
+        if (!found && !livePrice.isEmpty()) {
+            priceMin = livePrice.get(0);
+        }
+        return priceMin;
+    }
+
+    public boolean positionExistsAtPrice(String currencyPair, double price) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT COUNT(*) AS count FROM positions WHERE Status IN (0, 1, 5) AND Währung = ? AND ABS(OrderPrice - ?) < 0.0001")) {
+            ps.setString(1, currencyPair);
+            ps.setDouble(2, price);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("count") > 0;
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler in positionExistsAtPrice: " + e.getMessage());
+            return true;
+        }
+        return false;
+    }
+
+    /** Zählt offene PENDING-Orders (Status=0) für ein Währungspaar. */
+    public int countPendingOrders(String currencyPair) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT COUNT(*) AS cnt FROM positions WHERE Status = 0 AND Währung = ?")) {
+            ps.setString(1, currencyPair);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("cnt");
+            }
+        } catch (SQLException e) {
+            System.err.println("[FEHLER] countPendingOrders: " + e.getMessage());
+        }
+        return 0;
+    }
+
+    public List<Long> getBuyOrderIdsWhereStatusZero(String currencyPair) {
+        List<Long> ids = new ArrayList<>();
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT BuyOrderId FROM positions WHERE Status = 0 AND Währung = ?")) {
+            ps.setString(1, currencyPair);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                ids.add(rs.getLong("BuyOrderId"));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return ids;
+    }
+
+    public List<String> getBuyTradeRecordsWhereStatusFive() {
+        List<String> records = new ArrayList<>();
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT BuyOrderId, Währung FROM positions WHERE Status = 5")) {
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Währung"));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return records;
+    }
+
+    public double getSumBuyAmount() {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("SELECT SUM(BuyAmount) AS SumBuyAmount FROM positions")) {
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble("SumBuyAmount");
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return 0.0;
+    }
+
+    public double getSumQuantity() {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("SELECT SUM(Qty) AS SumQuantity FROM positions")) {
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble("SumQuantity");
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return 0.0;
+    }
+
+    public double getSumQuantityForCurrency(String currencyPair) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT SUM(Qty) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+            ps.setString(1, currencyPair);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble("SumQuantity");
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return 0.0;
+    }
+
+    public double getSumColumn(String url, String columnName, String tableName) {
+        String sql = "SELECT SUM(" + sanitizeIdentifier(columnName) + ") AS val FROM " + sanitizeIdentifier(tableName);
+        try (Connection con = DriverManager.getConnection(url);
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble("val");
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return 0.0;
+    }
+
+    public int getCountPOS(String currencyPair) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT COUNT(*) AS RecordCount FROM positions WHERE Status IN (0, 1) AND Währung = ?")) {
+            ps.setString(1, currencyPair);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt("RecordCount");
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return 0;
+    }
+
+    public Double getAverageBuyAmount() {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("SELECT AVG(BuyAmount) AS AverageBuyAmount FROM positions")) {
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble("AverageBuyAmount");
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public List<String> getDataRecordsWhereStatusOneOrSeven(String currencyPair) {
+        List<String> records = new ArrayList<>();
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                     "FROM positions WHERE Status IN (1, 7) AND Währung = ? AND BuyAmount > 0")) {
+            ps.setString(1, currencyPair);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                records.add(buildDataRecord(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return records;
+    }
+
+    public List<String> getDataRecordsWithMaxInMinus(String currency, double livePrice) {
+        List<String> records = new ArrayList<>();
+        try (Connection con = getConnection()) {
+            // Zuerst Status = 7
+            try (PreparedStatement ps = con.prepareStatement(
+                    "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                    "FROM positions WHERE Status = 7 AND Währung = ?")) {
+                ps.setString(1, currency);
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) {
+                    records.add(buildDataRecord(rs));
+                }
+            }
+            // Falls nichts mit Status 7, dann Status 1 mit max Minus
+            if (records.isEmpty()) {
+                try (PreparedStatement ps = con.prepareStatement(
+                        "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                        "FROM positions WHERE Status = 1 AND Währung = ? AND BuyAmount > 10 " +
+                        "ORDER BY (BuyPrice - ?) DESC LIMIT 1")) {
+                    ps.setString(1, currency);
+                    ps.setDouble(2, livePrice);
+                    ResultSet rs = ps.executeQuery();
+                    while (rs.next()) {
+                        records.add(buildDataRecord(rs));
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return records;
+    }
+
+    // ---- Trailing Stop Loss peakPrice ----
+
+    public double getPeakPrice(String buyOrderId) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("SELECT peakPrice FROM positions WHERE BuyOrderId = ?")) {
+            ps.setString(1, buyOrderId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble("peakPrice");
+        } catch (SQLException e) {
+            System.err.println("Fehler beim Lesen von peakPrice: " + e.getMessage());
+        }
+        return 0.0;
+    }
+
+    public void updatePeakPrice(String buyOrderId, double peakPrice) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("UPDATE positions SET peakPrice = ? WHERE BuyOrderId = ?")) {
+            ps.setDouble(1, peakPrice);
+            ps.setString(2, buyOrderId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Fehler beim Aktualisieren von peakPrice: " + e.getMessage());
+        }
+    }
+
+    public List<String> getPositionWithMaxInMinus(String currencyPair, double livePrice) {
+        List<String> records = new ArrayList<>();
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
+                     "WHERE Status = 1 AND BuyAmount >= 10 " +
+                     "ORDER BY (BuyPrice - ?) DESC LIMIT 1")) {
+            ps.setDouble(1, livePrice);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Qty") + ", " + rs.getString("Währung"));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return records;
+    }
+
+    public List<String> getTwoPositions(String currency) {
+        List<String> records = new ArrayList<>();
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
+                     "WHERE Status = 1 AND BuyAmount < 10 AND Währung = ?")) {
+            ps.setString(1, currency);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Qty") + ", "
+                        + rs.getString("Währung") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return records;
+    }
+
+    public List<String> getPositionSmallerThen10AndMinus7Percent(String currency, double livePrice) {
+        List<String> records = new ArrayList<>();
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
+                     "WHERE Währung = ? AND BuyAmount < 10 AND Status = 1 AND (BuyPrice - ?) / BuyPrice >= 0.07")) {
+            ps.setString(1, currency);
+            ps.setDouble(2, livePrice);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Qty") + ", "
+                        + rs.getString("Währung") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+        }
+        return records;
+    }
+
+    // ===================== Hilfsmethoden =====================
+
+    private String buildDataRecord(ResultSet rs) throws SQLException {
+        return rs.getString("BuyOrderId") + ", " + rs.getString("OrderPrice") + ", "
+                + rs.getString("OrigPrice") + ", " + rs.getString("Qty") + ", "
+                + rs.getString("BuyAmount") + ", " + rs.getString("BuyPrice") + ", "
+                + rs.getString("BuyDate") + ", " + rs.getString("BuyTime");
+    }
+
+    private String sanitizeIdentifier(String name) {
+        return name.replaceAll("[^a-zA-Z0-9_€]", "");
+    }
+}
