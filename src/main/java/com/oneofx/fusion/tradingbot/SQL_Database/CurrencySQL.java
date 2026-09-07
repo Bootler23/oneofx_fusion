@@ -2,7 +2,6 @@ package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
-import com.oneofx.fusion.tradingbot.RiskRewardRatio.CurrencyRRR;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -156,10 +155,6 @@ public class CurrencySQL {
         }
 
         return new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    }
-
-    public static CurrencyRRR getCurrencyRRR(String currency) {
-        return PerformanceSQL.getWeightedRRRLast30Days(currency);
     }
 
     // ---- Trailing Stop Loss (TSL) --------------------------------------------

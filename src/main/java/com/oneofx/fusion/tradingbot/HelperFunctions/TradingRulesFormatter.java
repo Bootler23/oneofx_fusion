@@ -191,6 +191,9 @@ public class TradingRulesFormatter {
      */
     public static boolean isQuantityValid(String symbol, BigDecimal quantity) {
         TradingRules rules = getTradingRules(symbol);
+        // REVIEW [KRITISCH]: Fehlende/defekte Trading-Regeln werden als "gueltig"
+        // behandelt. Dann koennen Mindestbetrag, Maximalmenge und echte Inkremente nicht
+        // geprueft werden. Fuer echte Orders sollte ein fehlender Regelsatz fail-closed sein.
         if (rules == null) return true;
         return rules.isQuantityValid(quantity);
     }
@@ -200,6 +203,8 @@ public class TradingRulesFormatter {
      */
     public static boolean isOrderValid(String symbol, BigDecimal price, BigDecimal quantity) {
         TradingRules rules = getTradingRules(symbol);
+        // REVIEW [KRITISCH]: Auch hier bedeutet rules == null derzeit Freigabe statt
+        // Abbruch. Die Default-Dezimalstellen ersetzen keine Fusion-Handelsgrenzen.
         return rules == null || rules.isOrderValid(price, quantity);
     }
 

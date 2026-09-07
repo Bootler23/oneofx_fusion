@@ -24,6 +24,9 @@ public class PositionDAO {
     // ===================== INSERT (modular) =====================
 
     public void insert(Position pos) {
+        // REVIEW [KRITISCH]: Diese Methode meldet Erfolg oder Fehler nicht an den
+        // Aufrufer zurueck. Nach einer bereits angenommenen Boersenorder kann ein hier
+        // verschluckter SQL-Fehler eine echte, aber lokal unbekannte Position erzeugen.
         List<String> columns = new ArrayList<>();
         List<Object> values = new ArrayList<>();
 
@@ -349,9 +352,10 @@ public class PositionDAO {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
                      "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
-                     "WHERE Status = 1 AND BuyAmount >= 10 " +
+                     "WHERE Status = 1 AND BuyAmount >= 10 AND Währung = ? " +
                      "ORDER BY (BuyPrice - ?) DESC LIMIT 1")) {
-            ps.setDouble(1, livePrice);
+            ps.setString(1, currencyPair);
+            ps.setDouble(2, livePrice);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Qty") + ", " + rs.getString("Währung"));

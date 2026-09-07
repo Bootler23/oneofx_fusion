@@ -44,6 +44,8 @@ Der Programmeinstieg ist
 zuerst nur Read-Rechte verwendet und Preise, Paare, Trading-Regeln sowie
 Balance-Abgleich kontrolliert werden.
 
+In VS Code startet `Strg+F5` direkt diesen Programmeinstieg.
+
 ## Fusion-spezifisches Verhalten
 
 - Authentifizierung erfolgt über den Header `x-api-key`.

@@ -28,15 +28,18 @@ public class PricePoller {
     private static final Logger logger = LoggerFactory.getLogger(PricePoller.class);
 
     private static final long POLL_INTERVAL_MS = 1000;
+    private static final long MAX_PRICE_AGE_NANOS = TimeUnit.MILLISECONDS.toNanos(3 * POLL_INTERVAL_MS);
 
     private final FusionApiClient restClient;
 
-    private final Map<String, BigDecimal> prices = new ConcurrentHashMap<>();
+    private final Map<String, CachedPrice> prices = new ConcurrentHashMap<>();
     private final Set<String> watchedSymbols = ConcurrentHashMap.newKeySet();
 
     private volatile boolean active = false;
     private ScheduledExecutorService scheduler;
     private ScheduledFuture<?> pollFuture;
+
+    private record CachedPrice(BigDecimal value, long fetchedAtNanos) {}
 
     public PricePoller() {
         this.restClient = FusionClientProvider.getClient();
@@ -94,6 +97,10 @@ public class PricePoller {
             }
         }
 
+        // REVIEW [NIEDRIG]: Deaktivierte Symbole werden nie aus watchedSymbols und
+        // prices entfernt. Das beeinflusst die aktuelle Handelsauswahl nicht direkt,
+        // laesst den Cache aber dauerhaft wachsen und macht Statuszaehler irrefuehrend.
+
         if (added > 0) {
             logger.info("[PricePoller] {} neue Symbole hinzugefügt – total: {}", added, watchedSymbols.size());
         }
@@ -106,7 +113,10 @@ public class PricePoller {
                 if (ticker == null || ticker.getSymbol() == null || ticker.getPrice() == null) continue;
                 String compactPair = FusionSymbol.compactPair(ticker.getSymbol());
                 if (watchedSymbols.contains(compactPair)) {
-                    prices.put(compactPair, new BigDecimal(ticker.getPrice()));
+                    BigDecimal price = new BigDecimal(ticker.getPrice());
+                    if (price.signum() > 0) {
+                        prices.put(compactPair, new CachedPrice(price, System.nanoTime()));
+                    }
                 }
             }
         } catch (Exception e) {
@@ -121,15 +131,26 @@ public class PricePoller {
      * @return Aktueller Preis oder null wenn nicht verfügbar
      */
     public Double getPrice(String symbol) {
-        BigDecimal price = prices.get(FusionSymbol.compactPair(symbol));
-        return price != null ? price.doubleValue() : null;
+        CachedPrice price = getFreshPrice(FusionSymbol.compactPair(symbol));
+        return price != null ? price.value().doubleValue() : null;
     }
 
     /**
      * Prüft ob ein Symbol bereits Daten hat.
      */
     public boolean hasData(String symbol) {
-        return prices.containsKey(FusionSymbol.compactPair(symbol));
+        return getFreshPrice(FusionSymbol.compactPair(symbol)) != null;
+    }
+
+    /**
+     * Prueft, ob fuer jedes angegebene Symbol ein frischer Preis vorhanden ist.
+     */
+    public boolean hasDataForAll(String[] symbols) {
+        if (symbols == null || symbols.length == 0) return false;
+        for (String symbol : symbols) {
+            if (symbol == null || symbol.isBlank() || !hasData(symbol)) return false;
+        }
+        return true;
     }
 
     /**
@@ -138,9 +159,20 @@ public class PricePoller {
     public int getActiveSymbolCount() {
         int count = 0;
         for (String sym : watchedSymbols) {
-            if (prices.containsKey(sym)) count++;
+            if (getFreshPrice(sym) != null) count++;
         }
         return count;
+    }
+
+    private CachedPrice getFreshPrice(String compactPair) {
+        CachedPrice price = prices.get(compactPair);
+        if (price == null) return null;
+
+        if (System.nanoTime() - price.fetchedAtNanos() > MAX_PRICE_AGE_NANOS) {
+            prices.remove(compactPair, price);
+            return null;
+        }
+        return price;
     }
 
     /**

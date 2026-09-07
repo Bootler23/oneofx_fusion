@@ -2,7 +2,10 @@ package com.oneofx.fusion.tradingbot.SellOrderProcess;
 
 import static com.oneofx.fusion.client.model.NewOrder.marketSell;
 
+import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
 
 import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.client.model.NewOrderResponse;
@@ -13,18 +16,17 @@ import com.oneofx.fusion.tradingbot.HelperFunctions.empty;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 import com.oneofx.fusion.tradingbot.HelperFunctions.sleep;
 import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
-import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
+import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence;
+import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence.Reservation;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
-import com.oneofx.fusion.tradingbot.domain.HistoryPosition;
 import com.oneofx.fusion.tradingbot.domain.Position;
-import java.math.BigDecimal;
 
 public class SellOrderProcess {
 
     private static final PositionDAO positionDAO = new PositionDAO();
-    private static final HistDAO histDAO = new HistDAO();
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
+    private static final SellOrderPersistence sellOrderPersistence = new SellOrderPersistence();
 
     public static void setSellOrder(String currency, FusionApiClient client,
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
@@ -99,49 +101,102 @@ public class SellOrderProcess {
         }
     }
 
-    private static void executeSell(String currency, FusionApiClient client, String BuyOrderId,
-            String Quantity_String) {
+    private static void executeSell(String currency, FusionApiClient client, String BuyOrderId, String Quantity_String) {
 
+        String validatedQuantity;
         try {
-            String validatedQuantity = TradingRulesFormatter.formatOrderQuantity(currency,
-                    new BigDecimal(Quantity_String));
+            validatedQuantity = TradingRulesFormatter.formatOrderQuantity(currency, new BigDecimal(Quantity_String));
 
             if (!TradingRulesFormatter.isQuantityValid(currency, new BigDecimal(validatedQuantity))) {
                 System.out.println("⚠️ Quantity ungültig für " + currency + ": " + validatedQuantity);
                 return;
             }
+        } catch (RuntimeException ex) {
+            System.err.println("Ungültige Sell-Order für " + BuyOrderId + ": " + ex.getMessage());
+            return;
+        }
 
-            NewOrderResponse orderResponse = getNewSellOrderResponse(currency, client, validatedQuantity);
+        Optional<Reservation> reserved;
+        try {
+            reserved = sellOrderPersistence.reserve(BuyOrderId, currency, validatedQuantity);
+        } catch (SQLException ex) {
+            System.err.println("KRITISCH: Position " + BuyOrderId
+                    + " konnte vor dem Verkauf nicht atomar reserviert werden: " + ex.getMessage());
+            return;
+        }
 
-            System.out.println("DEBUG: Verkauf erfolgreich abgeschlossen für BuyOrderId: " + BuyOrderId + " " + currency);
+        if (reserved.isEmpty()) {
+            System.out.println("Sell übersprungen: Position " + BuyOrderId
+                    + " wurde bereits reserviert oder ist nicht mehr verkaufbar.");
+            return;
+        }
+        Reservation reservation = reserved.get();
 
-            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(), orderResponse);
-            update_POS_AfterMarketSell(BuyOrderId);
-
+        NewOrderResponse orderResponse;
+        try {
+            orderResponse = getNewSellOrderResponse(currency, client, validatedQuantity);
         } catch (FusionApiException ex) {
-            System.err.println("Fehler beim Verkauf: Keine Menge vorhanden! " + ex.getMessage() + " " + currency);
+            handleSubmissionFailure(reservation, ex);
+            System.err.println("Fehler beim Verkauf: " + ex.getMessage() + " " + currency);
             sleep.for_10_seconds();
+            return;
+        } catch (RuntimeException ex) {
+            requireReconciliation(reservation, null,
+                    "Unerwarteter Fehler während der Sell-Übermittlung: " + ex.getMessage());
+            System.err.println("KRITISCH: Unerwarteter Fehler während der Sell-Übermittlung für Position "
+                    + BuyOrderId + "; die Position bleibt gesperrt: " + ex.getMessage());
+            return;
+        }
+
+        String sellOrderId = orderResponse == null ? null : orderResponse.getOrderId();
+        if (sellOrderId == null || sellOrderId.isBlank()) {
+            requireReconciliation(reservation, null,
+                    "Fusion hat die Sell-Anfrage beantwortet, aber keine Order-ID geliefert");
+            System.err.println("KRITISCH: Sell-Ausgang für Position " + BuyOrderId
+                    + " ist unklar; die Position bleibt gesperrt.");
+            return;
+        }
+
+        try {
+            sellOrderPersistence.recordSubmitted(reservation, sellOrderId, Time.getCurrentDate(), Time.getCurrentTime_HHmmss());
+            System.out.println("DEBUG: Verkauf eingereicht für BuyOrderId: "
+                    + BuyOrderId + " " + currency + ", SellOrderId: " + sellOrderId);
+        } catch (SQLException ex) {
+            requireReconciliation(reservation, sellOrderId,
+                    "Lokale Verbuchung der angenommenen Sell-Order fehlgeschlagen: " + ex.getMessage());
+            System.err.println("KRITISCH: Fusion-Sell-Order " + sellOrderId
+                    + " existiert, konnte aber lokal nicht vollständig verbucht werden. "
+                    + "Die Position bleibt gesperrt: " + ex.getMessage());
         }
     }
 
-    private static void update_HIST_AfterMarketSell(String BuyOrderId, String SellTime,
-            String SellDate, NewOrderResponse newOrderResponse) {
-        histDAO.updateByBuyOrderId(new HistoryPosition.Builder(null, BuyOrderId)
-                .status(0)
-                .sellOrderId(String.valueOf(newOrderResponse.getOrderId()))
-                .sellTime(SellTime)
-                .sellDate(SellDate)
-                .build());
+    private static void handleSubmissionFailure(Reservation reservation, FusionApiException ex) {
+        int statusCode = ex.getStatusCode();
+        boolean definiteRejection = statusCode >= 400 && statusCode < 500 && statusCode != 408;
+        try {
+            if (definiteRejection) {
+                sellOrderPersistence.recordRejected(reservation, ex.getMessage());
+            } else {
+                sellOrderPersistence.requireReconciliation(reservation, null, ex.getMessage());
+                System.err.println("KRITISCH: Der Ausgang der Sell-Anfrage für Position "
+                        + reservation.buyOrderId() + " ist unklar; die Position bleibt gesperrt.");
+            }
+        } catch (SQLException persistenceError) {
+            System.err.println("KRITISCH: Fehlerstatus des Sell-Versuchs " + reservation.attemptId()
+                    + " konnte nicht gespeichert werden: " + persistenceError.getMessage());
+        }
     }
 
-    private static void update_POS_AfterMarketSell(String BuyOrderId) {
-        positionDAO.update(new Position.Builder(null, BuyOrderId)
-                .status(2)
-                .build());
+    private static void requireReconciliation(Reservation reservation, String sellOrderId, String reason) {
+        try {
+            sellOrderPersistence.requireReconciliation(reservation, sellOrderId, reason);
+        } catch (SQLException persistenceError) {
+            System.err.println("KRITISCH: Sell-Versuch " + reservation.attemptId()
+                    + " konnte nicht als ungeklärt markiert werden: " + persistenceError.getMessage());
+        }
     }
 
-    public static NewOrderResponse getNewSellOrderResponse(String CurrencyPair, FusionApiClient client,
-            String Quantity_String) {
+    public static NewOrderResponse getNewSellOrderResponse(String CurrencyPair, FusionApiClient client, String Quantity_String) {
         NewOrderResponse newOrderResponse = client.newOrder(marketSell(CurrencyPair, Quantity_String));
         return newOrderResponse;
     }
@@ -151,6 +206,9 @@ public class SellOrderProcess {
         double livePrice = Ticker.getAssetPrice(currency, client);
         List<String> BuyAmountRecord = positionDAO.getPositionWithMaxInMinus(currency, livePrice);
 
+        if (BuyAmountRecord.isEmpty()) {
+            return;
+        }
         String record = BuyAmountRecord.get(0);
         String[] recordParts = record.split(", ");
 
@@ -158,28 +216,6 @@ public class SellOrderProcess {
         String Quantity_String = recordParts[1];
         String CurrencyPair = recordParts[2];
 
-        try {
-            // Quantity nochmals durch Trading-Rules-Formatter laufen lassen zur Sicherheit
-            String validatedQuantity = TradingRulesFormatter.formatOrderQuantity(CurrencyPair,
-                    new BigDecimal(Quantity_String));
-
-            // Validierung der Quantity
-            if (!TradingRulesFormatter.isQuantityValid(CurrencyPair, new BigDecimal(validatedQuantity))) {
-                System.out.println("⚠️ Quantity ungültig für " + CurrencyPair + ": " + validatedQuantity);
-                return;
-            }
-
-            NewOrderResponse newOrderResponse = getNewSellOrderResponse(CurrencyPair, client, validatedQuantity);
-
-            update_POS_AfterMarketSell(BuyOrderId);
-            update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(),
-                    newOrderResponse);
-
-        } catch (FusionApiException dex) {
-            System.err.println("Fehler beim Verkauf: Keine Menge für den Verkauf verfügbar!");
-            sleep.for_10_seconds();
-        } catch (Exception e) {
-            System.err.println("Fehler beim Verkaufsprozess: " + e.getMessage());
-        }
+        executeSell(CurrencyPair, client, BuyOrderId, Quantity_String);
     }
 }

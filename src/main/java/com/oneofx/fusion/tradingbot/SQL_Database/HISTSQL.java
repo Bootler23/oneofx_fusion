@@ -10,7 +10,6 @@ import java.util.List;
 
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
-import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 
 public class HISTSQL {
 
@@ -198,50 +197,4 @@ public class HISTSQL {
         return 0.0;
     }
 
-    public static void transferHISTToWPD(final String SellDate) {
-        try (Connection conHIST = DriverManager.getConnection(dbUrl.getoneOfX());
-                Statement stmtHIST = conHIST.createStatement();
-                Connection conWPD = DriverManager.getConnection(dbUrl.getWPD())) {
-
-            String selectSQL = "SELECT "
-                    + "ROUND(SUM(GewinnAfterTax), 4) AS TotalGewinnAfterTax, "
-                    + "ROUND(SUM(Tax), 4) AS TotalTax, "
-                    + "ROUND(SUM(Gewinn), 4) AS TotalGewinn, "
-                    + "ROUND(SUM(Fee), 4) AS TotalFee, "
-                    + "ROUND(SUM(LossAfterTax), 4) AS LossAfterTax, "
-                    + "COUNT(*) AS TotalRows "
-                    + "FROM HIST "
-                    + "WHERE SellDate = ?";
-
-            try (PreparedStatement selectStmt = conHIST.prepareStatement(selectSQL)) {
-                selectStmt.setString(1, SellDate);
-                ResultSet rs = selectStmt.executeQuery();
-
-                if (rs.next()) {
-                    String insertSQL = "INSERT INTO WPD (GewinnAfterTax, TotalTax, TotalGewinn, TotalFee, LossAfterTax, TotalRows, Date, Status, SellPerDayAVG, RRR, €_trade) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-                    try (PreparedStatement insertStmt = conWPD.prepareStatement(insertSQL)) {
-                        insertStmt.setDouble(1, rs.getDouble("TotalGewinnAfterTax"));
-                        insertStmt.setDouble(2, rs.getDouble("TotalTax"));
-                        insertStmt.setDouble(3, rs.getDouble("TotalGewinn"));
-                        insertStmt.setDouble(4, rs.getDouble("TotalFee"));
-                        insertStmt.setDouble(5, rs.getDouble("LossAfterTax"));
-                        insertStmt.setInt(6, rs.getInt("TotalRows"));
-                        insertStmt.setString(7, SellDate);
-                        insertStmt.setInt(8, 0); // Status explizit als Integer setzen
-                        insertStmt.setDouble(9, WPDSQL.SellPerDayAVG());
-                        insertStmt.setDouble(10,com.oneofx.fusion.tradingbot.RiskRewardRatio.RRR.calculateRiskRewardRatio(rs.getDouble("TotalGewinnAfterTax"), rs.getDouble("LossAfterTax")));
-                        insertStmt.setDouble(11, round.six(rs.getDouble("TotalGewinnAfterTax")/rs.getInt("TotalRows")));
-
-                        int rowsAffected = insertStmt.executeUpdate();
-                        System.out.println("Daten erfolgreich in WPD übertragen. Zeilen eingefügt: " + rowsAffected);
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("SQL-Fehler beim Transfer: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }  
 }

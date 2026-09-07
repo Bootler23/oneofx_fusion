@@ -230,9 +230,12 @@ public class VolumeService {
                 }
 
                 try {
-                    // Volumen berechnen
-                    // Fusion liefert das 24h-Ticker-Volumen in der Quote-Währung.
-                    BigDecimal volumeQuote = new BigDecimal(stats.getVolume());
+                    // Die Fusion-Beispiele verwenden fuer "volume" die Basis-Waehrung
+                    // des Paars. Fuer den Vergleich wird sie zum aktuellen Mid-Preis
+                    // in die Quote-Waehrung umgerechnet.
+                    BigDecimal volumeBase = new BigDecimal(stats.getVolume());
+                    BigDecimal lastPrice = new BigDecimal(stats.getLastPrice());
+                    BigDecimal volumeQuote = volumeBase.multiply(lastPrice);
 
                     // Volumen-Check
                     if (volumeQuote.compareTo(minVolumeQuote) >= 0) {
@@ -362,9 +365,9 @@ public class VolumeService {
     // ========== Hilfsmethoden ==========
 
     /**
-     * Konvertiert TickerStatistics von Binance API zu VolumeData.
+     * Konvertiert Fusion-Tickerstatistiken zu VolumeData.
      * 
-     * @param stats TickerStatistics von Binance
+     * @param stats TickerStatistics von Fusion
      * @return VolumeData-Objekt mit allen relevanten Daten
      */
     private VolumeData mapToVolumeData(TickerStatistics stats) {
@@ -375,16 +378,11 @@ public class VolumeService {
 
         // Volumen-Daten
         try {
-            BigDecimal volumeQuote = new BigDecimal(stats.getVolume());
+            BigDecimal volumeBase = new BigDecimal(stats.getVolume());
             BigDecimal lastPrice = new BigDecimal(stats.getLastPrice());
 
             volumeData.setLastPrice(lastPrice);
-            volumeData.setVolumeQuote(volumeQuote);
-            if (lastPrice.signum() > 0) {
-                volumeData.setVolumeBase(volumeQuote.divide(lastPrice, 12, RoundingMode.HALF_UP));
-                // setVolumeBase berechnet intern neu; der API-Wert bleibt maßgeblich.
-                volumeData.setVolumeQuote(volumeQuote);
-            }
+            volumeData.setVolumeBase(volumeBase);
             
         } catch (NumberFormatException e) {
             logger.warn("Fehler beim Parsen von Volumen/Preis für {}: {}", 

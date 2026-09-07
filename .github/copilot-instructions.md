@@ -9,7 +9,7 @@ Dies ist ein **Java-basierter Krypto-Trading-Bot** für Binance, der automatisie
 - **Build-Tool:** Maven
 - **API:** Binance REST & WebSocket API
 - **Datenbank:** SQL (PostgreSQL/MySQL)
-- **Framework:** Plain Java (kein Spring Boot aktuell)
+- **Framework:** Plain Java
 
 ---
 

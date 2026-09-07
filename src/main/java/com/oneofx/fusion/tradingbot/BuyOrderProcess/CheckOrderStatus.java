@@ -80,7 +80,7 @@ public class CheckOrderStatus {
                 if (order.getStatus() == OrderStatus.NEW) {
                     BUY_NEW(currency, client, LivePrice, orderId, orderPrice);
                 } else if (order.getStatus() == OrderStatus.PARTIALLY_FILLED) {
-                    PARTIALLY_FILLED(currency, client, LivePrice, orderId, orderPrice, order);
+                    PARTIALLY_FILLED(currency, client, LivePrice, orderId, orderPrice);
                 }
             }
 
@@ -95,21 +95,8 @@ public class CheckOrderStatus {
                 try {
                     Order order = client.getOrderStatus(buyOrderId);
 
-                    if (order.getStatus() == OrderStatus.FILLED) {
-                        BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
-                    } else if (order.getStatus() == OrderStatus.CANCELED) {
-                        CancelOrderFromOutside(order);
-                    } else if (order.getStatus() == OrderStatus.FILLED_AND_CANCELED
-                            && Double.parseDouble(order.getExecutedQty()) > 0) {
-                        BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
-                    } else if (order.getStatus() == OrderStatus.REJECTED
-                            || order.getStatus() == OrderStatus.DONE_FOR_DAY
-                            || order.getStatus() == OrderStatus.FILLED_AND_CANCELED) {
-                        DeleteOrderWithOrderId(buyOrderId);
-                    } else if (order.getStatus() == OrderStatus.UNKNOWN) {
-                        System.err.println("Unbekannter Fusion-Orderstatus für " + buyOrderId
-                                + "; DB-Eintrag bleibt zur sicheren späteren Prüfung erhalten.");
-                    }
+                    handleTerminalBuyOrder(currency, client, buyOrderId, order, LivePrice,
+                            "Statusabfrage");
 
                 } catch (FusionApiException e) {
                     handleFusionException(e, buyOrderId);
@@ -167,12 +154,6 @@ public class CheckOrderStatus {
         positionDAO.delete(buyOrderId);
     }
 
-    private static void CancelOrderFromOutside(Order order) {
-        double OrderPrice = round.two(Double.valueOf(order.getPrice()));
-        System.out.println("CANCEL FROM OUTSIDE: " + OrderPrice);
-        positionDAO.delete(String.valueOf(order.getOrderId()));
-    }
-
     private static void BUY_FILLED(String currency, FusionApiClient client, String BuyOrderId, Order order, List<Double> LivePrice) {
 
         // OrderPrice = stopPrice = der Preis, zu dem wir die Order am Markt platziert haben (Trigger).
@@ -186,7 +167,6 @@ public class CheckOrderStatus {
         String BuyTime = Time.getCurrentTime_HHmmss();
 
         Updates.NewCounterPosition();
-        Updates.setExpectationCounter();
 
         positionDAO.update(new Position.Builder(currency, BuyOrderId)
                 .orderPrice(OrderPrice)
@@ -207,11 +187,14 @@ public class CheckOrderStatus {
         double assetQuantityPrice = round.five(balances.assetQuantity * LivePrice.get(0));
 
         double balanceToAssetRatio = 0.0;
-        if (balances.assetQuantity > 0) {
-            balanceToAssetRatio = round.three((eurBalance - histDAO.getTaxe()) / assetQuantityPrice);
+        if (assetQuantityPrice > 0) {
+            balanceToAssetRatio = round.three(eurBalance / assetQuantityPrice);
         }
 
         int countPosition = positionDAO.getCountPOS(currency);
+        double positionsToBalanceRatio = balanceToAssetRatio != 0.0
+                ? round.five(countPosition / balanceToAssetRatio)
+                : 0.0;
 
         histDAO.insert(new HistoryPosition.Builder(currency, BuyOrderId)
                 .origPrice(OrderPrice)
@@ -224,7 +207,7 @@ public class CheckOrderStatus {
                 .assetAtBuy(assetQuantityPrice)
                 .balanceToAssetAtBuy(balanceToAssetRatio)
                 .posCount(countPosition)
-                .x(round.five(countPosition / balanceToAssetRatio))
+                .x(positionsToBalanceRatio)
                 .build());
 
         System.out.println("Save Hist & Pos " + currency + " orderPrice=" + OrderPrice
@@ -257,11 +240,8 @@ public class CheckOrderStatus {
             int stepsBetween = gridStepsBetweenOrderAndLive(currency, athPrice, grid, orderPrice, livePrice);
 
             if (stepsBetween > 3) {
-                client.cancelOrder(BuyOrderId);
-                System.out.println("Order gecancelt (Markt zu weit unter Order): " + currency
-                        + " orderPrice=" + orderPrice + " livePrice=" + livePrice
-                        + " stepsBetween=" + stepsBetween);
-                positionDAO.delete(BuyOrderId);
+                cancelAndHandleOrder(currency, client, LivePrice, BuyOrderId, orderPrice,
+                        livePrice, stepsBetween);
             }
         } catch (Exception e) {
             System.err.println("Fehler in BUY_NEW für Order " + BuyOrderId + ": " + e.getMessage());
@@ -269,8 +249,7 @@ public class CheckOrderStatus {
     }
 
     private static void PARTIALLY_FILLED(String currency, FusionApiClient client, List<Double> LivePrice,
-            String BuyOrderId, Double orderPrice,
-            Order order) {
+            String BuyOrderId, Double orderPrice) {
 
         try {
             double athPrice = currencyDAO.getAllTimeHigh(currency);
@@ -278,54 +257,120 @@ public class CheckOrderStatus {
             double livePrice = LivePrice.get(0);
 
             int stepsBetween = gridStepsBetweenOrderAndLive(currency, athPrice, grid, orderPrice, livePrice);
-            boolean shouldCancel = stepsBetween > 3;
-
-            if (shouldCancel) {
-                            System.out.println("Order teilweise gefüllt: " + orderPrice + " - " + BuyOrderId);
-
-                            int Status;
-                            // OrderPrice = stopPrice (Platzierungspreis), BuyPrice = tatsächlicher Ausführungspreis
-                            double OrderPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getStopPrice()));
-                            double BuyPrice = computeActualFillPrice(currency, order, OrderPrice);
-                            String BuyDate = Time.getCurrentDate();
-                            String BuyTime = Time.getCurrentTime_HHmmss();
-                            double Quantity = TradingRulesFormatter.formatQuantity(currency, Double.valueOf(order.getExecutedQty()));
-                            double partially_BuyAmount = round.five(BuyPrice * Quantity);
-
-                            if (partially_BuyAmount >= 6.0) {
-                                Status = 5;
-                            } else {
-                                Status = 3;
-                            }
-
-                            positionDAO.update(new Position.Builder(currency, BuyOrderId)
-                                    .orderPrice(OrderPrice)
-                                    .buyPrice(BuyPrice)
-                                    .quantity(Quantity)
-                                    .buyAmount(partially_BuyAmount)
-                                    .status(Status)
-                                    .buyTime(BuyTime)
-                                    .buyDate(BuyDate)
-                                    .build());
-
-                            histDAO.insert(new HistoryPosition.Builder(currency, BuyOrderId)
-                                    .origPrice(OrderPrice)
-                                    .buyPrice(BuyPrice)
-                                    .quantity(Quantity)
-                                    .buyAmount(partially_BuyAmount)
-                                    .buyDate(BuyDate)
-                                    .buyTime(BuyTime)
-                                    .build());
-
-                            // Cancel der verbleibenden offenen Order
-                            client.cancelOrder(BuyOrderId);
-                            System.out.println("Verbleibende Order gecancelt: " + BuyOrderId
-                                    + " stepsBetween=" + stepsBetween);
+            if (stepsBetween > 3) {
+                cancelAndHandleOrder(currency, client, LivePrice, BuyOrderId, orderPrice,
+                        livePrice, stepsBetween);
             }
         } catch (Exception e) {
             System.err.println("Fehler in PARTIALLY_FILLED für Order " + BuyOrderId + ": " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Storniert eine offene Buy-Order und verarbeitet nur den vom Cancel-Aufruf
+     * zurückgegebenen Zustand. Bei Fehlern oder einem weiterhin offenen/unklaren
+     * Zustand bleibt der DB-Eintrag für den nächsten Abgleich erhalten.
+     */
+    private static void cancelAndHandleOrder(String currency, FusionApiClient client,
+            List<Double> LivePrice, String buyOrderId, double orderPrice,
+            double livePrice, int stepsBetween) {
+
+        Order cancelResult = client.cancelOrder(buyOrderId);
+
+        System.out.println("Cancel angefordert (Markt zu weit unter Order): " + currency
+                + " orderPrice=" + orderPrice + " livePrice=" + livePrice
+                + " stepsBetween=" + stepsBetween);
+
+        handleTerminalBuyOrder(currency, client, buyOrderId, cancelResult, LivePrice,
+                "Cancel");
+    }
+
+    /**
+     * Verarbeitet den abschließenden Zustand einer Buy-Order. Die ausgeführte Menge
+     * hat Vorrang vor der Statusbezeichnung, da auch CANCELED eine Teilfüllung
+     * enthalten kann.
+     */
+    private static void handleTerminalBuyOrder(String currency, FusionApiClient client,
+            String buyOrderId, Order order, List<Double> LivePrice, String source) {
+
+        if (order == null || order.getStatus() == null) {
+            System.err.println(source + " ohne eindeutigen Orderstatus für " + buyOrderId
+                    + "; DB-Eintrag bleibt erhalten.");
+            return;
+        }
+
+        final double executedQty;
+        try {
+            executedQty = Double.parseDouble(order.getExecutedQty());
+        } catch (RuntimeException e) {
+            System.err.println(source + " mit ungültiger Ausführungsmenge für " + buyOrderId
+                    + "; DB-Eintrag bleibt erhalten.");
+            return;
+        }
+
+        OrderStatus status = order.getStatus();
+
+        if (status == OrderStatus.FILLED) {
+            if (executedQty > 0) {
+                BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
+            } else {
+                System.err.println(source + " meldet FILLED ohne Ausführungsmenge für "
+                        + buyOrderId + "; DB-Eintrag bleibt erhalten.");
+            }
+            return;
+        }
+
+        if (status == OrderStatus.NEW || status == OrderStatus.PARTIALLY_FILLED
+                || status == OrderStatus.UNKNOWN) {
+            System.err.println(source + " noch nicht abschließend für " + buyOrderId
+                    + ": " + status + "; DB-Eintrag bleibt erhalten.");
+            return;
+        }
+
+        if (executedQty > 0) {
+            savePartiallyFilledOrder(currency, buyOrderId, order);
+            return;
+        }
+
+        DeleteOrderWithOrderId(buyOrderId);
+        System.out.println("Order ohne Ausführung abgeschlossen: " + buyOrderId
+                + " status=" + status);
+    }
+
+    /** Speichert die nach einem bestätigten Cancel tatsächlich ausgeführte Teilmenge. */
+    private static void savePartiallyFilledOrder(String currency, String buyOrderId, Order order) {
+        double orderPrice = TradingRulesFormatter.formatPrice(currency,
+                Double.valueOf(order.getStopPrice()));
+        double buyPrice = computeActualFillPrice(currency, order, orderPrice);
+        String buyDate = Time.getCurrentDate();
+        String buyTime = Time.getCurrentTime_HHmmss();
+        double quantity = TradingRulesFormatter.formatQuantity(currency,
+                Double.valueOf(order.getExecutedQty()));
+        double partiallyBuyAmount = round.five(buyPrice * quantity);
+        int status = partiallyBuyAmount >= 6.0 ? 5 : 3;
+
+        positionDAO.update(new Position.Builder(currency, buyOrderId)
+                .orderPrice(orderPrice)
+                .buyPrice(buyPrice)
+                .quantity(quantity)
+                .buyAmount(partiallyBuyAmount)
+                .status(status)
+                .buyTime(buyTime)
+                .buyDate(buyDate)
+                .build());
+
+        histDAO.insert(new HistoryPosition.Builder(currency, buyOrderId)
+                .origPrice(orderPrice)
+                .buyPrice(buyPrice)
+                .quantity(quantity)
+                .buyAmount(partiallyBuyAmount)
+                .buyDate(buyDate)
+                .buyTime(buyTime)
+                .build());
+
+        System.out.println("Teilweise ausgeführte Order gespeichert: " + buyOrderId
+                + " quantity=" + quantity + " buyAmount=" + partiallyBuyAmount);
     }
 
     /**

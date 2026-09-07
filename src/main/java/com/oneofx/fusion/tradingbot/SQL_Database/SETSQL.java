@@ -374,19 +374,6 @@ public class SETSQL {
         }
     }
 
-    public static void setExpectationCounter(int expectationCounter) {
-        String sql = "UPDATE SETTING SET ExpectationCounter = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setInt(1, expectationCounter);
-            ps.executeUpdate();
-
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
-    }
-
     public static double getDesiredAmount() {
         return SettingsRepository.getDouble("DesiredAmount");
     }

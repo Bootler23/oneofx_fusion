@@ -44,6 +44,7 @@ public final class FusionApiClient {
     public static final String DEFAULT_BASE_URL = "https://api.fusion.bitpanda.com";
     private static final int PAGE_SIZE = 100;
     private static final int MAX_PAGES = 100;
+    private static final int MAX_CANDLE_LIMIT = 1440;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -129,9 +130,16 @@ public final class FusionApiClient {
                                                  Integer limit, Long startTime, Long endTime) {
         Map<String, String> query = new LinkedHashMap<>();
         query.put("interval", Objects.requireNonNull(interval, "interval").getIntervalId());
-        if (startTime != null) query.put("from", String.valueOf(toEpochSeconds(startTime)));
         if (endTime != null) query.put("to", String.valueOf(toEpochSeconds(endTime)));
-        if (limit != null) query.put("limit", String.valueOf(Math.min(limit, 1000)));
+        if (limit != null) {
+            if (limit < 1 || limit > MAX_CANDLE_LIMIT) {
+                throw new IllegalArgumentException("Fusion candle limit must be between 1 and " + MAX_CANDLE_LIMIT);
+            }
+            // Bitpanda Fusion ignoriert "from", sobald "limit" gesetzt ist.
+            query.put("limit", String.valueOf(limit));
+        } else if (startTime != null) {
+            query.put("from", String.valueOf(toEpochSeconds(startTime)));
+        }
         return get("/v1/candles/" + FusionSymbol.normalizePair(pair), query,
                 new TypeReference<List<Candlestick>>() {});
     }

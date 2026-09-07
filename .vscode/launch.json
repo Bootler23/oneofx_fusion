@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "oneofx",
+            "request": "launch",
+            "mainClass": "com.oneofx.fusion.tradingbot.TradingMain.oneofx",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "vmArgs": "-Xshare:off",
+            "preLaunchTask": "Kill Trading Bot"
+        }
+    ]
+}

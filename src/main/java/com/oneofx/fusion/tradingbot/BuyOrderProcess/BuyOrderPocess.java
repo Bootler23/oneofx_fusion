@@ -110,6 +110,10 @@ public class BuyOrderPocess {
         System.out.println("  limitPrice : " + limitPriceStr + " (Max-Preis)");
 
         try {
+            // REVIEW [API-PRUEFUNG]: Die aktuelle offizielle Fusion-CLI demonstriert
+            // das Erstellen nur fuer Limit- und Market-Orders. Dieser Bot ist jedoch
+            // vollstaendig auf StopLimit-Buys angewiesen. Das muss mit einem kleinen
+            // Testbetrag gegen die echte API bestaetigt werden, bevor Trading aktiv ist.
             NewOrder stopLimitBuy = new NewOrder(
                     currency,
                     OrderSide.BUY,
@@ -121,6 +125,10 @@ public class BuyOrderPocess {
 
             NewOrderResponse newOrderResponse = client.newOrder(stopLimitBuy);
 
+            // REVIEW [KRITISCH]: Die Order existiert ab der vorigen Zeile bei Fusion,
+            // wird aber erst jetzt lokal gespeichert. Absturz oder SQL-Fehler in diesem
+            // Zeitfenster erzeugen eine ungetrackte echte Order. PositionDAO.insert()
+            // verschluckt SQL-Fehler, daher bemerkt der Aufrufer das derzeit nicht.
             positionDAO.insert(new Position.Builder(currency, String.valueOf(newOrderResponse.getOrderId()))
                     .orderPrice(new BigDecimal(stopPriceStr).doubleValue())
                     .status(0)

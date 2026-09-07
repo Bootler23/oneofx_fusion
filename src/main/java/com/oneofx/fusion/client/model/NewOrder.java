@@ -1,7 +1,10 @@
 package com.oneofx.fusion.client.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.math.BigDecimal;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class NewOrder {
     private String pair;
     private OrderSide side;

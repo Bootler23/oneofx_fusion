@@ -4,11 +4,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.RiskRewardRatio.RRR;
-import com.oneofx.fusion.tradingbot.RiskRewardRatio.CurrencyRRR;
 
 public class PerformanceSQL {
 
@@ -46,32 +44,4 @@ public class PerformanceSQL {
         }
     }
 
-    public static CurrencyRRR getWeightedRRRLast30Days(String currency) {
-        String sql = "SELECT " +
-                "COALESCE(SUM(CASE WHEN Profit > 0 THEN Profit ELSE 0 END), 0) AS weightedWins, " +
-                "COALESCE(ABS(SUM(CASE WHEN Profit < 0 THEN Profit ELSE 0 END)), 0) AS weightedLosses, " +
-                "COUNT(CASE WHEN Profit > 0 THEN 1 END) AS countPositive, " +
-                "COUNT(CASE WHEN Profit < 0 THEN 1 END) AS countNegative " +
-                "FROM Performance " +
-                "WHERE date(CASE " +
-                "WHEN instr(SellDate, '.') > 0 THEN substr(SellDate, 7, 4) || '-' || substr(SellDate, 4, 2) || '-' || substr(SellDate, 1, 2) " +
-                "ELSE SellDate END) >= date('now', '-30 days')";
-
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ResultSet rs = ps.executeQuery();
-
-            if (rs.next()) {
-                double weightedWins   = rs.getDouble("weightedWins");
-                double weightedLosses = rs.getDouble("weightedLosses");
-                int countPos          = rs.getInt("countPositive");
-                int countNeg          = rs.getInt("countNegative");
-                return new CurrencyRRR(currency, weightedWins, weightedLosses, countPos, countNeg);
-            }
-        } catch (SQLException e) {
-            System.err.println("getWeightedRRRLast30Days Fehler: " + e.getMessage());
-        }
-        return new CurrencyRRR(currency, 0, 0, 0, 0);
-    }
 }

@@ -10,7 +10,6 @@ import java.util.List;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
-import com.oneofx.fusion.tradingbot.RiskRewardRatio.CurrencyRRR;
 
 /**
  * DAO für die currency-Tabelle. Vereint ATHSQL + CurrencySQL
@@ -152,10 +151,6 @@ public class CurrencyDAO {
             System.err.println("Fehler: " + e.getMessage());
         }
         return new double[4];
-    }
-
-    public CurrencyRRR getCurrencyRRR(String currency) {
-        return PerformanceSQL.getWeightedRRRLast30Days(currency);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.oneofx.fusion.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import com.oneofx.fusion.client.model.NewOrder;
 import com.oneofx.fusion.client.model.NewOrderResponse;
 import com.oneofx.fusion.client.model.OrderSide;
@@ -20,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 
 public class FusionApiClientTest {
@@ -77,6 +79,8 @@ public class FusionApiClientTest {
         assertEquals("0.25", json.get("quantity").asText());
         assertEquals("2500.00", json.get("limitPrice").asText());
         assertEquals("2450.00", json.get("triggerPrice").asText());
+        assertFalse(json.has("amount"));
+        assertFalse(json.has("endTime"));
     }
 
     @Test
@@ -86,6 +90,30 @@ public class FusionApiClientTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> new FusionApiClient("test-key", baseUrl).newOrder(missingTrigger));
+    }
+
+    @Test
+    public void candlesUseFusionMaximumAndOmitFromWhenLimitIsSet() {
+        server.createContext("/v1/candles/BTC-EUR", exchange -> {
+            lastExchange.set(exchange);
+            respond(exchange, 200, "[]");
+        });
+
+        new FusionApiClient("test-key", baseUrl).getCandlestickBars(
+                "btceur", CandlestickInterval.HOURLY, 1440, 1_700_000_000_000L, 1_710_000_000_000L);
+
+        String query = lastExchange.get().getRequestURI().getRawQuery();
+        assertEquals("interval=1h&to=1710000000&limit=1440", query);
+    }
+
+    @Test
+    public void candlesRejectLimitsOutsideFusionRange() {
+        FusionApiClient client = new FusionApiClient("test-key", baseUrl);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> client.getCandlestickBars("BTC-EUR", CandlestickInterval.HOURLY, 0, null, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> client.getCandlestickBars("BTC-EUR", CandlestickInterval.HOURLY, 1441, null, null));
     }
 
     @Test

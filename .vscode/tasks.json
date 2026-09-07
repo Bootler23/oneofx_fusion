@@ -1,0 +1,22 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Kill Trading Bot",
+            "type": "shell",
+            "command": "Get-CimInstance Win32_Process -Filter \"Name='java.exe'\" | Where-Object { $_.CommandLine -like '*tradingbot*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Write-Host 'Trading Bot Instanzen gestoppt.'",
+            "options": {
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": ["-NonInteractive", "-Command"]
+                }
+            },
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "close": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

@@ -99,6 +99,9 @@ public class Update {
                 double GewinnAfterTax = getGewinnAfterTaxAndFeeSimple(buyamount, sellamount, buyfee, sellfee);
 
                 if (GewinnAfterTax == 0) {
+                    // REVIEW [HOCH]: Eine exakt kostenneutrale, aber abgeschlossene Order
+                    // bleibt hier fuer immer Status 0. Sie wird in jedem Zyklus erneut
+                    // geprueft und die zugehoerige Position wird nie geloescht.
                     continue;
                 }
 
@@ -126,6 +129,9 @@ public class Update {
                 }
 
                 double profitPercent = getProfitinPercent(buyprice, sellprice);
+                // REVIEW [KRITISCH]: HIST-Update, Performance-Insert und POS-Loeschung
+                // laufen in drei getrennten Transaktionen; alle DAOs protokollieren SQL-
+                // Fehler nur. Teilweiser Erfolg kann Buchungen duplizieren oder verlieren.
                 histDAO.updateBySellOrderId(new HistoryPosition.Builder(null, null)
                         .sellOrderId(sellorderID)
                         .sellAmount(TradingRulesFormatter.formatPrice(currency, sellamount))
@@ -228,6 +234,10 @@ public class Update {
     }
 
     public static double getTaxe(double buyamount, double sellamount) {
+        // REVIEW [KRITISCH]: Bei einem Verlust ist sellamount - buyamount negativ.
+        // Damit wird auch die "Steuer" negativ und beim GewinnAfterTax wieder abgezogen;
+        // mathematisch wird der reale Verlust dadurch kuenstlich um 42 % verkleinert.
+        // Zusaetzlich ist der feste Satz 42 fachlich nicht konfigurierbar.
         return round.eight(((sellamount - buyamount) / 100) * 42);
     }
 

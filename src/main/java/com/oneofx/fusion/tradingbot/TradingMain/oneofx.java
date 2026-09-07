@@ -14,7 +14,6 @@ import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.SETSQL;
-import com.oneofx.fusion.tradingbot.SQL_Database.WPDSQL;
 import com.oneofx.fusion.tradingbot.SQL_Database.TradingRulesSQL;
 import com.oneofx.fusion.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.oneofx.fusion.tradingbot.SellOrderProcess.Update;
@@ -68,29 +67,6 @@ public class oneofx {
         return running;
     }
 
-    /**
-     * Gibt das aktuell aktive Waehrungs-Array zurueck.
-     * Thread-safe dank volatile Referenz.
-     *
-     * @return Kopie-sichere Referenz auf das aktive Array (nie null nach Init)
-     */
-    public static String[] getActiveCurrencies() {
-        return activeCurrencies;
-    }
-
-    /**
-     * Setzt ein neues aktives Waehrungs-Array (atomarer Referenz-Swap).
-     * Wird vom CurrencyWatcher aufgerufen wenn neue Waehrungen erkannt werden.
-     *
-     * @param currencies Neues Waehrungs-Array (darf nicht null sein)
-     */
-    public static void setActiveCurrencies(String[] currencies) {
-        if (currencies == null) {
-            throw new IllegalArgumentException("Currencies-Array darf nicht null sein");
-        }
-        activeCurrencies = currencies;
-    }
-
     public static void main(String[] args) {
 
         running = true;
@@ -107,6 +83,9 @@ public class oneofx {
                 try { lock.release(); lockChannel.close(); } catch (Exception ignored) {}
             }));
         } catch (Exception e) {
+            // REVIEW [HOCH]: Bei einem Lock-Fehler laeuft der Bot trotzdem weiter.
+            // Dann koennen zwei Instanzen gleichzeitig dieselben Positionen lesen
+            // und doppelte Orders ausloesen. Ein sicherer Start sollte hier abbrechen.
             System.err.println("⚠️ Lock-Datei konnte nicht erstellt werden: " + e.getMessage());
         }
 
@@ -142,14 +121,23 @@ public class oneofx {
 
         System.out.println("📡 Starte REST-Preis-Polling für " + BuyCurrencies.length + " Währungen...");
 
+        if (BuyCurrencies.length == 0) {
+            System.err.println("⛔ Keine aktiven Währungen konfiguriert. Trading-Loop wird nicht gestartet.");
+            return;
+        }
+
         pricePoller = new PricePoller();
         pricePoller.start(BuyCurrencies);
 
         int activeStreams = pricePoller.getActiveSymbolCount();
+        if (!pricePoller.hasDataForAll(BuyCurrencies)) {
+            System.err.println("⛔ Nur " + activeStreams + "/" + BuyCurrencies.length
+                    + " Preise verfügbar. Trading-Loop wird nicht gestartet.");
+            pricePoller.stop();
+            return;
+        }
         System.out.println("✅ " + activeStreams + "/" + BuyCurrencies.length + " Symbole verfügbar");
-        // ========== Aktives Waehrungs-Array initialisieren und CurrencyWatcher starten
-        // ==========
-
+        // Aktives Waehrungs-Array initialisieren. Es wird im Update-Zyklus aus der DB neu geladen.
         activeCurrencies = BuyCurrencies;
 
         while (running) {
@@ -171,8 +159,7 @@ public class oneofx {
                     getDataRecords.clear();
                     LivePrice.clear();
 
-                    // Lokale Kopie des volatilen Arrays — sicher bei Aenderungen durch
-                    // CurrencyWatcher
+                    // Lokale Kopie des aktiven Waehrungs-Arrays fuer diesen Durchlauf
                     String[] currentCurrencies = activeCurrencies;
 
                     // Falls noch keine Waehrungen aktiv (Edge-Case: alle deaktiviert)
@@ -234,8 +221,6 @@ public class oneofx {
                         getDataRecords.clear();
                         getDataRecords.addAll(histDAO.getDataRecordsWhereStatusOne(currency));
                         Merge.splitValue(currency, getDataRecords);
-
-                        WPDSQL.getGewinnAfterTax();
 
                         count = 0;
                         FirstRound = false;

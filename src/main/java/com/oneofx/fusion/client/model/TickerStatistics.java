@@ -9,7 +9,7 @@ public class TickerStatistics {
     private String price;
     private String high;
     private String low;
-    private String volume;
+    private String volume; // 24h-Volumen in der Basis-Waehrung des Paars
 
     public String getSymbol() { return symbol; }
     @JsonProperty("pair") public void setSymbol(String symbol) { this.symbol = symbol; }

@@ -32,7 +32,9 @@ target/
 # IDE files
 .idea/
 *.iml
-.vscode/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 .eclipse/
 
 # Database files

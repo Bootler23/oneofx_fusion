@@ -10,6 +10,12 @@ public final class TradingConstants {
     public static final String STATUS_PARTIALLY_FILLED = "PARTIALLY_FILLED";
     public static final String STATUS_CANCELLED = "CANCELLED";
 
+    /** Position is reserved locally while a sell request is sent to Fusion. */
+    public static final int POSITION_STATUS_SELL_SUBMITTING = 8;
+
+    /** Fusion accepted the sell order; its terminal execution is still pending. */
+    public static final int POSITION_STATUS_SELL_PENDING = 2;
+
     // ========== Update-Intervalle ==========
 
     public static final int UPDATE_CYCLE_COUNT = 11;
@@ -43,14 +49,6 @@ public final class TradingConstants {
     
     // FusionApiClient schützt zentral vor den veröffentlichten API-Limits.
     public static final int TRADING_LOOP_DELAY_MS = 300;
-
-    // ========= Currency-Watcher Konfiguration =================
-
-    /**
-     * Polling-Intervall in Sekunden, in dem die currency-Tabelle auf neue
-     * Waehrungen (buystatus=true) geprueft wird.
-     */
-    public static final long CURRENCY_WATCH_INTERVAL_SECONDS = 60;
 
     // Verhindern von Instanziierung (Utility-Klasse)
     private TradingConstants() {
