@@ -1,5 +1,6 @@
 package com.oneofx.fusion.tradingbot.SellOrderProcess;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -44,11 +45,13 @@ public class Update {
 
             Order order = find_OrderWithOrderId(client, currency, OrderId);
             if (order != null) {
-                if (order.getStatus() == OrderStatus.CANCELED
+                boolean failedStatus = order.getStatus() == OrderStatus.CANCELED
                         || order.getStatus() == OrderStatus.REJECTED
                         || order.getStatus() == OrderStatus.DONE_FOR_DAY
-                        || order.getStatus() == OrderStatus.FILLED_AND_CANCELED
-                        && Double.parseDouble(order.getExecutedQty()) == 0.0) {
+                        || order.getStatus() == OrderStatus.FILLED_AND_CANCELED;
+
+                if (failedStatus
+                        && new BigDecimal(order.getExecutedQty()).compareTo(BigDecimal.ZERO) == 0) {
                     restorePositionAfterFailedSell(sellorderID);
                     continue;
                 }
