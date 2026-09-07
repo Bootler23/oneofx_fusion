@@ -50,8 +50,7 @@ public class Update {
                         || order.getStatus() == OrderStatus.DONE_FOR_DAY
                         || order.getStatus() == OrderStatus.FILLED_AND_CANCELED;
 
-                if (failedStatus
-                        && new BigDecimal(order.getExecutedQty()).compareTo(BigDecimal.ZERO) == 0) {
+                if (failedStatus && new BigDecimal(order.getExecutedQty()).compareTo(BigDecimal.ZERO) == 0) {
                     restorePositionAfterFailedSell(sellorderID);
                     continue;
                 }
