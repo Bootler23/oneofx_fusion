@@ -53,7 +53,10 @@ public class TradingRules {
      * Prüft ob eine Quantity die Mindestmenge erfüllt.
      */
     public boolean isQuantityValid(BigDecimal quantity) {
-        if (quantity == null) return false;
+        if (quantity == null || quantity.signum() <= 0) return false;
+        if (stepSize == null || stepSize.signum() <= 0) return false;
+        if (minQty == null || minQty.signum() <= 0) return false;
+        if (!isIncrementAligned(quantity, stepSize)) return false;
         if (minQty != null && quantity.compareTo(minQty) < 0) return false;
         if (maxOrderSize != null && maxOrderSize.signum() > 0 && quantity.compareTo(maxOrderSize) > 0) return false;
         return true;
@@ -61,9 +64,14 @@ public class TradingRules {
 
     public boolean isOrderValid(BigDecimal price, BigDecimal quantity) {
         if (!isQuantityValid(quantity) || price == null || price.signum() <= 0) return false;
+        if (tickSize == null || tickSize.signum() <= 0 || !isIncrementAligned(price, tickSize)) return false;
         BigDecimal amount = price.multiply(quantity);
         if (minOrderAmount != null && amount.compareTo(minOrderAmount) < 0) return false;
         return maxOrderAmount == null || maxOrderAmount.signum() <= 0 || amount.compareTo(maxOrderAmount) <= 0;
+    }
+
+    private static boolean isIncrementAligned(BigDecimal value, BigDecimal increment) {
+        return value.remainder(increment).compareTo(BigDecimal.ZERO) == 0;
     }
 
     // ========== Getter & Setter ==========

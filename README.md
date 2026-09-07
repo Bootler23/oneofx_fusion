@@ -29,7 +29,12 @@ $env:ONEOFX_SETTINGS_DB = "C:\Daten\SETTING.db"
 $env:ONEOFX_TRADING_DB = "C:\Daten\oneofx.db"
 $env:ONEOFX_WPD_DB = "C:\Daten\WPD.db"
 $env:BITPANDA_FUSION_BASE_URL = "https://api.fusion.bitpanda.com"
+$env:ONEOFX_PROFIT_TAX_RATE_PERCENT = "42"
 ```
+
+Der Steuersatz muss zwischen 0 und 100 liegen und beträgt ohne Konfiguration
+weiterhin 42 Prozent. Verluste werden als negative Steuer verbucht und senken
+damit die kumulierte Steuerreserve für spätere Gewinne.
 
 API-Keys gehören nie in Java-Dateien, `.env`-Dateien oder Commits.
 

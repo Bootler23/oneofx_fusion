@@ -19,6 +19,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence.Reservation;
+import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence.CompletedSell;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
 
 public class SellOrderPersistenceTest {
@@ -37,9 +38,14 @@ public class SellOrderPersistenceTest {
 
         try (Connection con = DriverManager.getConnection(jdbcUrl);
              Statement statement = con.createStatement()) {
-            statement.executeUpdate("CREATE TABLE positions (BuyOrderId TEXT, Status INTEGER)");
+            statement.executeUpdate("CREATE TABLE positions (BuyOrderId TEXT, Status INTEGER, Währung TEXT)");
             statement.executeUpdate("CREATE TABLE HIST (BuyOrderId TEXT, Status INTEGER, "
-                    + "SellOrderId TEXT, SellTime TEXT, SellDate TEXT)");
+                    + "SellOrderId TEXT, SellTime TEXT, SellDate TEXT, SellAmount REAL, "
+                    + "SellPrice REAL, Tax REAL, Fee REAL, Gewinn REAL, GewinnAfterTax REAL, "
+                    + "LossAfterTax REAL, Profit REAL, SellFee REAL, Split REAL, statusCode TEXT)");
+            statement.executeUpdate("CREATE TABLE performance (currency TEXT, SellOrderId TEXT, "
+                    + "Profit REAL, TotalBuffer REAL, SellDate TEXT, SellTime TEXT, "
+                    + "count_Position INTEGER, SellAmount REAL)");
         }
     }
 
@@ -124,13 +130,52 @@ public class SellOrderPersistenceTest {
         assertEquals(1, selectInt("SELECT Status FROM positions WHERE BuyOrderId = 'buy-6'"));
     }
 
+    @Test
+    public void recordCompletedChangesAllBusinessTablesAtomically() throws Exception {
+        insertPositionAndHistory("buy-7", 1, true);
+        Reservation reservation = persistence.reserve("buy-7", "BTC-EUR", "0.01").orElseThrow();
+        persistence.recordSubmitted(reservation, "sell-7", "2026-09-07", "21:17:00");
+
+        persistence.recordCompleted(completedSell("sell-7"));
+
+        assertEquals(1, selectInt("SELECT Status FROM HIST WHERE SellOrderId = 'sell-7'"));
+        assertEquals(0, selectInt("SELECT COUNT(*) FROM positions WHERE BuyOrderId = 'buy-7'"));
+        assertEquals(1, selectInt("SELECT COUNT(*) FROM performance WHERE SellOrderId = 'sell-7'"));
+        assertEquals("COMPLETED", selectString(
+                "SELECT state FROM sell_attempts WHERE attempt_id = '" + reservation.attemptId() + "'"));
+    }
+
+    @Test
+    public void recordCompletedRollsBackEveryChangeWhenPerformanceInsertFails() throws Exception {
+        insertPositionAndHistory("buy-8", 1, true);
+        Reservation reservation = persistence.reserve("buy-8", "BTC-EUR", "0.01").orElseThrow();
+        persistence.recordSubmitted(reservation, "sell-8", "2026-09-07", "21:18:00");
+        executeUpdate("CREATE TRIGGER reject_performance BEFORE INSERT ON performance "
+                + "BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
+
+        assertThrows(SQLException.class, () -> persistence.recordCompleted(completedSell("sell-8")));
+
+        assertEquals(0, selectInt("SELECT Status FROM HIST WHERE SellOrderId = 'sell-8'"));
+        assertEquals(1, selectInt("SELECT COUNT(*) FROM positions WHERE BuyOrderId = 'buy-8'"));
+        assertEquals(0, selectInt("SELECT COUNT(*) FROM performance WHERE SellOrderId = 'sell-8'"));
+        assertEquals("SUBMITTED", selectString(
+                "SELECT state FROM sell_attempts WHERE attempt_id = '" + reservation.attemptId() + "'"));
+    }
+
+    private CompletedSell completedSell(String sellOrderId) {
+        return new CompletedSell(sellOrderId, "BTC-EUR", 110.0, 11.0, 4.2, 0.5,
+                10.0, 5.3, 0.0, 10.0, 0.2, 0.0, 10.0,
+                "2026-09-07", "21:19:00");
+    }
+
     private void insertPositionAndHistory(String buyOrderId, int status, boolean withHistory)
             throws SQLException {
         try (Connection con = DriverManager.getConnection(jdbcUrl)) {
             try (PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO positions (BuyOrderId, Status) VALUES (?, ?)")) {
+                    "INSERT INTO positions (BuyOrderId, Status, Währung) VALUES (?, ?, ?)")) {
                 ps.setString(1, buyOrderId);
                 ps.setInt(2, status);
+                ps.setString(3, "BTC-EUR");
                 ps.executeUpdate();
             }
             if (withHistory) {

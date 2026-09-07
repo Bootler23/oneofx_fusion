@@ -42,6 +42,29 @@ public final class TradingConstants {
     // ========= min BuyAmount ==============
 
     public static final double MIN_BUY_AMOUNT = 5.5;
+
+    public static final double DEFAULT_PROFIT_TAX_RATE_PERCENT = 42.0;
+    public static final String PROFIT_TAX_RATE_PROPERTY = "oneofx.profitTaxRatePercent";
+    public static final String PROFIT_TAX_RATE_ENV = "ONEOFX_PROFIT_TAX_RATE_PERCENT";
+
+    public static double getProfitTaxRatePercent() {
+        String configured = System.getProperty(PROFIT_TAX_RATE_PROPERTY);
+        if (configured == null || configured.isBlank()) {
+            configured = System.getenv(PROFIT_TAX_RATE_ENV);
+        }
+        if (configured == null || configured.isBlank()) {
+            return DEFAULT_PROFIT_TAX_RATE_PERCENT;
+        }
+        try {
+            double rate = Double.parseDouble(configured.trim());
+            if (!Double.isFinite(rate) || rate < 0.0 || rate > 100.0) {
+                throw new IllegalArgumentException("Steuersatz muss zwischen 0 und 100 liegen");
+            }
+            return rate;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Ungueltiger Steuersatz: " + configured, ex);
+        }
+    }
     
     // ========= ROI & Split =================
     

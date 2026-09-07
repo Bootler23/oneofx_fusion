@@ -1,10 +1,6 @@
 package com.oneofx.fusion.tradingbot.SellOrderProcess;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +18,8 @@ import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 import com.oneofx.fusion.tradingbot.HelperFunctions.sleep;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
-import com.oneofx.fusion.tradingbot.Database.dbUrl;
+import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence;
+import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence.CompletedSell;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.domain.HistoryPosition;
@@ -32,6 +29,7 @@ public class Update {
 
     private static final HistDAO histDAO = new HistDAO();
     private static final PositionDAO positionDAO = new PositionDAO();
+    private static final SellOrderPersistence sellOrderPersistence = new SellOrderPersistence();
 
     public static void getSellTradeInformation(FusionApiClient client, List<String> dataRecords) {
 
@@ -80,7 +78,6 @@ public class Update {
                     continue;
                 }
 
-                histDAO.setSellFee(sellorderID, trade_fee);
                 double Qty = Double.valueOf(order.getExecutedQty());
 
                 double buyamount = histDAO.getBuyAmount(sellorderID);
@@ -95,6 +92,7 @@ public class Update {
 
                 double buyprice = histDAO.getBuyPrice(sellorderID);
                 double sellprice = TradingRulesFormatter.formatPrice(currency, sellamount / Qty);
+                double tax = getTaxe(buyamount, sellamount);
                 double GewinnAfterTax = getGewinnAfterTaxAndFeeSimple(buyamount, sellamount, buyfee, sellfee);
 
                 if (GewinnAfterTax == 0) {
@@ -128,27 +126,28 @@ public class Update {
                 }
 
                 double profitPercent = getProfitinPercent(buyprice, sellprice);
-                // REVIEW [KRITISCH]: HIST-Update, Performance-Insert und POS-Loeschung
-                // laufen in drei getrennten Transaktionen; alle DAOs protokollieren SQL-
-                // Fehler nur. Teilweiser Erfolg kann Buchungen duplizieren oder verlieren.
-                histDAO.updateBySellOrderId(new HistoryPosition.Builder(null, null)
-                        .sellOrderId(sellorderID)
-                        .sellAmount(TradingRulesFormatter.formatPrice(currency, sellamount))
-                        .sellPrice(sellprice)
-                        .tax(getTaxe(buyamount, sellamount))
-                        .fee(getFee(buyfee, sellfee))
-                        .gewinn(getRevenuePerTrade(buyamount, sellamount))
-                        .gewinnAfterTax(round.five(GewinnAfterTax))
-                        .lossAfterTax(round.five(LossAfterTax))
-                        .profit(profitPercent)
-                        .sellFee(sellfee)
-                        .split(round.five(SplitValue))
-                        .status(1)
-                        .statusCode(TradingConstants.STATUS_FILLED_CHECKED)
-                        .build());
-                insertPerformance(currency, sellorderID, profitPercent, Qty);
-                String buyOrderId = histDAO.getBuyOrderId(sellorderID);
-                if (buyOrderId != null) positionDAO.delete(buyOrderId);
+                CompletedSell completedSell = new CompletedSell(
+                        sellorderID,
+                        currency,
+                        TradingRulesFormatter.formatPrice(currency, sellamount),
+                        sellprice,
+                        tax,
+                        getFee(buyfee, sellfee),
+                        getRevenuePerTrade(buyamount, sellamount),
+                        round.five(GewinnAfterTax),
+                        round.five(LossAfterTax),
+                        profitPercent,
+                        sellfee,
+                        round.five(SplitValue),
+                        round.five(Qty),
+                        Time.getCurrentDate(),
+                        Time.getCurrentTime_HHmmss());
+                try {
+                    sellOrderPersistence.recordCompleted(completedSell);
+                } catch (SQLException ex) {
+                    System.err.println("KRITISCH: Sell-Order " + sellorderID
+                            + " konnte nicht atomar abgeschlossen werden: " + ex.getMessage());
+                }
             }
         }
     }
@@ -233,11 +232,8 @@ public class Update {
     }
 
     public static double getTaxe(double buyamount, double sellamount) {
-        // REVIEW [KRITISCH]: Bei einem Verlust ist sellamount - buyamount negativ.
-        // Damit wird auch die "Steuer" negativ und beim GewinnAfterTax wieder abgezogen;
-        // mathematisch wird der reale Verlust dadurch kuenstlich um 42 % verkleinert.
-        // Zusaetzlich ist der feste Satz 42 fachlich nicht konfigurierbar.
-        return round.eight(((sellamount - buyamount) / 100) * 42);
+        double taxableResult = sellamount - buyamount;
+        return round.eight((taxableResult / 100.0) * TradingConstants.getProfitTaxRatePercent());
     }
 
     static double getProfitinPercent(double buyprice, double sellprice) {
@@ -266,37 +262,6 @@ public class Update {
         histDAO.resetPendingSell(sellOrderId);
         System.err.println("Fusion-Sell-Order " + sellOrderId
                 + " wurde nicht ausgeführt; die Position wurde wieder freigegeben.");
-    }
-
-    private static void insertPerformance(String currency, String sellOrderId,
-            double profitPercent, double soldQuantity) {
-        String selectSql = "SELECT TotalBuffer FROM performance WHERE currency = ? ORDER BY rowid DESC LIMIT 1";
-        String insertSql = "INSERT INTO performance (currency, SellOrderId, Profit, TotalBuffer, "
-                + "SellDate, SellTime, count_Position, SellAmount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
-            double lastBuffer = 0.0;
-            try (PreparedStatement select = con.prepareStatement(selectSql)) {
-                select.setString(1, currency);
-                try (ResultSet rs = select.executeQuery()) {
-                    if (rs.next()) lastBuffer = rs.getDouble("TotalBuffer");
-                }
-            }
-
-            try (PreparedStatement insert = con.prepareStatement(insertSql)) {
-                insert.setString(1, currency);
-                insert.setString(2, sellOrderId);
-                insert.setDouble(3, profitPercent);
-                insert.setDouble(4, round.two(lastBuffer + profitPercent));
-                insert.setString(5, Time.getCurrentDate());
-                insert.setString(6, Time.getCurrentTime_HHmmss());
-                insert.setInt(7, positionDAO.getCountPOS(currency));
-                insert.setDouble(8, round.five(soldQuantity));
-                insert.executeUpdate();
-            }
-        } catch (SQLException e) {
-            System.err.println("Fehler beim Performance-Insert: " + e.getMessage());
-        }
     }
 
     public static Order find_OrderWithOrderId(FusionApiClient client, String currencyPair, String orderId) {

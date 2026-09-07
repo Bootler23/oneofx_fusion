@@ -23,10 +23,13 @@ public class PositionDAO {
 
     // ===================== INSERT (modular) =====================
 
-    public void insert(Position pos) {
-        // REVIEW [KRITISCH]: Diese Methode meldet Erfolg oder Fehler nicht an den
-        // Aufrufer zurueck. Nach einer bereits angenommenen Boersenorder kann ein hier
-        // verschluckter SQL-Fehler eine echte, aber lokal unbekannte Position erzeugen.
+    public void insert(Position pos) throws SQLException {
+        try (Connection con = getConnection()) {
+            insert(con, pos);
+        }
+    }
+
+    public void insert(Connection con, Position pos) throws SQLException {
         List<String> columns = new ArrayList<>();
         List<Object> values = new ArrayList<>();
 
@@ -50,14 +53,14 @@ public class PositionDAO {
         String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
         String sql = "INSERT INTO positions (" + cols + ") VALUES (" + placeholders + ")";
 
-        try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
             for (int i = 0; i < values.size(); i++) {
                 ps.setObject(i + 1, values.get(i));
             }
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            System.err.println("Fehler beim Insert in positions: " + e.getMessage());
+            int rows = ps.executeUpdate();
+            if (rows != 1) {
+                throw new SQLException("Insert in positions hat " + rows + " Zeilen geaendert; erwartet wurde 1");
+            }
         }
     }
 

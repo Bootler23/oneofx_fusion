@@ -1,5 +1,7 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -28,6 +30,7 @@ public final class SellOrderPersistence {
     static final String ATTEMPT_SUBMITTED = "SUBMITTED";
     static final String ATTEMPT_REJECTED = "REJECTED";
     static final String ATTEMPT_RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED";
+    static final String ATTEMPT_COMPLETED = "COMPLETED";
 
     private final String jdbcUrl;
 
@@ -217,6 +220,79 @@ public final class SellOrderPersistence {
         }
     }
 
+    /**
+     * Atomically finalizes HIST, appends the performance row and removes the
+     * sold position. A failure rolls back all three business changes.
+     */
+    public void recordCompleted(CompletedSell sell) throws SQLException {
+        Objects.requireNonNull(sell, "sell");
+        try (Connection con = openConnection()) {
+            con.setAutoCommit(false);
+            try {
+                ensureSchema(con);
+                String buyOrderId = findPendingBuyOrderId(con, sell.sellOrderId());
+                int positionCount = countOpenPositions(con, sell.currency());
+                double lastBuffer = findLastBuffer(con, sell.currency());
+
+                try (PreparedStatement ps = con.prepareStatement(
+                        "UPDATE HIST SET SellAmount = ?, SellPrice = ?, Tax = ?, Fee = ?, "
+                                + "Gewinn = ?, GewinnAfterTax = ?, LossAfterTax = ?, Profit = ?, "
+                                + "SellFee = ?, Split = ?, Status = ?, statusCode = ? "
+                                + "WHERE SellOrderId = ? AND Status = 0")) {
+                    ps.setDouble(1, sell.sellAmount());
+                    ps.setDouble(2, sell.sellPrice());
+                    ps.setDouble(3, sell.tax());
+                    ps.setDouble(4, sell.fee());
+                    ps.setDouble(5, sell.revenue());
+                    ps.setDouble(6, sell.profitAfterTax());
+                    ps.setDouble(7, sell.lossAfterTax());
+                    ps.setDouble(8, sell.profitPercent());
+                    ps.setDouble(9, sell.sellFee());
+                    ps.setDouble(10, sell.split());
+                    ps.setInt(11, 1);
+                    ps.setString(12, TradingConstants.STATUS_FILLED_CHECKED);
+                    ps.setString(13, sell.sellOrderId());
+                    requireExactlyOne(ps.executeUpdate(), "HIST sell completion", buyOrderId);
+                }
+
+                try (PreparedStatement ps = con.prepareStatement(
+                        "INSERT INTO performance (currency, SellOrderId, Profit, TotalBuffer, "
+                                + "SellDate, SellTime, count_Position, SellAmount) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                    ps.setString(1, sell.currency());
+                    ps.setString(2, sell.sellOrderId());
+                    ps.setDouble(3, sell.profitPercent());
+                    ps.setDouble(4, roundTwo(lastBuffer + sell.profitPercent()));
+                    ps.setString(5, sell.sellDate());
+                    ps.setString(6, sell.sellTime());
+                    ps.setInt(7, positionCount);
+                    ps.setDouble(8, sell.soldQuantity());
+                    requireExactlyOne(ps.executeUpdate(), "performance insert", buyOrderId);
+                }
+
+                try (PreparedStatement ps = con.prepareStatement(
+                        "DELETE FROM positions WHERE BuyOrderId = ?")) {
+                    ps.setString(1, buyOrderId);
+                    requireExactlyOne(ps.executeUpdate(), "positions delete", buyOrderId);
+                }
+
+                try (PreparedStatement ps = con.prepareStatement(
+                        "UPDATE sell_attempts SET state = ?, updated_at = CURRENT_TIMESTAMP "
+                                + "WHERE exchange_order_id = ? AND state = ?")) {
+                    ps.setString(1, ATTEMPT_COMPLETED);
+                    ps.setString(2, sell.sellOrderId());
+                    ps.setString(3, ATTEMPT_SUBMITTED);
+                    ps.executeUpdate();
+                }
+
+                con.commit();
+            } catch (SQLException | RuntimeException e) {
+                rollback(con, e);
+                throw e;
+            }
+        }
+    }
+
     private Connection openConnection() throws SQLException {
         Connection con = DriverManager.getConnection(jdbcUrl);
         try {
@@ -248,6 +324,48 @@ public final class SellOrderPersistence {
                 return status;
             }
         }
+    }
+
+    private static String findPendingBuyOrderId(Connection con, String sellOrderId) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT BuyOrderId FROM HIST WHERE SellOrderId = ? AND Status = 0")) {
+            ps.setString(1, sellOrderId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("No pending HIST row found for SellOrderId " + sellOrderId);
+                }
+                String buyOrderId = rs.getString("BuyOrderId");
+                if (rs.next()) {
+                    throw new SQLException("More than one HIST row found for SellOrderId " + sellOrderId);
+                }
+                requireText(buyOrderId, "buyOrderId");
+                return buyOrderId;
+            }
+        }
+    }
+
+    private static int countOpenPositions(Connection con, String currency) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT COUNT(*) FROM positions WHERE Status IN (0, 1) AND Währung = ?")) {
+            ps.setString(1, currency);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    private static double findLastBuffer(Connection con, String currency) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT TotalBuffer FROM performance WHERE currency = ? ORDER BY rowid DESC LIMIT 1")) {
+            ps.setString(1, currency);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getDouble(1) : 0.0;
+            }
+        }
+    }
+
+    private static double roundTwo(double value) {
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
 
     private static boolean historyIsReadyForSell(Connection con, String buyOrderId) throws SQLException {
@@ -335,6 +453,30 @@ public final class SellOrderPersistence {
         public Reservation {
             requireText(attemptId, "attemptId");
             requireText(buyOrderId, "buyOrderId");
+        }
+    }
+
+    public record CompletedSell(
+            String sellOrderId,
+            String currency,
+            double sellAmount,
+            double sellPrice,
+            double tax,
+            double fee,
+            double revenue,
+            double profitAfterTax,
+            double lossAfterTax,
+            double profitPercent,
+            double sellFee,
+            double split,
+            double soldQuantity,
+            String sellDate,
+            String sellTime) {
+        public CompletedSell {
+            requireText(sellOrderId, "sellOrderId");
+            requireText(currency, "currency");
+            requireText(sellDate, "sellDate");
+            requireText(sellTime, "sellTime");
         }
     }
 }
