@@ -5,13 +5,10 @@ import com.oneofx.fusion.tradingbot.domain.TradingRules;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.util.Locale;
 
 /**
  * Formatter-Klasse für die korrekte Formatierung von Preisen und Quantities
- * basierend auf Binance Trading-Regeln.
+ * basierend auf Bitpanda-Fusion-Trading-Regeln.
  * 
  * Diese Klasse ersetzt die hardcodierten Switch-Cases in RoundCurrency.java
  * durch dynamische, von Binance abgerufene Formatierungs-Regeln.
@@ -57,7 +54,7 @@ public class TradingRulesFormatter {
             return formatPrice(price, DEFAULT_PRICE_DECIMALS);
         }
 
-        return formatPrice(price, rules.getPriceDecimals());
+        return quantize(price, rules.getTickSize(), RoundingMode.HALF_UP);
     }
 
     /**
@@ -82,10 +79,7 @@ public class TradingRulesFormatter {
      * @return Formatierter Preis als String (z.B. "123.45")
      */
     public static String formatOrderPrice(String symbol, double price) {
-        TradingRules rules = getTradingRules(symbol);
-        int decimals = rules != null ? rules.getPriceDecimals() : DEFAULT_PRICE_DECIMALS;
-        
-        return formatAsString(price, decimals);
+        return formatPrice(symbol, BigDecimal.valueOf(price)).toPlainString();
     }
 
     /**
@@ -119,7 +113,7 @@ public class TradingRulesFormatter {
             return formatPrice(quantity, DEFAULT_QUANTITY_DECIMALS);
         }
 
-        return formatPrice(quantity, rules.getQuantityDecimals());
+        return quantize(quantity, rules.getStepSize(), RoundingMode.DOWN);
     }
 
     /**
@@ -144,10 +138,7 @@ public class TradingRulesFormatter {
      * @return Formatierte Quantity als String (z.B. "1.234")
      */
     public static String formatOrderQuantity(String symbol, double quantity) {
-        TradingRules rules = getTradingRules(symbol);
-        int decimals = rules != null ? rules.getQuantityDecimals() : DEFAULT_QUANTITY_DECIMALS;
-        
-        return formatAsString(quantity, decimals);
+        return formatQuantity(symbol, BigDecimal.valueOf(quantity)).toPlainString();
     }
 
     /**
@@ -205,10 +196,11 @@ public class TradingRulesFormatter {
     }
 
     /**
-     * Validiert eine Order (nur Quantity, da minQty der einzige harte Filter ist).
+     * Validiert Quantity sowie minimalen und maximalen Orderbetrag von Fusion.
      */
     public static boolean isOrderValid(String symbol, BigDecimal price, BigDecimal quantity) {
-        return isQuantityValid(symbol, quantity);
+        TradingRules rules = getTradingRules(symbol);
+        return rules == null || rules.isOrderValid(price, quantity);
     }
 
     // ========== Hilfsmethoden ==========
@@ -229,42 +221,15 @@ public class TradingRulesFormatter {
         return rules;
     }
 
-    /**
-     * Formatiert einen BigDecimal-Wert mit bestimmter Anzahl von Dezimalstellen.
-     * 
-     * @param value Der zu formatierende Wert
-     * @param decimals Anzahl der Dezimalstellen
-     * @return Formatierter Wert
-     */
+    /** Formatiert den Fallback-Wert mit einer festen Anzahl Dezimalstellen. */
     private static BigDecimal formatPrice(BigDecimal value, int decimals) {
         return value.setScale(decimals, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Formatiert einen double-Wert als String mit bestimmter Anzahl von Dezimalstellen.
-     * 
-     * Verwendet Punkt als Dezimaltrennzeichen (US-Format).
-     * 
-     * @param value Der zu formatierende Wert
-     * @param decimals Anzahl der Dezimalstellen
-     * @return Formatierter String
-     */
-    private static String formatAsString(double value, int decimals) {
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
-        symbols.setDecimalSeparator('.');
-
-        StringBuilder pattern = new StringBuilder("0");
-        if (decimals > 0) {
-            pattern.append(".");
-            for (int i = 0; i < decimals; i++) {
-                pattern.append("0");
-            }
-        }
-
-        DecimalFormat df = new DecimalFormat(pattern.toString(), symbols);
-        df.setRoundingMode(RoundingMode.HALF_UP);
-
-        return df.format(value);
+    private static BigDecimal quantize(BigDecimal value, BigDecimal increment, RoundingMode mode) {
+        if (increment == null || increment.signum() <= 0) return value;
+        BigDecimal steps = value.divide(increment, 0, mode);
+        return steps.multiply(increment).setScale(increment.scale(), RoundingMode.UNNECESSARY);
     }
 
     // ========== Info-Methoden ==========

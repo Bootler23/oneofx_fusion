@@ -1,13 +1,13 @@
 package com.oneofx.fusion.tradingbot.HelperFunctions;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import com.oneofx.fusion.tradingbot.Indicator.BollingerBands;
 import com.oneofx.fusion.tradingbot.Indicator.BollingerBands.BollingerBandsResult;
 
 public class BollingerBandsPrint {    
    
-    public static void printBollingerBands(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printBollingerBands(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             BollingerBandsResult bb = BollingerBands.getBollingerBands(client, symbol, interval);
             
@@ -49,7 +49,7 @@ public class BollingerBandsPrint {
         }
     }    
     
-    public static void printBollingerBandsCompact(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printBollingerBandsCompact(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             BollingerBandsResult bb = BollingerBands.getBollingerBands(client, symbol, interval);
             
@@ -67,7 +67,7 @@ public class BollingerBandsPrint {
         }
     }    
    
-    public static double[] getBollingerBandsValues(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static double[] getBollingerBandsValues(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             BollingerBandsResult bb = BollingerBands.getBollingerBands(client, symbol, interval);
             return new double[] {

@@ -1,8 +1,9 @@
 package com.oneofx.fusion.tradingbot.Stream;
 
-import com.binance.api.client.BinanceApiClientFactory;
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.TickerPrice;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.FusionSymbol;
+import com.oneofx.fusion.client.model.TickerPrice;
+import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -10,16 +11,14 @@ import java.util.stream.Collectors;
 
 /**
  * Klasse zum gleichzeitigen Abrufen von Preisen mehrerer Währungspaare
- * über die Binance REST API
+ * über die Bitpanda Fusion REST API
  */
 public class MultiPriceFetcher {
     
-    private final BinanceApiRestClient restClient;
+    private final FusionApiClient restClient;
        
     public MultiPriceFetcher() {
-        // REST-Client ohne Authentifizierung erstellen (für öffentliche Marktdaten)
-        BinanceApiClientFactory factory = BinanceApiClientFactory.newInstance();
-        this.restClient = factory.newRestClient();
+        this.restClient = FusionClientProvider.getClient();
     }
     
     /**
@@ -43,11 +42,11 @@ public class MultiPriceFetcher {
             
             // Nur die gewünschten Symbole filtern
             Set<String> symbolSet = symbols.stream()
-                    .map(String::toUpperCase)
+                    .map(FusionSymbol::compactPair)
                     .collect(Collectors.toSet());
             
             for (TickerPrice tickerPrice : allPrices) {
-                String symbol = tickerPrice.getSymbol();
+                String symbol = FusionSymbol.compactPair(tickerPrice.getSymbol());
                 if (symbolSet.contains(symbol)) {
                     try {
                         BigDecimal price = new BigDecimal(tickerPrice.getPrice());
@@ -223,17 +222,17 @@ public class MultiPriceFetcher {
     }
     
     /**
-     * Testet die Verbindung zur Binance API
+     * Testet die Verbindung zur Bitpanda Fusion API
      * 
      * @return true wenn die Verbindung erfolgreich ist
      */
     public boolean testConnection() {
         try {
             restClient.ping();
-            System.out.println("✅ Verbindung zur Binance API erfolgreich");
+            System.out.println("✅ Verbindung zur Bitpanda Fusion API erfolgreich");
             return true;
         } catch (Exception e) {
-            System.err.println("❌ Verbindung zur Binance API fehlgeschlagen: " + e.getMessage());
+            System.err.println("❌ Verbindung zur Bitpanda Fusion API fehlgeschlagen: " + e.getMessage());
             return false;
         }
     }

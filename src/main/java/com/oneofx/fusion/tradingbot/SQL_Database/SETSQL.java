@@ -10,7 +10,7 @@ import java.sql.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.binance.api.client.BinanceApiRestClient;
+import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Asset;
 import com.oneofx.fusion.tradingbot.HelperFunctions.empty;
@@ -21,12 +21,12 @@ public class SETSQL {
 
     private static final Logger logger = LoggerFactory.getLogger(SETSQL.class);
 
-    public static void CompareBalanceInSQLWithBinanceBalance(BinanceApiRestClient client) {
-        double BNB_Balance = Asset.getFreeCalced_Balance(TradingConstants.BASE_CURRENCY, client);
+    public static void compareBalanceWithFusion(FusionApiClient client) {
+        double fusionBalance = Asset.getFreeCalced_Balance(TradingConstants.BASE_CURRENCY, client);
         System.out.print(":");
-        if ((getBalance_SQL() != (BNB_Balance) && (BNB_Balance > 10.0))) {
-            setBalance(BNB_Balance);
-            System.out.print("Datenbank Aktualisiert " + BNB_Balance);
+        if ((getBalance_SQL() != fusionBalance && fusionBalance > 10.0)) {
+            setBalance(fusionBalance);
+            System.out.print("Datenbank Aktualisiert " + fusionBalance);
             empty.Line();
         }
     }
@@ -301,19 +301,6 @@ public class SETSQL {
         }
     }
 
-    public static void set_BNB_price(double newValue) {
-        String sql = "UPDATE SETTING SET BNB_Price = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setDouble(1, newValue);
-            ps.executeUpdate();
-
-        } catch (SQLException err) {
-            System.out.println(err.getMessage());
-        }
-    }
-
     public static void setPercentToAdd(double newValue) {
         String sql = "UPDATE SETTING SET percent_toAdd = ?";
         try (Connection con = DriverManager.getConnection(dbUrl.getSET());
@@ -325,22 +312,6 @@ public class SETSQL {
         } catch (SQLException err) {
             System.out.println(err.getMessage());
         }
-    }
-
-    public static double get_BNB_price() {
-        String sql = "SELECT BNB_Price FROM SETTING";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
-                Statement query = con.createStatement();
-                ResultSet rs = query.executeQuery(sql)) {
-
-            if (rs.next()) {
-                double bnbPrice = round.two(rs.getDouble("BNB_Price"));
-                return bnbPrice;
-            }
-        } catch (SQLException err) {
-            System.out.println("Fehler beim Abrufen des BNB-Preises: " + err.getMessage());
-        }
-        return 0.0;
     }
 
     public static void getAVG_BalanceToAsset_atBuy() {

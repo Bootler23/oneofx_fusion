@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 
 import java.util.List;
 
@@ -102,7 +102,7 @@ public class EMA {
     /**
      * Berechnet EMA mit Standard-Periode (200)
      */
-    public static EMAResult getEMA(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static EMAResult getEMA(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getEMA(client, symbol, interval, DEFAULT_PERIOD);
     }
     
@@ -114,7 +114,7 @@ public class EMA {
      * @param interval Zeitintervall
      * @param period EMA-Periode (Standard: 200)
      */
-    public static EMAResult getEMA(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int period) {
+    public static EMAResult getEMA(FusionApiClient client, String symbol, CandlestickInterval interval, int period) {
         return getEMA(client, symbol, interval, period, PriceType.CLOSE);
     }
     
@@ -127,7 +127,7 @@ public class EMA {
      * @param period EMA-Periode
      * @param priceType Preistyp (CLOSE, OPEN, HIGH, LOW, HL2, HLC3, OHLC4)
      */
-    public static EMAResult getEMA(BinanceApiRestClient client, String symbol, CandlestickInterval interval, 
+    public static EMAResult getEMA(FusionApiClient client, String symbol, CandlestickInterval interval,
                                     int period, PriceType priceType) {
         int limit = Math.max(500, period + 100);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -201,18 +201,18 @@ public class EMA {
     /**
      * Gibt nur den EMA-Wert zurück
      */
-    public static double getValue(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static double getValue(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getEMA(client, symbol, interval).getEMA();
     }
     
-    public static double getValue(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int period) {
+    public static double getValue(FusionApiClient client, String symbol, CandlestickInterval interval, int period) {
         return getEMA(client, symbol, interval, period).getEMA();
     }
     
     /**
      * Gibt EMA-Wert mit konfigurierbarem Preistyp zurück.
      */
-    public static double getValue(BinanceApiRestClient client, String symbol, CandlestickInterval interval, 
+    public static double getValue(FusionApiClient client, String symbol, CandlestickInterval interval,
                                    int period, PriceType priceType) {
         return getEMA(client, symbol, interval, period, priceType).getEMA();
     }
@@ -224,7 +224,7 @@ public class EMA {
      * @param longPeriod Längere EMA-Periode (z.B. 200)
      * @return 1 für Golden Cross (bullish), -1 für Death Cross (bearish), 0 für kein Crossover
      */
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval,
                                      int shortPeriod, int longPeriod) {
         int limit = Math.max(500, longPeriod + 100);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -257,21 +257,21 @@ public class EMA {
     /**
      * Prüft auf Golden Cross (EMA 50 kreuzt EMA 200 von unten)
      */
-    public static boolean isGoldenCross(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static boolean isGoldenCross(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return checkCrossover(client, symbol, interval, 50, 200) == 1;
     }
     
     /**
      * Prüft auf Death Cross (EMA 50 kreuzt EMA 200 von oben)
      */
-    public static boolean isDeathCross(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static boolean isDeathCross(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return checkCrossover(client, symbol, interval, 50, 200) == -1;
     }
     
     /**
      * Generiert Trading-Signal basierend auf EMA-Analyse
      */
-    public static String getTradingSignal(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static String getTradingSignal(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             EMAResult ema200 = getEMA(client, symbol, interval, 200);
             int crossover = checkCrossover(client, symbol, interval, 50, 200);
@@ -293,11 +293,11 @@ public class EMA {
     /**
      * Hilfsmethode für EMA-Ausgabe
      */
-    public static void printEMA(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printEMA(FusionApiClient client, String symbol, CandlestickInterval interval) {
         printEMA(client, symbol, interval, DEFAULT_PERIOD);
     }
     
-    public static void printEMA(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int period) {
+    public static void printEMA(FusionApiClient client, String symbol, CandlestickInterval interval, int period) {
         try {
             EMAResult result = getEMA(client, symbol, interval, period);
             
@@ -329,7 +329,7 @@ public class EMA {
     /**
      * Ausgabe mit mehreren EMAs (z.B. 50, 100, 200)
      */
-    public static void printMultipleEMA(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int... periods) {
+    public static void printMultipleEMA(FusionApiClient client, String symbol, CandlestickInterval interval, int... periods) {
         try {
             System.out.println("════════════════════════════════════════");
             System.out.println("EMA Analyse für " + symbol + " (" + interval + "):");

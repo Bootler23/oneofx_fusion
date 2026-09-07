@@ -4,15 +4,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.OrderStatus;
-import com.binance.api.client.domain.account.Account;
-import com.binance.api.client.domain.account.AssetBalance;
-import com.binance.api.client.domain.account.Order;
-import com.binance.api.client.domain.account.request.CancelOrderRequest;
-import com.binance.api.client.domain.account.request.OrderRequest;
-import com.binance.api.client.domain.account.request.OrderStatusRequest;
-import com.binance.api.client.exception.BinanceApiException;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.OrderStatus;
+import com.oneofx.fusion.client.model.FusionSymbol;
+import com.oneofx.fusion.client.model.Account;
+import com.oneofx.fusion.client.model.AssetBalance;
+import com.oneofx.fusion.client.model.Order;
+import com.oneofx.fusion.client.FusionApiException;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
@@ -41,11 +39,11 @@ public class CheckOrderStatus {
      * werden einzeln nachgefragt (selten, nur wenn gerade gefüllt).
      *
      * @param currency       Währungspaar (z.B. "LTCEUR")
-     * @param client         Binance API Client
+     * @param client         Bitpanda Fusion API Client
      * @param BuyOrderIdList Liste der Buy-Order-IDs mit Status=0 aus DB
      * @param LivePrice      Aktueller Preis
      */
-    public static void OrderStatus(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList, List<Double> LivePrice) {
+    public static void OrderStatus(String currency, FusionApiClient client, List<String> BuyOrderIdList, List<Double> LivePrice) {
 
         if (BuyOrderIdList.isEmpty()) {
             return;
@@ -58,20 +56,20 @@ public class CheckOrderStatus {
      * Holt alle offenen Orders per Batch (Weight: 6) und gleicht mit der DB-Liste ab.
      * Orders die nicht mehr offen sind werden einzeln nachgefragt.
      */
-    private static void checkOrdersViaBatch(String currency, BinanceApiRestClient client, List<Long> BuyOrderIdList, List<Double> LivePrice) {
+    private static void checkOrdersViaBatch(String currency, FusionApiClient client, List<String> BuyOrderIdList, List<Double> LivePrice) {
         try {
             // EIN API-Call für alle offenen Orders dieser Währung (Weight: 6)
-            List<Order> openOrders = client.getOpenOrders(new OrderRequest(currency));
+            List<Order> openOrders = client.getOpenOrders(currency);
 
-            // Set für schnellen Lookup: welche unserer DB-Orders sind noch offen bei Binance?
-            Set<Long> openOrderIds = new HashSet<>();
+            // Set für schnellen Lookup: welche unserer DB-Orders sind bei Fusion noch offen?
+            Set<String> openOrderIds = new HashSet<>();
             for (Order order : openOrders) {
                 openOrderIds.add(order.getOrderId());
             }
 
             // 1) Offene Orders verarbeiten (NEW, PARTIALLY_FILLED) – ohne Extra-API-Call
             for (Order order : openOrders) {
-                Long orderId = order.getOrderId();
+                String orderId = order.getOrderId();
 
                 if (!BuyOrderIdList.contains(orderId)) {
                     continue; // Nicht unsere Buy-Order (z.B. Sell-Order oder andere)
@@ -88,31 +86,39 @@ public class CheckOrderStatus {
 
             // 2) Orders die in DB (Status=0) stehen aber NICHT mehr offen sind
             //    → FILLED, CANCELED oder EXPIRED. Einzeln nachfragen (selten).
-            for (Long buyOrderId : BuyOrderIdList) {
+            for (String buyOrderId : BuyOrderIdList) {
                 if (openOrderIds.contains(buyOrderId)) {
                     continue; // Bereits oben als offene Order verarbeitet
                 }
 
                 // Diese Order ist nicht mehr offen → Status einzeln abfragen
                 try {
-                    Order order = client.getOrderStatus(new OrderStatusRequest(currency, buyOrderId));
+                    Order order = client.getOrderStatus(buyOrderId);
 
                     if (order.getStatus() == OrderStatus.FILLED) {
                         BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
                     } else if (order.getStatus() == OrderStatus.CANCELED) {
                         CancelOrderFromOutside(order);
-                    } else if (order.getStatus() == OrderStatus.EXPIRED_IN_MATCH) {
+                    } else if (order.getStatus() == OrderStatus.FILLED_AND_CANCELED
+                            && Double.parseDouble(order.getExecutedQty()) > 0) {
+                        BUY_FILLED(currency, client, buyOrderId, order, LivePrice);
+                    } else if (order.getStatus() == OrderStatus.REJECTED
+                            || order.getStatus() == OrderStatus.DONE_FOR_DAY
+                            || order.getStatus() == OrderStatus.FILLED_AND_CANCELED) {
                         DeleteOrderWithOrderId(buyOrderId);
+                    } else if (order.getStatus() == OrderStatus.UNKNOWN) {
+                        System.err.println("Unbekannter Fusion-Orderstatus für " + buyOrderId
+                                + "; DB-Eintrag bleibt zur sicheren späteren Prüfung erhalten.");
                     }
 
-                } catch (BinanceApiException e) {
-                    handleBinanceException(e, buyOrderId);
+                } catch (FusionApiException e) {
+                    handleFusionException(e, buyOrderId);
                 } catch (Exception e) {
                     handleGeneralException(e, buyOrderId);
                 }
             }
 
-        } catch (BinanceApiException e) {
+        } catch (FusionApiException e) {
             System.err.println("Fehler beim Abrufen der offenen Orders für " + currency + ": " + e.getMessage());
 
             if (e.getMessage() != null &&
@@ -132,21 +138,10 @@ public class CheckOrderStatus {
     }
 
     /**
-     * Behandelt BinanceApiException beim Order-Status-Check.
-     * Jackson-Deserialisierungsfehler (z.B. EXPIRED_IN_MATCH) → Order aus DB löschen.
+     * Behandelt FusionApiException beim Order-Status-Check.
      * Timeout → 5 Sekunden warten.
      */
-    private static void handleBinanceException(BinanceApiException e, Long buyOrderId) {
-        if (e.getMessage() != null && (e.getMessage().contains("InvalidFormatException") ||
-                e.getMessage().contains("EXPIRED_IN_MATCH") ||
-                e.getMessage().contains("not one of declared Enum instance names"))) {
-            System.out.println("Jackson Deserialisierung Fehler: " + e.getMessage());
-            System.out.println("Überspringe Order " + buyOrderId
-                    + " - wahrscheinlich EXPIRED_IN_MATCH, entferne aus DB");
-            DeleteOrderWithOrderId(buyOrderId);
-            return;
-        }
-
+    private static void handleFusionException(FusionApiException e, String buyOrderId) {
         System.out.println("Fehler beim Abrufen des Order-Status für " + buyOrderId + ": " + e.getMessage());
 
         if (e.getMessage() != null &&
@@ -163,21 +158,13 @@ public class CheckOrderStatus {
     /**
      * Behandelt allgemeine Exceptions beim Order-Status-Check.
      */
-    private static void handleGeneralException(Exception e, Long buyOrderId) {
-        if (e.getMessage() != null && (e.getMessage().contains("InvalidFormatException") ||
-                e.getMessage().contains("EXPIRED_IN_MATCH") ||
-                e.getMessage().contains("not one of declared Enum instance names"))) {
-            System.out.println("Jackson Deserialisierung Fehler: " + e.getMessage());
-            DeleteOrderWithOrderId(buyOrderId);
-            return;
-        }
-
+    private static void handleGeneralException(Exception e, String buyOrderId) {
         System.out.println("Unerwarteter Fehler beim Prüfen der Order " + buyOrderId + ": " + e.getMessage());
         e.printStackTrace();
     }
 
-    private static void DeleteOrderWithOrderId(Long buyOrderId) {
-        positionDAO.delete(String.valueOf(buyOrderId));
+    private static void DeleteOrderWithOrderId(String buyOrderId) {
+        positionDAO.delete(buyOrderId);
     }
 
     private static void CancelOrderFromOutside(Order order) {
@@ -186,7 +173,7 @@ public class CheckOrderStatus {
         positionDAO.delete(String.valueOf(order.getOrderId()));
     }
 
-    private static void BUY_FILLED(String currency, BinanceApiRestClient client, Long BuyOrderId, Order order, List<Double> LivePrice) {
+    private static void BUY_FILLED(String currency, FusionApiClient client, String BuyOrderId, Order order, List<Double> LivePrice) {
 
         // OrderPrice = stopPrice = der Preis, zu dem wir die Order am Markt platziert haben (Trigger).
         // BuyPrice   = tatsächlicher Ausführungspreis = cummulativeQuoteQty / executedQty.
@@ -201,7 +188,7 @@ public class CheckOrderStatus {
         Updates.NewCounterPosition();
         Updates.setExpectationCounter();
 
-        positionDAO.update(new Position.Builder(currency, String.valueOf(BuyOrderId))
+        positionDAO.update(new Position.Builder(currency, BuyOrderId)
                 .orderPrice(OrderPrice)
                 .buyPrice(ActualBuyPrice)
                 .quantity(Quantity)
@@ -212,7 +199,7 @@ public class CheckOrderStatus {
                 .buyDate(BuyDate)
                 .build());
 
-        String asset = currency.replace("EUR", "");
+        String asset = FusionSymbol.baseAsset(currency);
         BalanceInfo balances = getBalances(asset, client);
         double taxe = histDAO.getTaxe();
 
@@ -226,7 +213,7 @@ public class CheckOrderStatus {
 
         int countPosition = positionDAO.getCountPOS(currency);
 
-        histDAO.insert(new HistoryPosition.Builder(currency, String.valueOf(BuyOrderId))
+        histDAO.insert(new HistoryPosition.Builder(currency, BuyOrderId)
                 .origPrice(OrderPrice)
                 .buyPrice(ActualBuyPrice)
                 .quantity(Quantity)
@@ -259,13 +246,8 @@ public class CheckOrderStatus {
         return fallbackPrice;
     }
 
-    private static double getBuyPrice(Order order) {
-        double BuyPrice = round.five(Double.valueOf(order.getPrice()));
-        return BuyPrice;
-    }
-
-    private static void BUY_NEW(String currency, BinanceApiRestClient client, List<Double> LivePrice,
-            Long BuyOrderId, Double orderPrice) {
+    private static void BUY_NEW(String currency, FusionApiClient client, List<Double> LivePrice,
+            String BuyOrderId, Double orderPrice) {
 
         try {
             double athPrice = currencyDAO.getAllTimeHigh(currency);
@@ -275,19 +257,19 @@ public class CheckOrderStatus {
             int stepsBetween = gridStepsBetweenOrderAndLive(currency, athPrice, grid, orderPrice, livePrice);
 
             if (stepsBetween > 3) {
-                client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
+                client.cancelOrder(BuyOrderId);
                 System.out.println("Order gecancelt (Markt zu weit unter Order): " + currency
                         + " orderPrice=" + orderPrice + " livePrice=" + livePrice
                         + " stepsBetween=" + stepsBetween);
-                positionDAO.delete(String.valueOf(BuyOrderId));
+                positionDAO.delete(BuyOrderId);
             }
         } catch (Exception e) {
             System.err.println("Fehler in BUY_NEW für Order " + BuyOrderId + ": " + e.getMessage());
         }
     }
 
-    private static void PARTIALLY_FILLED(String currency, BinanceApiRestClient client, List<Double> LivePrice,
-            Long BuyOrderId, Double orderPrice,
+    private static void PARTIALLY_FILLED(String currency, FusionApiClient client, List<Double> LivePrice,
+            String BuyOrderId, Double orderPrice,
             Order order) {
 
         try {
@@ -316,7 +298,7 @@ public class CheckOrderStatus {
                                 Status = 3;
                             }
 
-                            positionDAO.update(new Position.Builder(currency, String.valueOf(BuyOrderId))
+                            positionDAO.update(new Position.Builder(currency, BuyOrderId)
                                     .orderPrice(OrderPrice)
                                     .buyPrice(BuyPrice)
                                     .quantity(Quantity)
@@ -326,7 +308,7 @@ public class CheckOrderStatus {
                                     .buyDate(BuyDate)
                                     .build());
 
-                            histDAO.insert(new HistoryPosition.Builder(currency, String.valueOf(BuyOrderId))
+                            histDAO.insert(new HistoryPosition.Builder(currency, BuyOrderId)
                                     .origPrice(OrderPrice)
                                     .buyPrice(BuyPrice)
                                     .quantity(Quantity)
@@ -336,7 +318,7 @@ public class CheckOrderStatus {
                                     .build());
 
                             // Cancel der verbleibenden offenen Order
-                            client.cancelOrder(new CancelOrderRequest(currency, BuyOrderId));
+                            client.cancelOrder(BuyOrderId);
                             System.out.println("Verbleibende Order gecancelt: " + BuyOrderId
                                     + " stepsBetween=" + stepsBetween);
             }
@@ -405,7 +387,7 @@ public class CheckOrderStatus {
         }
     }
 
-    public static BalanceInfo getBalances(String asset, BinanceApiRestClient client) {
+    public static BalanceInfo getBalances(String asset, FusionApiClient client) {
         try {
             // Nur EIN API-Call für beide Werte (Weight: 20)
             Account account = client.getAccount();
@@ -424,7 +406,7 @@ public class CheckOrderStatus {
 
             return new BalanceInfo(assetTotal, eurTotal);
 
-        } catch (BinanceApiException e) {
+        } catch (FusionApiException e) {
             System.err.println("Fehler beim Abrufen der Balances: " + e.getMessage());
             return new BalanceInfo(0.0, 0.0);
         } catch (Exception e) {

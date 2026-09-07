@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 
 import java.util.List;
 
@@ -85,21 +85,21 @@ public class StochRSI {
     /**
      * Berechnet StochRSI mit Standard-Parametern (14, 14, 3, 3)
      */
-    public static StochRSIResult getStochRSI(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static StochRSIResult getStochRSI(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getStochRSI(client, symbol, interval, DEFAULT_RSI_PERIOD, DEFAULT_STOCH_PERIOD, DEFAULT_K_PERIOD, DEFAULT_D_PERIOD);
     }
     
     /**
      * Gibt den %K-Wert (0-100) mit Standard-Parametern zurück.
      */
-    public static double getK(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static double getK(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getStochRSI(client, symbol, interval).getK() * 100;
     }
     
     /**
      * Gibt den %D-Wert (0-100) mit Standard-Parametern zurück.
      */
-    public static double getD(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static double getD(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getStochRSI(client, symbol, interval).getD() * 100;
     }
     
@@ -114,7 +114,7 @@ public class StochRSI {
      * @param kPeriod K-Glättungsperiode (Standard: 3)
      * @param dPeriod D-SMA-Periode (Standard: 3)
      */
-    public static StochRSIResult getStochRSI(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static StochRSIResult getStochRSI(FusionApiClient client, String symbol, CandlestickInterval interval,
                                               int rsiPeriod, int stochPeriod, int kPeriod, int dPeriod) {
         int limit = Math.max(300, rsiPeriod + stochPeriod + kPeriod + dPeriod + 100);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -248,11 +248,11 @@ public class StochRSI {
      * 
      * @return 1 für bullish crossover, -1 für bearish crossover, 0 für kein crossover
      */
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return checkCrossover(client, symbol, interval, DEFAULT_RSI_PERIOD, DEFAULT_STOCH_PERIOD, DEFAULT_K_PERIOD, DEFAULT_D_PERIOD);
     }
     
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval,
                                      int rsiPeriod, int stochPeriod, int kPeriod, int dPeriod) {
         int limit = Math.max(300, rsiPeriod + stochPeriod + kPeriod + dPeriod + 100);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -277,7 +277,7 @@ public class StochRSI {
     /**
      * Generiert ein Trading-Signal basierend auf StochRSI-Analyse.
      */
-    public static String getTradingSignal(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static String getTradingSignal(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             StochRSIResult result = getStochRSI(client, symbol, interval);
             int crossover = checkCrossover(client, symbol, interval);
@@ -302,11 +302,11 @@ public class StochRSI {
     /**
      * Hilfsmethode für StochRSI-Ausgabe
      */
-    public static void printStochRSI(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printStochRSI(FusionApiClient client, String symbol, CandlestickInterval interval) {
         printStochRSI(client, symbol, interval, DEFAULT_RSI_PERIOD, DEFAULT_STOCH_PERIOD, DEFAULT_K_PERIOD, DEFAULT_D_PERIOD);
     }
     
-    public static void printStochRSI(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static void printStochRSI(FusionApiClient client, String symbol, CandlestickInterval interval,
                                      int rsiPeriod, int stochPeriod, int kPeriod, int dPeriod) {
         try {
             StochRSIResult result = getStochRSI(client, symbol, interval, rsiPeriod, stochPeriod, kPeriod, dPeriod);

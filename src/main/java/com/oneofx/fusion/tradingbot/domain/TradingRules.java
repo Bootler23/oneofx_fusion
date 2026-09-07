@@ -5,10 +5,7 @@ import java.math.BigDecimal;
 /**
  * Domain-Klasse für Trading-Regeln eines Währungspaares.
  *
- * Enthält die 3 relevanten Binance-Filter-Werte:
- * - tickSize  → Dezimalstellen für den Preis    (DB: tickSize)
- * - stepSize  → Dezimalstellen für die Quantity (DB: stepSize)
- * - minQty    → Mindest-Quantity pro Order      (DB: minQty)
+ * Trading constraints returned by Bitpanda Fusion's /v1/pairs endpoint.
  */
 public class TradingRules {
 
@@ -16,6 +13,10 @@ public class TradingRules {
     private BigDecimal tickSize;    // Preis-Schrittgröße  z.B. 0.01  → 2 Dezimalstellen
     private BigDecimal stepSize;    // Mengen-Schrittgröße z.B. 0.001 → 3 Dezimalstellen
     private BigDecimal minQty;      // Mindest-Quantity    z.B. 0.001
+    private BigDecimal amountIncrement;
+    private BigDecimal maxOrderSize;
+    private BigDecimal minOrderAmount;
+    private BigDecimal maxOrderAmount;
 
     // Berechnete Werte (nicht in DB gespeichert)
     private int priceDecimals;
@@ -54,7 +55,15 @@ public class TradingRules {
     public boolean isQuantityValid(BigDecimal quantity) {
         if (quantity == null) return false;
         if (minQty != null && quantity.compareTo(minQty) < 0) return false;
+        if (maxOrderSize != null && maxOrderSize.signum() > 0 && quantity.compareTo(maxOrderSize) > 0) return false;
         return true;
+    }
+
+    public boolean isOrderValid(BigDecimal price, BigDecimal quantity) {
+        if (!isQuantityValid(quantity) || price == null || price.signum() <= 0) return false;
+        BigDecimal amount = price.multiply(quantity);
+        if (minOrderAmount != null && amount.compareTo(minOrderAmount) < 0) return false;
+        return maxOrderAmount == null || maxOrderAmount.signum() <= 0 || amount.compareTo(maxOrderAmount) <= 0;
     }
 
     // ========== Getter & Setter ==========
@@ -76,6 +85,14 @@ public class TradingRules {
 
     public BigDecimal getMinQty() { return minQty; }
     public void setMinQty(BigDecimal minQty) { this.minQty = minQty; }
+    public BigDecimal getAmountIncrement() { return amountIncrement; }
+    public void setAmountIncrement(BigDecimal amountIncrement) { this.amountIncrement = amountIncrement; }
+    public BigDecimal getMaxOrderSize() { return maxOrderSize; }
+    public void setMaxOrderSize(BigDecimal maxOrderSize) { this.maxOrderSize = maxOrderSize; }
+    public BigDecimal getMinOrderAmount() { return minOrderAmount; }
+    public void setMinOrderAmount(BigDecimal minOrderAmount) { this.minOrderAmount = minOrderAmount; }
+    public BigDecimal getMaxOrderAmount() { return maxOrderAmount; }
+    public void setMaxOrderAmount(BigDecimal maxOrderAmount) { this.maxOrderAmount = maxOrderAmount; }
 
     public int getPriceDecimals() { return priceDecimals; }
     public int getQuantityDecimals() { return quantityDecimals; }
@@ -87,6 +104,8 @@ public class TradingRules {
                 ", tickSize=" + tickSize + " (" + priceDecimals + " Dez.)" +
                 ", stepSize=" + stepSize + " (" + quantityDecimals + " Dez.)" +
                 ", minQty=" + minQty +
+                ", minOrderAmount=" + minOrderAmount +
+                ", maxOrderAmount=" + maxOrderAmount +
                 '}';
     }
 }

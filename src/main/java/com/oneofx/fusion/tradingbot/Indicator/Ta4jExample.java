@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 
 import org.ta4j.core.*;
@@ -27,7 +27,7 @@ public class Ta4jExample {
      * @param symbol Währungspaar (z.B. "LTCEUR")
      * @param interval Kerzenintervall
      */
-    public static void calculateMACD(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void calculateMACD(FusionApiClient client, String symbol, CandlestickInterval interval) {
         // 1. Holen der Kerzendaten von Binance
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, 500, null, null);
         
@@ -96,7 +96,7 @@ public class Ta4jExample {
     /**
      * Verwende diese Methode zum Aufruf der Ta4j MACD-Analyse
      */
-    public static void showMACD(BinanceApiRestClient client, String symbol) {
+    public static void showMACD(FusionApiClient client, String symbol) {
         calculateMACD(client, symbol, CandlestickInterval.FIVE_MINUTES);
     }
 }

@@ -241,6 +241,30 @@ public class HistDAO {
         return 0.0;
     }
 
+    public String getBuyOrderId(String sellOrderId) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("SELECT BuyOrderId FROM HIST WHERE SellOrderId = ?")) {
+            ps.setString(1, sellOrderId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("BuyOrderId") : null;
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public void resetPendingSell(String sellOrderId) {
+        String sql = "UPDATE HIST SET SellOrderId = NULL, SellDate = NULL, SellTime = NULL, Status = NULL "
+                + "WHERE SellOrderId = ?";
+        try (Connection con = getConnection(); PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, sellOrderId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("SQL-Fehler beim Zurücksetzen der Sell-Order: " + e.getMessage());
+        }
+    }
+
     public int getCountHist() {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) AS TotalCount FROM HIST")) {

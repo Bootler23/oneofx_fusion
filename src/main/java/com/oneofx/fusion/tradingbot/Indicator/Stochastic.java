@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 
 import java.util.List;
 
@@ -79,7 +79,7 @@ public class Stochastic {
     /**
      * Berechnet Slow Stochastic mit Standard-Parametern (14, 3, 3)
      */
-    public static StochasticResult getStochastic(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static StochasticResult getStochastic(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getStochastic(client, symbol, interval, DEFAULT_PERIOD, DEFAULT_K_SLOWING, DEFAULT_D_PERIOD);
     }
     
@@ -93,7 +93,7 @@ public class Stochastic {
      * @param kSlowing K-Glättungsperiode (Standard: 3)
      * @param dPeriod D-SMA-Periode (Standard: 3)
      */
-    public static StochasticResult getStochastic(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static StochasticResult getStochastic(FusionApiClient client, String symbol, CandlestickInterval interval,
                                                   int period, int kSlowing, int dPeriod) {
         int limit = Math.max(200, period + kSlowing + dPeriod + 50);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -176,11 +176,11 @@ public class Stochastic {
      * 
      * @return 1 für bullish crossover, -1 für bearish crossover, 0 für kein crossover
      */
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return checkCrossover(client, symbol, interval, DEFAULT_PERIOD, DEFAULT_K_SLOWING, DEFAULT_D_PERIOD);
     }
     
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval,
                                      int period, int kSlowing, int dPeriod) {
         int limit = Math.max(200, period + kSlowing + dPeriod + 50);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -205,7 +205,7 @@ public class Stochastic {
     /**
      * Generiert ein Trading-Signal basierend auf Stochastic-Analyse.
      */
-    public static String getTradingSignal(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static String getTradingSignal(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             StochasticResult stoch = getStochastic(client, symbol, interval);
             int crossover = checkCrossover(client, symbol, interval);
@@ -230,7 +230,7 @@ public class Stochastic {
     /**
      * Hilfsmethode für Stochastic-Ausgabe
      */
-    public static void printStochastic(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printStochastic(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             StochasticResult result = getStochastic(client, symbol, interval);
             int crossover = checkCrossover(client, symbol, interval);
@@ -260,11 +260,11 @@ public class Stochastic {
     /**
      * Hilfsmethode mit KDJ-kompatibler Ausgabe (berechnet zusätzlich J = 3K - 2D)
      */
-    public static void printKDJ(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printKDJ(FusionApiClient client, String symbol, CandlestickInterval interval) {
         printKDJ(client, symbol, interval, 9, 3, 3);
     }
     
-    public static void printKDJ(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static void printKDJ(FusionApiClient client, String symbol, CandlestickInterval interval,
                                 int period, int kSlowing, int dPeriod) {
         try {
             StochasticResult result = getStochastic(client, symbol, interval, period, kSlowing, dPeriod);

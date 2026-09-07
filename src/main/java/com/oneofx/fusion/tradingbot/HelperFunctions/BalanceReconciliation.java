@@ -1,9 +1,10 @@
 package com.oneofx.fusion.tradingbot.HelperFunctions;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.account.Account;
-import com.binance.api.client.domain.account.AssetBalance;
-import com.binance.api.client.exception.BinanceApiException;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Account;
+import com.oneofx.fusion.client.model.AssetBalance;
+import com.oneofx.fusion.client.model.FusionSymbol;
+import com.oneofx.fusion.client.FusionApiException;
 import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
@@ -35,7 +36,7 @@ public class BalanceReconciliation {
      * @param currencies Alle aktiven Waehrungspaare (z.B. ["LTCEUR", "BNBEUR"])
      * @param client     Der authentifizierte Binance API Client
      */
-    public static void reconcileAll(String[] currencies, BinanceApiRestClient client) {
+    public static void reconcileAll(String[] currencies, FusionApiClient client) {
         if (currencies == null || currencies.length == 0) {
             return;
         }
@@ -43,7 +44,7 @@ public class BalanceReconciliation {
         Account account;
         try {
             account = client.getAccount();
-        } catch (BinanceApiException e) {
+        } catch (FusionApiException e) {
             logger.error("Balance-Abgleich fehlgeschlagen - Binance API nicht erreichbar: {}", e.getMessage());
             return;
         }
@@ -115,6 +116,6 @@ public class BalanceReconciliation {
      * @return Der Asset-Name ohne Base-Currency
      */
     private static String extractAsset(String currencyPair) {
-        return currencyPair.replace(TradingConstants.BASE_CURRENCY, "");
+        return FusionSymbol.baseAsset(currencyPair);
     }
 }

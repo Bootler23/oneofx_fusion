@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import org.ta4j.core.*;
 import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.MACDIndicator;
@@ -83,7 +83,7 @@ public class MACD {
      * @param interval Das Zeitintervall für die Kerzen
      * @return MACDResult mit allen MACD-Werten
      */
-    public static MACDResult getMACD(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static MACDResult getMACD(FusionApiClient client, String symbol, CandlestickInterval interval) {
         // Hole genügend Candlestick-Daten für eine stabile MACD-Berechnung
         // Wir brauchen mindestens SLOW_PERIOD + SIGNAL_PERIOD für stabile Werte
         int limit = Math.max(200, (SLOW_PERIOD + SIGNAL_PERIOD) * 3);
@@ -128,7 +128,7 @@ public class MACD {
      * @param interval Das Zeitintervall
      * @return 1 für bullish crossover, -1 für bearish crossover, 0 für kein crossover
      */
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval) {
         int limit = Math.max(200, (SLOW_PERIOD + SIGNAL_PERIOD) * 3);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
         
@@ -197,7 +197,7 @@ public class MACD {
      * @param symbol Das Handelssymbol
      * @param interval Das Zeitintervall
      */
-    public static void printMACD(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printMACD(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             MACDResult result = getMACD(client, symbol, interval);
             System.out.println("MACD Analyse für " + symbol + " (" + interval + "):");

@@ -1,14 +1,14 @@
 package com.oneofx.fusion.tradingbot.BuyOrderProcess;
 
 import java.util.List;
-import com.binance.api.client.BinanceApiRestClient;
+import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.SETSQL;
 import com.oneofx.fusion.tradingbot.Settings.CurrencyConfig;
-import com.oneofx.fusion.tradingbot.Settings.bnb;
+import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.Settings.set;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Asset;
 
@@ -20,7 +20,7 @@ public class BuyAmountFunktion {
 
     static final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";
 
-    public static double getBuyAmount(String currencyPair, BinanceApiRestClient client, List<Double> LivePrice,
+    public static double getBuyAmount(String currencyPair, FusionApiClient client, List<Double> LivePrice,
             boolean wahr) {
 
         int grid = set.getGridforCurrency(currencyPair);
@@ -74,7 +74,7 @@ public class BuyAmountFunktion {
     public static double getBuyAmountFromStochRSI(String currency) {
         double[] stoch = currencyDAO.getStoch(currency);
         double k4h = stoch[0];
-        SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
+        SETSQL.compareBalanceWithFusion(FusionClientProvider.getClient());
         double totalBalance = SETSQL.getBalance_SQL();
         double one_PercentOfBalance = (totalBalance / 100);
         double buyAmount = ((101 - k4h) / 100) * one_PercentOfBalance;

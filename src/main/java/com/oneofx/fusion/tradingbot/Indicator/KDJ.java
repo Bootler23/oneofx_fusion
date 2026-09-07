@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 
 import java.util.List;
 
@@ -79,14 +79,14 @@ public class KDJ {
     /**
      * Berechnet KDJ für ein bestimmtes Symbol und Zeitintervall
      */
-    public static KDJResult getKDJ(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static KDJResult getKDJ(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getKDJ(client, symbol, interval, DEFAULT_PERIOD, K_PERIOD, D_PERIOD);
     }
     
     /**
      * Berechnet KDJ mit konfigurierbaren Parametern nach der Binance-Formel (SMA-basiert).
      */
-    public static KDJResult getKDJ(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static KDJResult getKDJ(FusionApiClient client, String symbol, CandlestickInterval interval,
                                    int period, int kPeriod, int dPeriod) {
         // Hole genügend Candlestick-Daten
         int limit = Math.max(200, period + kPeriod + dPeriod + 50);
@@ -182,11 +182,11 @@ public class KDJ {
     /**
      * Überprüft auf KDJ-Crossover zwischen den letzten beiden Perioden
      */
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return checkCrossover(client, symbol, interval, DEFAULT_PERIOD, K_PERIOD, D_PERIOD);
     }
     
-    public static int checkCrossover(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static int checkCrossover(FusionApiClient client, String symbol, CandlestickInterval interval,
                                      int period, int kPeriod, int dPeriod) {
         int limit = Math.max(200, period + kPeriod + dPeriod + 50);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -211,7 +211,7 @@ public class KDJ {
     /**
      * Generiert ein Trading-Signal
      */
-    public static String getTradingSignal(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static String getTradingSignal(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             KDJResult kdj = getKDJ(client, symbol, interval);
             int crossover = checkCrossover(client, symbol, interval);
@@ -237,7 +237,7 @@ public class KDJ {
     /**
      * Hilfsmethode für KDJ-Ausgabe
      */
-    public static void printKDJ(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printKDJ(FusionApiClient client, String symbol, CandlestickInterval interval) {
         try {
             KDJResult result = getKDJ(client, symbol, interval);
             int crossover = checkCrossover(client, symbol, interval);

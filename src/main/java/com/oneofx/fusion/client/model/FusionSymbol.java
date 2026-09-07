@@ -30,4 +30,8 @@ public final class FusionSymbol {
     public static String quoteAsset(String pair) {
         return normalizePair(pair).split("-", 2)[1];
     }
+
+    public static String compactPair(String pair) {
+        return normalizePair(pair).replace("-", "");
+    }
 }

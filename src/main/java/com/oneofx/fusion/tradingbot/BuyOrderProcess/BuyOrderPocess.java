@@ -3,13 +3,13 @@ package com.oneofx.fusion.tradingbot.BuyOrderProcess;
 import java.math.BigDecimal;
 import java.util.List;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.OrderSide;
-import com.binance.api.client.domain.OrderType;
-import com.binance.api.client.domain.TimeInForce;
-import com.binance.api.client.domain.account.NewOrder;
-import com.binance.api.client.domain.account.NewOrderResponse;
-import com.binance.api.client.exception.BinanceApiException;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.OrderSide;
+import com.oneofx.fusion.client.model.OrderType;
+import com.oneofx.fusion.client.model.TimeInForce;
+import com.oneofx.fusion.client.model.NewOrder;
+import com.oneofx.fusion.client.model.NewOrderResponse;
+import com.oneofx.fusion.client.FusionApiException;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.HelperFunctions.empty;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
@@ -27,7 +27,7 @@ public class BuyOrderPocess {
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
     private static final int MAX_GRID_STEPS = 10000;
 
-    public static void setBuyOrder(String currency, BinanceApiRestClient client, List<Double> LivePrice) {
+    public static void setBuyOrder(String currency, FusionApiClient client, List<Double> LivePrice) {
 
         double Ath = currencyDAO.getAllTimeHigh(currency);
         double TickerPrice = LivePrice.get(0);
@@ -95,8 +95,8 @@ public class BuyOrderPocess {
                 BigDecimal.valueOf(BuyAmount), new BigDecimal(limitPriceStr));
 
         if (!TradingRulesFormatter.isOrderValid(
-                currency, new BigDecimal(stopPriceStr), new BigDecimal(Quantity))) {
-            System.out.println("⚠️ Stop-Limit Order ist ungültig gemäß Binance Trading-Regeln für " + currency);
+                currency, new BigDecimal(limitPriceStr), new BigDecimal(Quantity))) {
+            System.out.println("⚠️ Stop-Limit Order ist ungültig gemäß Fusion-Trading-Regeln für " + currency);
             System.out.println("   stopPrice: " + stopPriceStr
                     + ", limitPrice: " + limitPriceStr
                     + ", Quantity: " + Quantity);
@@ -104,7 +104,7 @@ public class BuyOrderPocess {
         }
 
         empty.Line();
-        System.out.println("Setze STOP_LOSS_LIMIT BUY für " + currency);
+        System.out.println("Setze STOP_LIMIT BUY für " + currency);
         System.out.println("  TickerPrice: " + TickerPrice);
         System.out.println("  stopPrice  : " + stopPriceStr + " (Trigger)");
         System.out.println("  limitPrice : " + limitPriceStr + " (Max-Preis)");
@@ -113,11 +113,11 @@ public class BuyOrderPocess {
             NewOrder stopLimitBuy = new NewOrder(
                     currency,
                     OrderSide.BUY,
-                    OrderType.STOP_LOSS_LIMIT,
+                    OrderType.STOP_LIMIT,
                     TimeInForce.GTC,
                     Quantity,
                     limitPriceStr)
-                    .stopPrice(stopPriceStr);
+                    .triggerPrice(stopPriceStr);
 
             NewOrderResponse newOrderResponse = client.newOrder(stopLimitBuy);
 
@@ -133,7 +133,7 @@ public class BuyOrderPocess {
             System.out.println("Quantity bei............: " + Quantity + " " + currency);
             System.out.println("");
 
-        } catch (BinanceApiException ex) {
+        } catch (FusionApiException ex) {
             System.err.println("Fehler beim Kauf (Stop-Limit): " + ex.getMessage());
             sleep.for_60_seconds();
         } catch (Exception ex) {

@@ -1,0 +1,108 @@
+package com.oneofx.fusion.client;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oneofx.fusion.client.model.NewOrder;
+import com.oneofx.fusion.client.model.NewOrderResponse;
+import com.oneofx.fusion.client.model.OrderSide;
+import com.oneofx.fusion.client.model.OrderType;
+import com.oneofx.fusion.client.model.TickerPrice;
+import com.oneofx.fusion.client.model.TimeInForce;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+
+public class FusionApiClientTest {
+    private HttpServer server;
+    private String baseUrl;
+    private final AtomicReference<HttpExchange> lastExchange = new AtomicReference<>();
+    private final AtomicReference<String> lastBody = new AtomicReference<>();
+
+    @Before
+    public void startServer() throws IOException {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.start();
+        baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+    }
+
+    @After
+    public void stopServer() {
+        if (server != null) server.stop(0);
+    }
+
+    @Test
+    public void tickerUsesFusionPairAndApiKey() {
+        server.createContext("/v1/tickers", exchange -> {
+            lastExchange.set(exchange);
+            respond(exchange, 200, "[{\"pair\":\"BTC-EUR\",\"price\":\"50000.12\"}]");
+        });
+
+        TickerPrice ticker = new FusionApiClient("test-key", baseUrl).getPrice("btceur");
+
+        assertEquals("BTC-EUR", ticker.getSymbol());
+        assertEquals("50000.12", ticker.getPrice());
+        assertEquals("pair=BTC-EUR", lastExchange.get().getRequestURI().getRawQuery());
+        assertEquals("test-key", lastExchange.get().getRequestHeaders().getFirst("x-api-key"));
+    }
+
+    @Test
+    public void stopLimitOrderUsesFusionJsonAndUuid() throws Exception {
+        server.createContext("/v1/account/orders", exchange -> {
+            lastExchange.set(exchange);
+            lastBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 202, "{\"id\":\"c618d38d-29a3-4dc6-a16d-05e2659157e7\"}");
+        });
+        NewOrder order = new NewOrder("ETH-EUR", OrderSide.BUY, OrderType.STOP_LIMIT,
+                TimeInForce.GTC, "0.25", "2500.00").triggerPrice("2450.00");
+
+        NewOrderResponse response = new FusionApiClient("test-key", baseUrl).newOrder(order);
+        JsonNode json = new ObjectMapper().readTree(lastBody.get());
+
+        assertEquals("POST", lastExchange.get().getRequestMethod());
+        assertEquals("c618d38d-29a3-4dc6-a16d-05e2659157e7", response.getOrderId());
+        assertEquals("ETH-EUR", json.get("pair").asText());
+        assertEquals("Buy", json.get("side").asText());
+        assertEquals("StopLimit", json.get("type").asText());
+        assertEquals("GTC", json.get("timeInForce").asText());
+        assertEquals("0.25", json.get("quantity").asText());
+        assertEquals("2500.00", json.get("limitPrice").asText());
+        assertEquals("2450.00", json.get("triggerPrice").asText());
+    }
+
+    @Test
+    public void invalidOrderIsRejectedBeforeNetworkCall() {
+        NewOrder missingTrigger = new NewOrder("ETH-EUR", OrderSide.BUY, OrderType.STOP_LIMIT,
+                TimeInForce.GTC, "0.25", "2500.00");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new FusionApiClient("test-key", baseUrl).newOrder(missingTrigger));
+    }
+
+    @Test
+    public void httpErrorsExposeStatusCode() {
+        server.createContext("/v1/time", exchange -> respond(exchange, 429, "{\"error\":\"rate limit\"}"));
+
+        FusionApiException error = assertThrows(FusionApiException.class,
+                () -> new FusionApiClient("test-key", baseUrl).ping());
+
+        assertEquals(429, error.getStatusCode());
+    }
+
+    private static void respond(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(status, bytes.length);
+        exchange.getResponseBody().write(bytes);
+        exchange.close();
+    }
+}

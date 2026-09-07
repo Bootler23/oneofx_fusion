@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.HelperFunctions;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.OrderBook;
-import com.binance.api.client.domain.market.OrderBookEntry;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.OrderBook;
+import com.oneofx.fusion.client.model.OrderBookEntry;
 
 public class Slippage {
 
@@ -16,7 +16,7 @@ public class Slippage {
      * @param minProfitPercent Mindestgewinn in % (z.B. 0.5)
      * @return true wenn Verkauf profitabel, false wenn nicht
      */
-    public static boolean isProfitableAfterSlippage(String currency, BinanceApiRestClient client,
+    public static boolean isProfitableAfterSlippage(String currency, FusionApiClient client,
             double quantity, double buyPrice, double minProfitPercent) {
 
         try {

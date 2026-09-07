@@ -1,20 +1,13 @@
 package com.oneofx.fusion.tradingbot.SellOrderProcess;
 
-import static com.binance.api.client.domain.account.NewOrder.marketSell;
+import static com.oneofx.fusion.client.model.NewOrder.marketSell;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.account.NewOrderResponse;
-import com.binance.api.client.exception.BinanceApiException;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.NewOrderResponse;
+import com.oneofx.fusion.client.FusionApiException;
 import com.oneofx.fusion.tradingbot.BuyOrderProcess.Ticker;
-import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
 import com.oneofx.fusion.tradingbot.HelperFunctions.empty;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
@@ -33,7 +26,7 @@ public class SellOrderProcess {
     private static final HistDAO histDAO = new HistDAO();
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
 
-    public static void setSellOrder(String currency, BinanceApiRestClient client,
+    public static void setSellOrder(String currency, FusionApiClient client,
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
         double currentPrice = LivePrice.get(0);
@@ -98,8 +91,7 @@ public class SellOrderProcess {
                                 + " | StopProfit%: " + round.three(trailingStopPct)
                                 + " | Trigger: " + round.four(tslTriggerPrice)
                                 + " | Aktuell: " + currentPrice);
-                        executeSell(currency, client, BuyOrderId, Quantity_String, LivePrice,
-                                BuyPrice_Double, true);
+                        executeSell(currency, client, BuyOrderId, Quantity_String);
                         continue;
                     }
                 }
@@ -107,8 +99,8 @@ public class SellOrderProcess {
         }
     }
 
-    private static void executeSell(String currency, BinanceApiRestClient client, String BuyOrderId,
-            String Quantity_String, List<Double> LivePrice, double buyprice, boolean isStopLoss) {
+    private static void executeSell(String currency, FusionApiClient client, String BuyOrderId,
+            String Quantity_String) {
 
         try {
             String validatedQuantity = TradingRulesFormatter.formatOrderQuantity(currency,
@@ -125,70 +117,11 @@ public class SellOrderProcess {
 
             update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(), orderResponse);
             update_POS_AfterMarketSell(BuyOrderId);
-            delete_POS_AfterMarketSell(BuyOrderId);
 
-            updatePerformanceAfterSell(orderResponse, currency, BuyOrderId, isStopLoss, buyprice, LivePrice.get(0));
-
-        } catch (BinanceApiException ex) {
+        } catch (FusionApiException ex) {
             System.err.println("Fehler beim Verkauf: Keine Menge vorhanden! " + ex.getMessage() + " " + currency);
             sleep.for_10_seconds();
         }
-    }
-
-    private static void updatePerformanceAfterSell(NewOrderResponse orderResponse, String currency, String BuyOrderId,
-            boolean isStopLoss, double buyprice, double livePrice) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
-
-            double currentProfit = Update.getProfitinPercent(buyprice, livePrice);
-            double lastBuffer = getLastTotalBuffer(currency);
-            double newTotalBuffer = lastBuffer + currentProfit;
-
-            String insertSql = "INSERT INTO performance (currency, SellOrderId, Profit, TotalBuffer, " +
-                    "SellDate, SellTime, count_Position, SellAmount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
-            try (PreparedStatement ps = con.prepareStatement(insertSql)) {
-                ps.setString(1, currency);
-                ps.setLong(2, orderResponse.getOrderId());
-                ps.setDouble(3, currentProfit);
-                ps.setDouble(4, round.two(newTotalBuffer));
-                ps.setString(5, Time.getCurrentDate());
-                ps.setString(6, Time.getCurrentTime_HHmmss());
-                ps.setInt(7, positionDAO.getCountPOS(currency));
-                ps.setDouble(8, round.five(Double.parseDouble(orderResponse.getExecutedQty())));
-                ps.executeUpdate();
-
-                // System.out.println("📊 Performance-Eintrag erstellt für SellOrderId: " +
-                // orderResponse.getOrderId());
-            }
-
-        } catch (SQLException err) {
-            System.err.println("Fehler beim Performance-Insert: " + err.getMessage());
-            err.printStackTrace();
-        }
-    }
-
-    private static double getLastTotalBuffer(String currency) {
-        String sql = "SELECT TotalBuffer FROM performance WHERE currency = ? " +
-                "ORDER BY rowid DESC LIMIT 1";
-
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setString(1, currency);
-            ResultSet rs = ps.executeQuery();
-
-            if (rs.next()) {
-                return rs.getDouble("TotalBuffer");
-            }
-        } catch (SQLException e) {
-            System.err.println("Fehler beim Abrufen des letzten TotalBuffers: " + e.getMessage());
-        }
-
-        return 0.0;
-    }
-
-    private static void delete_POS_AfterMarketSell(String BuyOrderId) {
-        positionDAO.delete(BuyOrderId);
     }
 
     private static void update_HIST_AfterMarketSell(String BuyOrderId, String SellTime,
@@ -207,13 +140,13 @@ public class SellOrderProcess {
                 .build());
     }
 
-    public static NewOrderResponse getNewSellOrderResponse(String CurrencyPair, BinanceApiRestClient client,
+    public static NewOrderResponse getNewSellOrderResponse(String CurrencyPair, FusionApiClient client,
             String Quantity_String) {
         NewOrderResponse newOrderResponse = client.newOrder(marketSell(CurrencyPair, Quantity_String));
         return newOrderResponse;
     }
 
-    public static void handleSellProcess(String currency, BinanceApiRestClient client) {
+    public static void handleSellProcess(String currency, FusionApiClient client) {
 
         double livePrice = Ticker.getAssetPrice(currency, client);
         List<String> BuyAmountRecord = positionDAO.getPositionWithMaxInMinus(currency, livePrice);
@@ -241,9 +174,8 @@ public class SellOrderProcess {
             update_POS_AfterMarketSell(BuyOrderId);
             update_HIST_AfterMarketSell(BuyOrderId, Time.getCurrentTime_HHmmss(), Time.getCurrentDate(),
                     newOrderResponse);
-            delete_POS_AfterMarketSell(BuyOrderId);
 
-        } catch (BinanceApiException dex) {
+        } catch (FusionApiException dex) {
             System.err.println("Fehler beim Verkauf: Keine Menge für den Verkauf verfügbar!");
             sleep.for_10_seconds();
         } catch (Exception e) {

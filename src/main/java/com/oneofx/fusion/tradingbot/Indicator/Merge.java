@@ -6,7 +6,7 @@ import com.oneofx.fusion.tradingbot.BuyOrderProcess.Ticker;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
-import com.oneofx.fusion.tradingbot.Settings.bnb;
+import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.domain.HistoryPosition;
 import com.oneofx.fusion.tradingbot.domain.Position;
 
@@ -29,7 +29,7 @@ public class Merge {
             String currency_Split = parts[2];
             double profitSplitValue_Double = Double.valueOf(profitSplitValue);
 
-            List<String> BuyAmountRecord = positionDAO.getDataRecordsWithMaxInMinus(currency, Ticker.getAssetPrice(currency, bnb.getClient()));
+            List<String> BuyAmountRecord = positionDAO.getDataRecordsWithMaxInMinus(currency, Ticker.getAssetPrice(currency, FusionClientProvider.getClient()));
 
             if (!BuyAmountRecord.isEmpty() && (profitSplitValue_Double > 0.01) && currency_Split.equals(currency)) { 
                                                                                   

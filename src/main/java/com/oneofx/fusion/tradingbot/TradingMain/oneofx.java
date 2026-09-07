@@ -9,7 +9,7 @@ import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
 import com.oneofx.fusion.tradingbot.HelperFunctions.sleep;
 import com.oneofx.fusion.tradingbot.Indicator.Merge;
 import com.oneofx.fusion.tradingbot.Indicator.StochRSI;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
@@ -20,16 +20,15 @@ import com.oneofx.fusion.tradingbot.SellOrderProcess.SellOrderProcess;
 import com.oneofx.fusion.tradingbot.SellOrderProcess.Update;
 import com.oneofx.fusion.tradingbot.Settings.set;
 import com.oneofx.fusion.tradingbot.TradeInformation.getTradeInformation;
-import com.oneofx.fusion.tradingbot.Settings.bnb;
+import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.Settings.CurrencyConfig;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.service.TradingRulesService;
 import com.oneofx.fusion.tradingbot.domain.TradingRules;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
-import com.oneofx.fusion.tradingbot.service.RateLimitTracker;
 import com.oneofx.fusion.tradingbot.Stream.PricePoller;
-import com.binance.api.client.exception.BinanceApiException;
+import com.oneofx.fusion.client.FusionApiException;
 
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
@@ -63,10 +62,6 @@ public class oneofx {
             pricePoller.stop();
         }
 
-        // Rate-Limit-Tracker stoppen
-        if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
-            RateLimitTracker.getInstance().stopTracking();
-        }
     }
 
     public static boolean isRunning() {
@@ -115,20 +110,13 @@ public class oneofx {
             System.err.println("⚠️ Lock-Datei konnte nicht erstellt werden: " + e.getMessage());
         }
 
-        if (TradingConstants.RATE_LIMIT_TRACKING_ENABLED) {
-            RateLimitTracker rateLimitTracker = RateLimitTracker.getInstance();
-            rateLimitTracker.startTracking();
-            System.out.println("✅ Rate-Limit-Tracking aktiviert - Console-Output alle "
-                    + TradingConstants.RATE_LIMIT_REPORT_INTERVAL_SECONDS + " Sekunden");
-        }
-
         // ========== Trading-Rules initialisieren ==========
 
         System.out.println("📋 Initialisiere Trading-Rules...");
 
         TradingRulesService tradingRulesService = TradingRulesService.getInstance();
 
-        // Trading-Regeln von Binance abrufen und direkt in DB speichern
+        // Trading-Regeln von Bitpanda Fusion abrufen und direkt in DB speichern
         String[] tradingCurrencies = CurrencyConfig.getBuyCurrencies();
         int rulesUpdated = 0;
 
@@ -171,7 +159,7 @@ public class oneofx {
                 int count = 0;
                 boolean FirstRound = true;
 
-                List<Long> OrderIdList = new ArrayList<Long>();
+                List<String> OrderIdList = new ArrayList<>();
                 List<String> getDataRecords = new ArrayList<String>();
                 List<Double> LivePrice = new ArrayList<Double>();
 
@@ -200,8 +188,7 @@ public class oneofx {
                     }
                     String currency = currentCurrencies[state];
 
-                    int sleepMs = getSleepMs();
-                    sleep.valueOffMillieSeconds(sleepMs);
+                    sleep.valueOffMillieSeconds(TradingConstants.TRADING_LOOP_DELAY_MS);
 
                     // sleep.for_05_second();
 
@@ -211,7 +198,7 @@ public class oneofx {
                     if (livePrice == null || livePrice == 0.0) {
                         System.out.println("x");
                         sleep.for_1_second();
-                        Ticker.get_CurrencyPair_Price(currency, bnb.getClient(), LivePrice);
+                        Ticker.get_CurrencyPair_Price(currency, FusionClientProvider.getClient(), LivePrice);
 
                         if (LivePrice.isEmpty() || LivePrice.get(0) == 0.0) {
                             System.err.println("p");
@@ -235,14 +222,14 @@ public class oneofx {
                         getTradeInformation.RecordsByStatus(dbUrl.getoneOfX(),
                                 TradingConstants.TABLE_HIST, 0,
                                 TradingConstants.HIST_COLUMNS_SELL_TRADES, getDataRecords);
-                        Update.getSellTradeInformation(bnb.getClient(), getDataRecords);
+                        Update.getSellTradeInformation(FusionClientProvider.getClient(), getDataRecords);
 
                         getTradeInformation.RecordsByStatus(dbUrl.getoneOfX(),
                                 TradingConstants.TABLE_POS, 5,
                                 TradingConstants.POS_COLUMNS_BUY_TRADES, getDataRecords);
-                        Update.getBuyTradeInformation(bnb.getClient(), getDataRecords);
+                        Update.getBuyTradeInformation(FusionClientProvider.getClient(), getDataRecords);
 
-                        SETSQL.CompareBalanceInSQLWithBinanceBalance(bnb.getClient());
+                        SETSQL.compareBalanceWithFusion(FusionClientProvider.getClient());
 
                         getDataRecords.clear();
                         getDataRecords.addAll(histDAO.getDataRecordsWhereStatusOne(currency));
@@ -258,21 +245,21 @@ public class oneofx {
                     System.out.print(".");
 
                     // Buy
-                    BuyOrderPocess.setBuyOrder(currency, bnb.getClient(), LivePrice);                    
+                    BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
 
                     // Check
                     OrderIdList.clear();
                     OrderIdList.addAll(positionDAO.getBuyOrderIdsWhereStatusZero(currency));
-                    CheckOrderStatus.OrderStatus(currency, bnb.getClient(), OrderIdList, LivePrice);
+                    CheckOrderStatus.OrderStatus(currency, FusionClientProvider.getClient(), OrderIdList, LivePrice);
 
                     // Sell
                     getDataRecords.clear();
                     getDataRecords.addAll(positionDAO.getDataRecordsWhereStatusOneOrSeven(currency));
-                    SellOrderProcess.setSellOrder(currency, bnb.getClient(), getDataRecords, LivePrice);
+                    SellOrderProcess.setSellOrder(currency, FusionClientProvider.getClient(), getDataRecords, LivePrice);
                 }
 
-            } catch (BinanceApiException e) {
-                System.err.println("⚠️ Binance API Fehler: " + e.getMessage());
+            } catch (FusionApiException e) {
+                System.err.println("⚠️ Bitpanda Fusion API Fehler: " + e.getMessage());
                 System.out.println(Time.getCurrent_DateTimeWith_HHmmss());
                 System.out.println("↻ Warte 60s und versuche erneut...");
                 sleep.for_60_seconds();
@@ -293,27 +280,4 @@ public class oneofx {
         }       
     }
 
-    private static int getSleepMs() {
-        RateLimitTracker tracker = RateLimitTracker.getInstance();
-
-        int currentWeight = tracker.getServerReportedWeight();
-        if (currentWeight <= 0) {
-            currentWeight = tracker.getUsedWeightInWindow();
-            System.out.println("⚠️ Fallback auf genutztes Gewicht im Fenster für Sleep-Berechnung");
-        }
-
-        int sleepMs;
-
-        if (currentWeight <= 0) {
-            sleepMs = 5000;
-            System.out.println("⚠️ Kein Gewicht verfügbar, setze Sleep auf 5000 ms");
-        } else if (currentWeight >= 1000) {
-            sleepMs = 2000;
-            System.out.println("⚠️ Gewicht über 1000, setze Sleep auf 2000 ms");
-        } else {
-            sleepMs = 300 + (currentWeight * 1000 / 1200);
-            sleepMs = ((sleepMs + 50) / 100) * 100;
-        }
-        return sleepMs;
-    }
 }

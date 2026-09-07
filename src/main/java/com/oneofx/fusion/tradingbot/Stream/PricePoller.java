@@ -1,8 +1,9 @@
 package com.oneofx.fusion.tradingbot.Stream;
 
-import com.binance.api.client.BinanceApiClientFactory;
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.TickerPrice;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.FusionSymbol;
+import com.oneofx.fusion.client.model.TickerPrice;
+import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Preis-Polling via Binance REST API.
+ * Preis-Polling via Bitpanda Fusion REST API.
  *
  * Holt den Preis je Symbol einzeln per getPrice() (Weight 1 pro Symbol).
  * Ersetzt den WebSocket-Stream durch einfaches REST-Polling.
@@ -28,8 +29,7 @@ public class PricePoller {
 
     private static final long POLL_INTERVAL_MS = 1000;
 
-    private final BinanceApiClientFactory factory;
-    private BinanceApiRestClient restClient;
+    private final FusionApiClient restClient;
 
     private final Map<String, BigDecimal> prices = new ConcurrentHashMap<>();
     private final Set<String> watchedSymbols = ConcurrentHashMap.newKeySet();
@@ -39,7 +39,7 @@ public class PricePoller {
     private ScheduledFuture<?> pollFuture;
 
     public PricePoller() {
-        this.factory = BinanceApiClientFactory.newInstance();
+        this.restClient = FusionClientProvider.getClient();
     }
 
     /**
@@ -53,11 +53,10 @@ public class PricePoller {
         }
 
         for (String symbol : symbols) {
-            watchedSymbols.add(symbol.toUpperCase());
+            watchedSymbols.add(FusionSymbol.compactPair(symbol));
         }
 
         this.active = true;
-        this.restClient = factory.newRestClient();
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "PricePoller-Thread");
             t.setDaemon(true);
@@ -90,7 +89,7 @@ public class PricePoller {
 
         int added = 0;
         for (String symbol : newSymbols) {
-            if (watchedSymbols.add(symbol.toUpperCase())) {
+            if (watchedSymbols.add(FusionSymbol.compactPair(symbol))) {
                 added++;
             }
         }
@@ -102,15 +101,16 @@ public class PricePoller {
 
     private void fetchPrices() {
         if (!active) return;
-        for (String symbol : watchedSymbols) {
-            try {
-                TickerPrice tp = restClient.getPrice(symbol);
-                if (tp != null && tp.getPrice() != null) {
-                    prices.put(symbol, new BigDecimal(tp.getPrice()));
+        try {
+            for (TickerPrice ticker : restClient.getAllPrices()) {
+                if (ticker == null || ticker.getSymbol() == null || ticker.getPrice() == null) continue;
+                String compactPair = FusionSymbol.compactPair(ticker.getSymbol());
+                if (watchedSymbols.contains(compactPair)) {
+                    prices.put(compactPair, new BigDecimal(ticker.getPrice()));
                 }
-            } catch (Exception e) {
-                logger.warn("[PricePoller] Fehler beim Abrufen des Preises für {}: {}", symbol, e.getMessage());
             }
+        } catch (Exception e) {
+            logger.warn("[PricePoller] Fehler beim Abrufen der Fusion-Preise: {}", e.getMessage());
         }
     }
 
@@ -121,7 +121,7 @@ public class PricePoller {
      * @return Aktueller Preis oder null wenn nicht verfügbar
      */
     public Double getPrice(String symbol) {
-        BigDecimal price = prices.get(symbol.toUpperCase());
+        BigDecimal price = prices.get(FusionSymbol.compactPair(symbol));
         return price != null ? price.doubleValue() : null;
     }
 
@@ -129,7 +129,7 @@ public class PricePoller {
      * Prüft ob ein Symbol bereits Daten hat.
      */
     public boolean hasData(String symbol) {
-        return prices.containsKey(symbol.toUpperCase());
+        return prices.containsKey(FusionSymbol.compactPair(symbol));
     }
 
     /**

@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import org.ta4j.core.*;
 import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.SMAIndicator;
@@ -73,7 +73,7 @@ public class RSI {
      * @param period Die Periode für die RSI-Berechnung (typischerweise 14)
      * @return Der aktuelle RSI-Wert
      */
-    public static double getRSI(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int period) {
+    public static double getRSI(FusionApiClient client, String symbol, CandlestickInterval interval, int period) {
         // Hole die Candlestick-Daten (hole dreimal so viele Kerzen wie die Periode für bessere Genauigkeit)
         int limit = period * 3;
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
@@ -103,7 +103,7 @@ public class RSI {
      * @param interval Das Zeitintervall für die Kerzen
      * @return RSIResult mit RSI-Wert und SMA Smoothing Line
      */
-    public static RSIResult getRSIWithSmoothing(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static RSIResult getRSIWithSmoothing(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getRSIWithSmoothing(client, symbol, interval, DEFAULT_RSI_PERIOD, DEFAULT_SMOOTHING_LENGTH);
     }
     
@@ -117,7 +117,7 @@ public class RSI {
      * @param smoothingLength Die Periode für die SMA Smoothing Line (Standard: 14)
      * @return RSIResult mit RSI-Wert und SMA Smoothing Line
      */
-    public static RSIResult getRSIWithSmoothing(BinanceApiRestClient client, String symbol, 
+    public static RSIResult getRSIWithSmoothing(FusionApiClient client, String symbol,
                                                  CandlestickInterval interval, int rsiPeriod, int smoothingLength) {
         // Hole genügend Daten für beide Berechnungen
         int limit = Math.max(100, (rsiPeriod + smoothingLength) * 3);

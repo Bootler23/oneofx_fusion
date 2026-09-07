@@ -41,57 +41,8 @@ public final class TradingConstants {
     
     public static final double MIN_SPLIT_VALUE = 0.01; // Minimaler Split-Wert in EUR
     
-    // ========= Rate-Limit-Konfiguration =================
-    
-    /**
-     * Intervall für Rate-Limit-Statusausgabe in Sekunden.
-     * Alle 5 Sekunden wird eine Übersicht über die API-Auslastung ausgegeben.
-     */
-    public static final int RATE_LIMIT_REPORT_INTERVAL_SECONDS = 5;
-    
-    /**
-     * Warnschwelle für Rate-Limit-Auslastung (0.0 - 1.0).
-     * Bei Überschreitung wird eine Warnung auf System.err ausgegeben.
-     * Standard: 0.80 = 80% von 6000 Weight = 4800 Weight
-     */
-    public static final double RATE_LIMIT_WARNING_THRESHOLD = 0.80;
-    
-    /**
-     * Aktiviert/Deaktiviert das Rate-Limit-Tracking.
-     * Bei true werden alle API-Calls überwacht und alle 5 Sekunden ein Report ausgegeben.
-     */
-    public static final boolean RATE_LIMIT_TRACKING_ENABLED = true;
-
-    // ========= WebSocket Stream Konfiguration =================
-    
-    /**
-     * Maximale Anzahl an Reconnect-Versuchen bevor auf REST-Fallback gewechselt wird.
-     */
-    public static final int STREAM_MAX_RECONNECT_ATTEMPTS = 10;
-    
-    /**
-     * Initiale Wartezeit für Reconnect (Exponential Backoff Basis).
-     * 1. Versuch: 1s, 2. Versuch: 2s, 3. Versuch: 4s, etc.
-     */
-    public static final long STREAM_INITIAL_RECONNECT_DELAY_MS = 1000;
-    
-    /**
-     * Maximale Wartezeit zwischen Reconnect-Versuchen.
-     */
-    public static final long STREAM_MAX_RECONNECT_DELAY_MS = 60000;
-    
-    /**
-     * Threshold für Stale-Data-Detection.
-     * Wenn keine neuen Daten innerhalb dieser Zeit empfangen werden,
-     * gilt die Verbindung als problematisch.
-     */
-    public static final long STREAM_STALE_DATA_THRESHOLD_MS = 30000;
-    
-    /**
-     * Polling-Intervall für REST-Fallback in Millisekunden.
-     * Nicht zu niedrig setzen um Rate-Limits zu schonen.
-     */
-    public static final long STREAM_REST_FALLBACK_INTERVAL_MS = 3000;
+    // FusionApiClient schützt zentral vor den veröffentlichten API-Limits.
+    public static final int TRADING_LOOP_DELAY_MS = 300;
 
     // ========= Currency-Watcher Konfiguration =================
 

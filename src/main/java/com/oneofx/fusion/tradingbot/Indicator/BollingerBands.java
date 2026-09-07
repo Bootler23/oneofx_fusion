@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import org.ta4j.core.*;
 import org.ta4j.core.indicators.SMAIndicator;
 import org.ta4j.core.indicators.bollinger.BollingerBandsLowerIndicator;
@@ -133,7 +133,7 @@ public class BollingerBands {
      * @param interval Das Zeitintervall für die Kerzen
      * @return BollingerBandsResult mit allen drei Bändern
      */
-    public static BollingerBandsResult getBollingerBands(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static BollingerBandsResult getBollingerBands(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getBollingerBands(client, symbol, interval, DEFAULT_PERIOD, DEFAULT_DEVIATION_MULTIPLIER);
     }
     
@@ -147,7 +147,7 @@ public class BollingerBands {
      * @param deviationMultiplier Der Multiplikator für die Standardabweichung (typisch 2.0)
      * @return BollingerBandsResult mit allen drei Bändern
      */
-    public static BollingerBandsResult getBollingerBands(BinanceApiRestClient client, String symbol, 
+    public static BollingerBandsResult getBollingerBands(FusionApiClient client, String symbol,
                                                          CandlestickInterval interval, int period, 
                                                          double deviationMultiplier) {
         // Hole genügend Candlestick-Daten für eine stabile Berechnung

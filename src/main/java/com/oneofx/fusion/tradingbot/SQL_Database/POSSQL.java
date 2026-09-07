@@ -8,11 +8,11 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-import com.binance.api.client.BinanceApiRestClient;
+import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.tradingbot.BuyOrderProcess.Ticker;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
-import com.oneofx.fusion.tradingbot.Settings.bnb;
+import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 
 public class POSSQL {
 
@@ -251,7 +251,7 @@ public class POSSQL {
 
     public static void getDataRecordsPOS_WithMaxInMinus(String currency, List<String> dataRecords) {
 
-        double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
+        double LivePrice = Ticker.getAssetPrice(currency, FusionClientProvider.getClient());
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = con.createStatement()) {
@@ -346,7 +346,7 @@ public class POSSQL {
     }
 
     public static void getPositionWithMaxInMinus(List<String> dataRecords, String currencyPair,
-            BinanceApiRestClient client) {
+            FusionApiClient client) {
 
         double LivePrice = Ticker.getAssetPrice(currencyPair, client);
         try {
@@ -410,7 +410,7 @@ public class POSSQL {
     }
 
     public static void getPositionSmallerThen10AndMinus7Percent(String currency, List<String> dataRecords) {
-        double LivePrice = Ticker.getAssetPrice(currency, bnb.getClient());
+        double LivePrice = Ticker.getAssetPrice(currency, FusionClientProvider.getClient());
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = con.createStatement()) {

@@ -167,15 +167,15 @@ public class PositionDAO {
         return 0;
     }
 
-    public List<Long> getBuyOrderIdsWhereStatusZero(String currencyPair) {
-        List<Long> ids = new ArrayList<>();
+    public List<String> getBuyOrderIdsWhereStatusZero(String currencyPair) {
+        List<String> ids = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
                      "SELECT BuyOrderId FROM positions WHERE Status = 0 AND Währung = ?")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                ids.add(rs.getLong("BuyOrderId"));
+                ids.add(rs.getString("BuyOrderId"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());

@@ -1,16 +1,17 @@
 package com.oneofx.fusion.tradingbot.service;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.TickerStatistics;
-import com.binance.api.client.exception.BinanceApiException;
-import com.oneofx.fusion.tradingbot.Settings.bnb;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.TickerStatistics;
+import com.oneofx.fusion.client.model.FusionSymbol;
+import com.oneofx.fusion.client.FusionApiException;
+import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.domain.VolumeData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -75,16 +76,16 @@ public class VolumeService {
     /**
      * Binance API REST Client für API-Calls.
      */
-    private final BinanceApiRestClient client;
+    private final FusionApiClient client;
 
     // ========== Konstruktor (Private - Singleton) ==========
 
     /**
      * Privater Konstruktor für Singleton-Pattern.
-     * Initialisiert den BinanceApiRestClient über die Factory.
+     * Initialisiert den FusionApiClient über die Factory.
      */
     private VolumeService() {
-        this.client = bnb.getClient();
+        this.client = FusionClientProvider.getClient();
         logger.info("VolumeService initialisiert");
     }
 
@@ -122,9 +123,9 @@ public class VolumeService {
 
                 return volumeData;
 
-            } catch (BinanceApiException e) {
+            } catch (FusionApiException e) {
                 // SocketTimeout → Retry mit Backoff
-                if (e.getCause() instanceof SocketTimeoutException && retryCount < MAX_RETRIES - 1) {
+                if (e.getCause() instanceof HttpTimeoutException && retryCount < MAX_RETRIES - 1) {
                     retryCount++;
                     logger.warn("Timeout bei 24h-Volumen-Abfrage für {}, Retry {}/{} nach {}ms", 
                                symbol, retryCount, MAX_RETRIES, retryDelay);
@@ -138,7 +139,7 @@ public class VolumeService {
                     // Andere Fehler oder maximale Retries erreicht
                     logger.error("Fehler beim Abrufen von 24h-Volumen für {}: {} (Code: {})", 
                                 symbol, e.getMessage(), 
-                                e.getError() != null ? e.getError().getCode() : "N/A");
+                                e.getStatusCode());
                     return null;
                 }
                 
@@ -230,13 +231,12 @@ public class VolumeService {
 
                 try {
                     // Volumen berechnen
-                    BigDecimal volumeBase = new BigDecimal(stats.getVolume());
-                    BigDecimal lastPrice = new BigDecimal(stats.getLastPrice());
-                    BigDecimal volumeQuote = volumeBase.multiply(lastPrice);
+                    // Fusion liefert das 24h-Ticker-Volumen in der Quote-Währung.
+                    BigDecimal volumeQuote = new BigDecimal(stats.getVolume());
 
                     // Volumen-Check
                     if (volumeQuote.compareTo(minVolumeQuote) >= 0) {
-                        highVolumeSymbols.add(symbol);
+                        highVolumeSymbols.add(FusionSymbol.compactPair(symbol));
                         logger.debug("  ✓ {} - Volumen: {} {}", symbol, volumeQuote, quoteAsset);
                     }
 
@@ -250,10 +250,10 @@ public class VolumeService {
                        allStats.stream().filter(s -> s.getSymbol().endsWith(quoteAsset)).count(),
                        quoteAsset);
 
-        } catch (BinanceApiException e) {
+        } catch (FusionApiException e) {
             logger.error("Fehler beim Abrufen aller 24h-Statistiken: {} (Code: {})", 
                         e.getMessage(), 
-                        e.getError() != null ? e.getError().getCode() : "N/A");
+                        e.getStatusCode());
         } catch (Exception e) {
             logger.error("Unerwarteter Fehler bei Bulk-Volumen-Abfrage: {}", e.getMessage(), e);
         }
@@ -371,16 +371,20 @@ public class VolumeService {
         VolumeData volumeData = new VolumeData();
 
         // Basis-Daten
-        volumeData.setSymbol(stats.getSymbol());
+        volumeData.setSymbol(FusionSymbol.compactPair(stats.getSymbol()));
 
         // Volumen-Daten
         try {
-            BigDecimal volumeBase = new BigDecimal(stats.getVolume());
+            BigDecimal volumeQuote = new BigDecimal(stats.getVolume());
             BigDecimal lastPrice = new BigDecimal(stats.getLastPrice());
-            
-            volumeData.setVolumeBase(volumeBase);
+
             volumeData.setLastPrice(lastPrice);
-            // VolumeQuote wird automatisch in setLastPrice() berechnet
+            volumeData.setVolumeQuote(volumeQuote);
+            if (lastPrice.signum() > 0) {
+                volumeData.setVolumeBase(volumeQuote.divide(lastPrice, 12, RoundingMode.HALF_UP));
+                // setVolumeBase berechnet intern neu; der API-Wert bleibt maßgeblich.
+                volumeData.setVolumeQuote(volumeQuote);
+            }
             
         } catch (NumberFormatException e) {
             logger.warn("Fehler beim Parsen von Volumen/Preis für {}: {}", 

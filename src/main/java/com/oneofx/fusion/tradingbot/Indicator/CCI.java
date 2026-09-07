@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 import org.ta4j.core.*;
 import org.ta4j.core.indicators.CCIIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
@@ -24,7 +24,7 @@ public class CCI {
      * @param cciPeriod Die Periode für die CCI-Berechnung (typisch 20)
      * @return Der aktuelle CCI-Wert
      */
-    public static double getCCI(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int cciPeriod) {
+    public static double getCCI(FusionApiClient client, String symbol, CandlestickInterval interval, int cciPeriod) {
         int limit = cciPeriod * 3;
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
         if (candlesticks == null || candlesticks.size() < cciPeriod + 1) {

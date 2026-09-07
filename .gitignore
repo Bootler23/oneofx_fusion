@@ -38,6 +38,10 @@ target/
 # Database files
 *.db
 *.sqlite
+data/
+
+# Local secrets
+.env
 
 # OS specific files
 .DS_Store

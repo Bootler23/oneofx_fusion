@@ -1,8 +1,8 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
-import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
+import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Candlestick;
+import com.oneofx.fusion.client.model.CandlestickInterval;
 
 import java.util.List;
 
@@ -96,7 +96,7 @@ public class ATR {
     /**
      * Berechnet ATR mit Standard-Periode (14)
      */
-    public static ATRResult getATR(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static ATRResult getATR(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getATR(client, symbol, interval, DEFAULT_PERIOD);
     }
     
@@ -108,7 +108,7 @@ public class ATR {
      * @param interval Zeitintervall
      * @param period ATR-Periode (Standard: 14)
      */
-    public static ATRResult getATR(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int period) {
+    public static ATRResult getATR(FusionApiClient client, String symbol, CandlestickInterval interval, int period) {
         int limit = Math.max(100, period + 50);
         List<Candlestick> candlesticks = client.getCandlestickBars(symbol, interval, limit, null, null);
         
@@ -176,18 +176,18 @@ public class ATR {
     /**
      * Gibt nur den ATR-Wert zurück
      */
-    public static double getValue(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static double getValue(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getATR(client, symbol, interval).getATR();
     }
     
-    public static double getValue(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int period) {
+    public static double getValue(FusionApiClient client, String symbol, CandlestickInterval interval, int period) {
         return getATR(client, symbol, interval, period).getATR();
     }
     
     /**
      * Gibt ATR als Prozentsatz des aktuellen Preises zurück
      */
-    public static double getPercent(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static double getPercent(FusionApiClient client, String symbol, CandlestickInterval interval) {
         return getATR(client, symbol, interval).getATRPercent();
     }
     
@@ -198,7 +198,7 @@ public class ATR {
      * @param atrMultiplier ATR-Multiplikator (typisch 1.5 - 3.0)
      * @param isLong true für Long-Position, false für Short
      */
-    public static double calculateStopLoss(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static double calculateStopLoss(FusionApiClient client, String symbol, CandlestickInterval interval,
                                            double entryPrice, double atrMultiplier, boolean isLong) {
         ATRResult result = getATR(client, symbol, interval);
         return result.getStopLoss(entryPrice, atrMultiplier, isLong);
@@ -207,7 +207,7 @@ public class ATR {
     /**
      * Berechnet Take-Profit-Preis basierend auf ATR
      */
-    public static double calculateTakeProfit(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static double calculateTakeProfit(FusionApiClient client, String symbol, CandlestickInterval interval,
                                              double entryPrice, double atrMultiplier, boolean isLong) {
         ATRResult result = getATR(client, symbol, interval);
         return result.getTakeProfit(entryPrice, atrMultiplier, isLong);
@@ -221,7 +221,7 @@ public class ATR {
      * @param atrMultiplier ATR-Multiplikator für Stop-Loss
      * @return Empfohlene Positionsgröße
      */
-    public static double calculatePositionSize(BinanceApiRestClient client, String symbol, CandlestickInterval interval,
+    public static double calculatePositionSize(FusionApiClient client, String symbol, CandlestickInterval interval,
                                                double accountBalance, double riskPercent, double atrMultiplier) {
         ATRResult result = getATR(client, symbol, interval);
         double riskAmount = accountBalance * (riskPercent / 100.0);
@@ -235,11 +235,11 @@ public class ATR {
     /**
      * Hilfsmethode für ATR-Ausgabe
      */
-    public static void printATR(BinanceApiRestClient client, String symbol, CandlestickInterval interval) {
+    public static void printATR(FusionApiClient client, String symbol, CandlestickInterval interval) {
         printATR(client, symbol, interval, DEFAULT_PERIOD);
     }
     
-    public static void printATR(BinanceApiRestClient client, String symbol, CandlestickInterval interval, int period) {
+    public static void printATR(FusionApiClient client, String symbol, CandlestickInterval interval, int period) {
         try {
             ATRResult result = getATR(client, symbol, interval, period);
             
