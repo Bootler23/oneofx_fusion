@@ -115,7 +115,7 @@ public class PortfolioMonitor {
         for (String dataRecord : positions) {
             String[] parts = dataRecord.split(", ");
 
-            // parts[3]=Qty, parts[4]=BuyAmount(EUR), parts[5]=BuyPrice
+            // parts[3]=quantity, parts[4]=BuyAmount(EUR), parts[5]=BuyPrice
             if (parts.length < 6) {
                 continue;
             }
@@ -130,7 +130,7 @@ public class PortfolioMonitor {
             double pnlPercent = ((currentPrice - buyPrice) / buyPrice) * 100;
             totalPnLPercent += pnlPercent;
 
-            // PnL in EUR: Qty x (aktuellerPreis - Kaufpreis)
+            // PnL in EUR: quantity x (aktuellerPreis - Kaufpreis)
             try {
                 double qty = Double.parseDouble(parts[3]);
                 totalPnLEur += qty * (currentPrice - buyPrice);

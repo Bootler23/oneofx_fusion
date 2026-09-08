@@ -8,8 +8,6 @@ import com.oneofx.fusion.tradingbot.HelperFunctions.BalanceReconciliation;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
 import com.oneofx.fusion.tradingbot.HelperFunctions.sleep;
 import com.oneofx.fusion.tradingbot.Indicator.Merge;
-import com.oneofx.fusion.tradingbot.Indicator.StochRSI;
-import com.oneofx.fusion.client.model.CandlestickInterval;
 import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;

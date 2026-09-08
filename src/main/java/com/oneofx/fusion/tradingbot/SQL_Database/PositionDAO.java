@@ -38,7 +38,7 @@ public class PositionDAO {
 
         if (pos.getOrderPrice() != null)  { columns.add("OrderPrice");  values.add(pos.getOrderPrice()); }
         if (pos.getOrigPrice() != null)   { columns.add("OrigPrice");   values.add(pos.getOrigPrice()); }
-        if (pos.getQuantity() != null)    { columns.add("Qty");         values.add(pos.getQuantity()); }
+        if (pos.getQuantity() != null)    { columns.add("quantity");    values.add(pos.getQuantity()); }
         if (pos.getBuyAmount() != null)   { columns.add("BuyAmount");   values.add(pos.getBuyAmount()); }
         if (pos.getBuyPrice() != null)    { columns.add("BuyPrice");    values.add(pos.getBuyPrice()); }
         if (pos.getBuyDate() != null)     { columns.add("BuyDate");     values.add(pos.getBuyDate()); }
@@ -72,7 +72,7 @@ public class PositionDAO {
 
         if (pos.getOrderPrice() != null)  { setClauses.add("OrderPrice = ?");  values.add(pos.getOrderPrice()); }
         if (pos.getOrigPrice() != null)   { setClauses.add("OrigPrice = ?");   values.add(pos.getOrigPrice()); }
-        if (pos.getQuantity() != null)    { setClauses.add("Qty = ?");         values.add(pos.getQuantity()); }
+        if (pos.getQuantity() != null)    { setClauses.add("quantity = ?");    values.add(pos.getQuantity()); }
         if (pos.getBuyAmount() != null)   { setClauses.add("BuyAmount = ?");   values.add(pos.getBuyAmount()); }
         if (pos.getBuyPrice() != null)    { setClauses.add("BuyPrice = ?");    values.add(pos.getBuyPrice()); }
         if (pos.getBuyDate() != null)     { setClauses.add("BuyDate = ?");     values.add(pos.getBuyDate()); }
@@ -217,7 +217,7 @@ public class PositionDAO {
 
     public double getSumQuantity() {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT SUM(Qty) AS SumQuantity FROM positions")) {
+             PreparedStatement ps = con.prepareStatement("SELECT SUM(quantity) AS SumQuantity FROM positions")) {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("SumQuantity");
         } catch (SQLException e) {
@@ -229,7 +229,7 @@ public class PositionDAO {
     public double getSumQuantityForCurrency(String currencyPair) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT SUM(Qty) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+                     "SELECT SUM(quantity) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("SumQuantity");
@@ -279,7 +279,7 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                     "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                      "FROM positions WHERE Status IN (1, 7) AND Währung = ? AND BuyAmount > 0")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
@@ -297,7 +297,7 @@ public class PositionDAO {
         try (Connection con = getConnection()) {
             // Zuerst Status = 7
             try (PreparedStatement ps = con.prepareStatement(
-                    "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                    "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                     "FROM positions WHERE Status = 7 AND Währung = ?")) {
                 ps.setString(1, currency);
                 ResultSet rs = ps.executeQuery();
@@ -308,7 +308,7 @@ public class PositionDAO {
             // Falls nichts mit Status 7, dann Status 1 mit max Minus
             if (records.isEmpty()) {
                 try (PreparedStatement ps = con.prepareStatement(
-                        "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                        "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                         "FROM positions WHERE Status = 1 AND Währung = ? AND BuyAmount > 10 " +
                         "ORDER BY (BuyPrice - ?) DESC LIMIT 1")) {
                     ps.setString(1, currency);
@@ -354,14 +354,14 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
+                     "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions " +
                      "WHERE Status = 1 AND BuyAmount >= 10 AND Währung = ? " +
                      "ORDER BY (BuyPrice - ?) DESC LIMIT 1")) {
             ps.setString(1, currencyPair);
             ps.setDouble(2, livePrice);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Qty") + ", " + rs.getString("Währung"));
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("quantity") + ", " + rs.getString("Währung"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());
@@ -373,12 +373,12 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
+                     "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions " +
                      "WHERE Status = 1 AND BuyAmount < 10 AND Währung = ?")) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Qty") + ", "
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("quantity") + ", "
                         + rs.getString("Währung") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
             }
         } catch (SQLException e) {
@@ -391,13 +391,13 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
+                     "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions " +
                      "WHERE Währung = ? AND BuyAmount < 10 AND Status = 1 AND (BuyPrice - ?) / BuyPrice >= 0.07")) {
             ps.setString(1, currency);
             ps.setDouble(2, livePrice);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Qty") + ", "
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("quantity") + ", "
                         + rs.getString("Währung") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
             }
         } catch (SQLException e) {
@@ -410,7 +410,7 @@ public class PositionDAO {
 
     private String buildDataRecord(ResultSet rs) throws SQLException {
         return rs.getString("BuyOrderId") + ", " + rs.getString("OrderPrice") + ", "
-                + rs.getString("OrigPrice") + ", " + rs.getString("Qty") + ", "
+                + rs.getString("OrigPrice") + ", " + rs.getString("quantity") + ", "
                 + rs.getString("BuyAmount") + ", " + rs.getString("BuyPrice") + ", "
                 + rs.getString("BuyDate") + ", " + rs.getString("BuyTime");
     }

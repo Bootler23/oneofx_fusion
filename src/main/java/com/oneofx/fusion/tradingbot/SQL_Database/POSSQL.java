@@ -123,7 +123,7 @@ public class POSSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement statement = con.createStatement()) {
 
-            String SQL = "SELECT SUM(Qty) AS SumQuantity FROM positions";
+            String SQL = "SELECT SUM(quantity) AS SumQuantity FROM positions";
             ResultSet rs = statement.executeQuery(SQL);
 
             if (rs.next()) {
@@ -139,7 +139,7 @@ public class POSSQL {
     public static double getSumQuantityForCurrency(String currencyPair) {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement(
-                        "SELECT SUM(Qty) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+                        "SELECT SUM(quantity) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
 
             pstmt.setString(1, currencyPair);
             ResultSet rs = pstmt.executeQuery();
@@ -216,10 +216,10 @@ public class POSSQL {
             dataRecords.clear();
             try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                     PreparedStatement pstmt = con.prepareStatement(
-                            "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime " +
+                            "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                                     "FROM positions WHERE Status IN (1, 7) AND Währung = ? AND BuyAmount > 0")) {
 
-                // "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate,
+                // "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate,
                 // BuyTime " +
                 // "FROM POS WHERE Status = 11 AND Währung = ?")) {
 
@@ -230,7 +230,7 @@ public class POSSQL {
                     String BuyOrderId = rs.getString("BuyOrderId"); // 0
                     String OrderPrice = rs.getString("OrderPrice"); // 1
                     String OrigPrice = rs.getString("OrigPrice"); // 2
-                    String Quantity = rs.getString("Qty"); // 3
+                    String Quantity = rs.getString("quantity"); // 3
                     String BuyAmount = rs.getString("BuyAmount"); // 4
                     String BuyPrice = rs.getString("BuyPrice"); // 5
                     String BuyDate = rs.getString("BuyDate"); // 6
@@ -260,7 +260,7 @@ public class POSSQL {
 
             // Zuerst versuchen, einen Datensatz mit Status = 7 und passender Währung zu
             // finden
-            String SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM positions "
+            String SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime FROM positions "
                     +
                     "WHERE Status = 7 AND Währung = '" + currency + "'";
 
@@ -273,13 +273,13 @@ public class POSSQL {
 
                 // Falls kein Datensatz mit Status = 7 gefunden wurde, dann Status = 1 verwenden
                 if (!foundStatus7) {
-                    SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice, BuyDate, BuyTime FROM positions "
+                    SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime FROM positions "
                             +
                             "WHERE Status = 1 AND Währung = '" + currency + "' " +
                             "AND BuyAmount > 10 " +
                             "ORDER BY (BuyPrice - " + LivePrice + ") DESC " +
                             "LIMIT 1";
-                    // SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, Qty, BuyAmount, BuyPrice,
+                    // SQL = "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice,
                     // BuyDate, BuyTime FROM POS "
                     // +
                     // "WHERE Status = 1 AND Währung = '" + currency + "' " +
@@ -303,7 +303,7 @@ public class POSSQL {
         String BuyOrderId = rs.getString("BuyOrderId");
         String OrderPrice = rs.getString("OrderPrice");
         String OrigPrice = rs.getString("OrigPrice");
-        String Quantity = rs.getString("Qty");
+        String Quantity = rs.getString("quantity");
         String BuyAmount = rs.getString("BuyAmount");
         String BuyPrice = rs.getString("BuyPrice");
         String BuyDate = rs.getString("BuyDate");
@@ -354,7 +354,7 @@ public class POSSQL {
             Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
             Statement query = con.createStatement();
 
-            String SQL = "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions "
+            String SQL = "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions "
                     +
                     "WHERE Status = 1 " +
                     "AND BuyAmount >= 10 " +
@@ -365,7 +365,7 @@ public class POSSQL {
 
             while (rs.next()) {
                 String BuyOrderId = rs.getString("BuyOrderId"); // 0
-                String Quantity = rs.getString("Qty"); // 1
+                String Quantity = rs.getString("quantity"); // 1
                 String currency = rs.getString("Währung"); // 2
 
                 String dataRecord = BuyOrderId + ", " + Quantity + ", " + currency;
@@ -385,7 +385,7 @@ public class POSSQL {
                 Statement query = con.createStatement()) {
 
             dataRecords.clear();
-            String SQL = "SELECT BuyOrderId, Qty, Währung, BuyPrice, BuyAmount FROM positions " +
+            String SQL = "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions " +
                     "WHERE Status = 1 " +
                     "AND BuyAmount < 10 " +
                     "AND Währung = '" + currency + "'";
@@ -394,7 +394,7 @@ public class POSSQL {
 
             while (rs.next()) {
                 String BuyOrderId = rs.getString("BuyOrderId");
-                String Quantity = rs.getString("Qty");
+                String Quantity = rs.getString("quantity");
                 String currencyFromDB = rs.getString("Währung");
                 String BuyPrice = rs.getString("BuyPrice");
                 String BuyAmount = rs.getString("BuyAmount");
@@ -422,7 +422,7 @@ public class POSSQL {
 
             while (rs.next()) {
                 String BuyOrderId = rs.getString("BuyOrderId");
-                String Quantity = rs.getString("Qty");
+                String Quantity = rs.getString("quantity");
                 String currencyFromDB = rs.getString("Währung");
                 String BuyPrice = rs.getString("BuyPrice");
                 String BuyAmount = rs.getString("BuyAmount");

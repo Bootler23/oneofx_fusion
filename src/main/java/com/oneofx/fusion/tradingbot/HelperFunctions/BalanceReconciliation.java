@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Gleicht fuer jedes aktive Waehrungspaar die Balance auf der Boerse (Binance)
- * mit der Datenbank-Balance (SUM Qty offener Positionen) ab und speichert
+ * mit der Datenbank-Balance (SUM quantity offener Positionen) ab und speichert
  * Exchange, Database und Differenz in der currency-Tabelle.
  *
  * Ersetzt die alte BalanceChecker-Klasse, die nur fuer eine Waehrung funktionierte.
@@ -70,7 +70,7 @@ public class BalanceReconciliation {
         // Exchange-Balance: free + locked
         double exchangeBalance = getExchangeBalance(asset, account);
 
-        // Datenbank-Balance: SUM(Qty) offener Positionen (Status 0, 1, 5)
+        // Datenbank-Balance: SUM(quantity) offener Positionen (Status 0, 1, 5)
         double databaseBalance = positionDAO.getSumQuantityForCurrency(currencyPair);
 
         // Differenz berechnen
