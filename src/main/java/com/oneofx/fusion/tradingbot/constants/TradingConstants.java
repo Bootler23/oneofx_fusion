@@ -29,15 +29,15 @@ public final class TradingConstants {
     // ========= Datenbanktabellen ==========
 
     public static final String TABLE_POS = "positions";
-    public static final String TABLE_HIST = "HIST";
+    public static final String TABLE_HIST = "historyPosition";
     public static final String TABLE_ATH = "ATH";
     public static final String TABLE_SET = "SET";
     public static final String TABLE_WPD = "WPD";
 
     // ========= Spalten ====================
 
-    public static final String[] HIST_COLUMNS_SELL_TRADES = {"SellOrderId", "Quantity", "BuyPrice", "Währung" };
-    public static final String[] POS_COLUMNS_BUY_TRADES = {"BuyOrderId", "Währung"};
+    public static final String[] HIST_COLUMNS_SELL_TRADES = {"SellOrderId", "Quantity", "BuyPrice", "currency" };
+    public static final String[] POS_COLUMNS_BUY_TRADES = {"BuyOrderId", "currency"};
 
     // ========= min BuyAmount ==============
 

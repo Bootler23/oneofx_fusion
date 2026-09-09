@@ -200,6 +200,8 @@ public class Update {
                         .origPrice(BuyPriceFromExchange)
                         .quantity(TradingRulesFormatter.formatQuantity(currency, Quantity))
                         .buyAmount(TradingRulesFormatter.formatPrice(currency, BuyAmount))
+                        .peakPrice(BuyPriceFromExchange)
+                        .tsl("inactive")
                         .status(1)
                         .statusCode(TradingConstants.STATUS_FILLED_CHECKED)
                         .build());

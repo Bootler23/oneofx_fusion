@@ -43,8 +43,10 @@ public class Order {
     public String getAmount() { return amount; }
     public void setAmount(String amount) { this.amount = amount; }
     public String getPrice() { return nonNull(filledAveragePrice, limitPrice, "0"); }
+    public String getLimitPrice() { return limitPrice; }
     public void setLimitPrice(String limitPrice) { this.limitPrice = limitPrice; }
     public String getStopPrice() { return nonNull(triggerPrice, "0"); }
+    public String getTriggerPrice() { return triggerPrice; }
     public void setTriggerPrice(String triggerPrice) { this.triggerPrice = triggerPrice; }
     public String getExecutedQty() { return nonNull(filledQuantity, "0"); }
     public void setFilledQuantity(String filledQuantity) { this.filledQuantity = filledQuantity; }

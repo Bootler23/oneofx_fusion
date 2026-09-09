@@ -179,7 +179,7 @@ public class CurrencyDAO {
 
     public boolean getTSL(String currency) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT TSL FROM currency WHERE currency = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT TSL FROM tradeSettings WHERE currency = ?")) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
@@ -194,10 +194,10 @@ public class CurrencyDAO {
 
     public double getTSLActivate(String currency) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT TSLactivate FROM currency WHERE currency = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT TSL_activate FROM tradeSettings WHERE currency = ?")) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getDouble("TSLactivate");
+            if (rs.next()) return rs.getDouble("TSL_activate");
         } catch (Exception e) {
             System.err.println("Fehler: " + e.getMessage());
         }
@@ -206,10 +206,10 @@ public class CurrencyDAO {
 
     public double getTSLDecline(String currency) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT TSLdecline FROM currency WHERE currency = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT TSL_decline FROM tradeSettings WHERE currency = ?")) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getDouble("TSLdecline");
+            if (rs.next()) return rs.getDouble("TSL_decline");
         } catch (Exception e) {
             System.err.println("Fehler: " + e.getMessage());
         }
@@ -234,10 +234,10 @@ public class CurrencyDAO {
 
     public double getMinBuyAmount(String currency) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT minBuyAmount FROM currency WHERE currency = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT buyAmount FROM currency WHERE currency = ?")) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
-            if (rs.next()) return round.five(rs.getDouble("minBuyAmount"));
+            if (rs.next()) return round.five(rs.getDouble("buyAmount"));
         } catch (SQLException e) {
             System.err.println("Fehler beim Lesen von minBuyAmount für " + currency + ": " + e.getMessage());
         }
@@ -246,7 +246,7 @@ public class CurrencyDAO {
 
     public void setMinBuyAmount(String currency, double amount) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("UPDATE currency SET minBuyAmount = ? WHERE currency = ?")) {
+             PreparedStatement ps = con.prepareStatement("UPDATE currency SET buyAmount = ? WHERE currency = ?")) {
             ps.setDouble(1, round.six(amount));
             ps.setString(2, currency);
             ps.executeUpdate();

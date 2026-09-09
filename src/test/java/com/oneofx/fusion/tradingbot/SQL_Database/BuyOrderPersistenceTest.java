@@ -33,7 +33,7 @@ public class BuyOrderPersistenceTest {
         File database = temporaryFolder.newFile("trading.db");
         jdbcUrl = "jdbc:sqlite:" + database.getAbsolutePath();
         persistence = new BuyOrderPersistence(jdbcUrl);
-        executeUpdate("CREATE TABLE positions (Währung TEXT, BuyOrderId TEXT PRIMARY KEY, "
+        executeUpdate("CREATE TABLE positions (currency TEXT, BuyOrderId TEXT PRIMARY KEY, "
                 + "OrderPrice REAL, Status INTEGER, statusCode TEXT)");
     }
 

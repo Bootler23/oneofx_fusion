@@ -315,7 +315,7 @@ public class SETSQL {
     }
 
     public static void getAVG_BalanceToAsset_atBuy() {
-        String sql = "SELECT AVG(BalanceToAsset_atBuy) AS avg_balance_to_asset FROM HIST";
+        String sql = "SELECT AVG(BalanceToAsset_atBuy) AS avg_balance_to_asset FROM historyPosition";
         try (Connection conHist = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = conHist.createStatement();
                 ResultSet rs = query.executeQuery(sql)) {

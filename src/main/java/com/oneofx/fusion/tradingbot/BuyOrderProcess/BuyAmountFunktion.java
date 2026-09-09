@@ -18,8 +18,6 @@ public class BuyAmountFunktion {
     private static final HistDAO histDAO = new HistDAO();
     private static final PositionDAO positionDAO = new PositionDAO();
 
-    static final String HIST = "jdbc:sqlite:C:/TradingBot/SQLiteStudio/Datenbanken/LTC_EUR/POS_LTCEUR_HIST.db";
-
     public static double getBuyAmount(String currencyPair, FusionApiClient client, List<Double> LivePrice,
             boolean wahr) {
 

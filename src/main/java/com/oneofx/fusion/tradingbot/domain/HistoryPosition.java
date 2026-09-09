@@ -1,7 +1,7 @@
 package com.oneofx.fusion.tradingbot.domain;
 
 /**
- * Domain-Objekt für die HIST-Tabelle.
+ * Domain-Objekt für die historyPosition-Tabelle.
  * Erstellt über Builder-Pattern: new HistoryPosition.Builder(currency, buyOrderId).buyPrice(p).build()
  */
 public class HistoryPosition {

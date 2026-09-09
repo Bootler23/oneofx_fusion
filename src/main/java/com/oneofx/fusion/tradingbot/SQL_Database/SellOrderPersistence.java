@@ -20,7 +20,7 @@ import com.oneofx.fusion.tradingbot.constants.TradingConstants;
  *
  * <p>The HTTP request itself cannot participate in a SQLite transaction. A
  * position is therefore reserved and committed before the request is sent.
- * After Fusion accepts the order, HIST and positions are changed together on
+ * After Fusion accepts the order, historyPosition and positions are changed together on
  * one connection. An ambiguous outcome deliberately remains reserved until it
  * is reconciled.</p>
  */
@@ -124,7 +124,7 @@ public final class SellOrderPersistence {
 
                 int histRows;
                 try (PreparedStatement ps = con.prepareStatement(
-                        "UPDATE HIST SET Status = 0, SellOrderId = ?, SellTime = ?, SellDate = ? "
+                        "UPDATE historyPosition SET Status = 0, SellOrderId = ?, SellTime = ?, SellDate = ? "
                                 + "WHERE BuyOrderId = ? "
                                 + "AND (SellOrderId IS NULL OR SellOrderId = ?)")) {
                     ps.setString(1, sellOrderId);
@@ -134,7 +134,7 @@ public final class SellOrderPersistence {
                     ps.setString(5, sellOrderId);
                     histRows = ps.executeUpdate();
                 }
-                requireExactlyOne(histRows, "HIST sell submission", reservation.buyOrderId());
+                requireExactlyOne(histRows, "historyPosition sell submission", reservation.buyOrderId());
 
                 int positionRows;
                 try (PreparedStatement ps = con.prepareStatement(
@@ -221,7 +221,7 @@ public final class SellOrderPersistence {
     }
 
     /**
-     * Atomically finalizes HIST, appends the performance row and removes the
+     * Atomically finalizes historyPosition, appends the performance row and removes the
      * sold position. A failure rolls back all three business changes.
      */
     public void recordCompleted(CompletedSell sell) throws SQLException {
@@ -235,7 +235,7 @@ public final class SellOrderPersistence {
                 double lastBuffer = findLastBuffer(con, sell.currency());
 
                 try (PreparedStatement ps = con.prepareStatement(
-                        "UPDATE HIST SET SellAmount = ?, SellPrice = ?, Tax = ?, Fee = ?, "
+                        "UPDATE historyPosition SET SellAmount = ?, SellPrice = ?, Tax = ?, Fee = ?, "
                                 + "Gewinn = ?, GewinnAfterTax = ?, LossAfterTax = ?, Profit = ?, "
                                 + "SellFee = ?, Split = ?, Status = ?, statusCode = ? "
                                 + "WHERE SellOrderId = ? AND Status = 0")) {
@@ -252,7 +252,7 @@ public final class SellOrderPersistence {
                     ps.setInt(11, 1);
                     ps.setString(12, TradingConstants.STATUS_FILLED_CHECKED);
                     ps.setString(13, sell.sellOrderId());
-                    requireExactlyOne(ps.executeUpdate(), "HIST sell completion", buyOrderId);
+                    requireExactlyOne(ps.executeUpdate(), "historyPosition sell completion", buyOrderId);
                 }
 
                 try (PreparedStatement ps = con.prepareStatement(
@@ -328,15 +328,15 @@ public final class SellOrderPersistence {
 
     private static String findPendingBuyOrderId(Connection con, String sellOrderId) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement(
-                "SELECT BuyOrderId FROM HIST WHERE SellOrderId = ? AND Status = 0")) {
+                "SELECT BuyOrderId FROM historyPosition WHERE SellOrderId = ? AND Status = 0")) {
             ps.setString(1, sellOrderId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
-                    throw new SQLException("No pending HIST row found for SellOrderId " + sellOrderId);
+                    throw new SQLException("No pending historyPosition row found for SellOrderId " + sellOrderId);
                 }
                 String buyOrderId = rs.getString("BuyOrderId");
                 if (rs.next()) {
-                    throw new SQLException("More than one HIST row found for SellOrderId " + sellOrderId);
+                    throw new SQLException("More than one historyPosition row found for SellOrderId " + sellOrderId);
                 }
                 requireText(buyOrderId, "buyOrderId");
                 return buyOrderId;
@@ -346,7 +346,7 @@ public final class SellOrderPersistence {
 
     private static int countOpenPositions(Connection con, String currency) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement(
-                "SELECT COUNT(*) FROM positions WHERE Status IN (0, 1) AND Währung = ?")) {
+                "SELECT COUNT(*) FROM positions WHERE Status IN (0, 1) AND currency = ?")) {
             ps.setString(1, currency);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
@@ -370,15 +370,15 @@ public final class SellOrderPersistence {
 
     private static boolean historyIsReadyForSell(Connection con, String buyOrderId) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement(
-                "SELECT SellOrderId FROM HIST WHERE BuyOrderId = ?")) {
+                "SELECT SellOrderId FROM historyPosition WHERE BuyOrderId = ?")) {
             ps.setString(1, buyOrderId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
-                    throw new SQLException("No HIST row found for BuyOrderId " + buyOrderId);
+                    throw new SQLException("No historyPosition row found for BuyOrderId " + buyOrderId);
                 }
                 String sellOrderId = rs.getString("SellOrderId");
                 if (rs.next()) {
-                    throw new SQLException("More than one HIST row found for BuyOrderId " + buyOrderId);
+                    throw new SQLException("More than one historyPosition row found for BuyOrderId " + buyOrderId);
                 }
                 return sellOrderId == null || sellOrderId.isBlank();
             }

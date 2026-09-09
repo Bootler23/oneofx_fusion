@@ -19,14 +19,14 @@ $env:ONEOFX_DB_DIR = "C:\Pfad\zu\deinen\Datenbanken"
 ```
 
 Als Alias für den API-Key wird auch `FUSION_API_KEY` akzeptiert. Ohne
-`ONEOFX_DB_DIR` liegen die drei Datenbanken `SETTING.db`, `oneofx.db` und
-`WPD.db` im lokalen, von Git ignorierten Ordner `data`.
+`ONEOFX_DB_DIR` liegt die gemeinsame Datenbank `oneofx_fusion.db` im lokalen,
+von Git ignorierten Ordner `data`.
 
 Optional lassen sich einzelne Dateien und die API-Basis-URL überschreiben:
 
 ```powershell
 $env:ONEOFX_SETTINGS_DB = "C:\Daten\SETTING.db"
-$env:ONEOFX_TRADING_DB = "C:\Daten\oneofx.db"
+$env:ONEOFX_TRADING_DB = "C:\Daten\oneofx_fusion.db"
 $env:ONEOFX_WPD_DB = "C:\Daten\WPD.db"
 $env:BITPANDA_FUSION_BASE_URL = "https://api.fusion.bitpanda.com"
 $env:ONEOFX_PROFIT_TAX_RATE_PERCENT = "42"

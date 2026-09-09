@@ -33,7 +33,7 @@ public class PositionDAO {
         List<String> columns = new ArrayList<>();
         List<Object> values = new ArrayList<>();
 
-        columns.add("Währung");    values.add(pos.getCurrency());
+        columns.add("currency");  values.add(pos.getCurrency());
         columns.add("BuyOrderId"); values.add(pos.getBuyOrderId());
 
         if (pos.getOrderPrice() != null)  { columns.add("OrderPrice");  values.add(pos.getOrderPrice()); }
@@ -82,7 +82,7 @@ public class PositionDAO {
         if (pos.getPeakPrice() != null)   { setClauses.add("peakPrice = ?");   values.add(pos.getPeakPrice()); }
         if (pos.getTsl() != null)         { setClauses.add("TSL = ?");         values.add(pos.getTsl()); }
         if (pos.getProfit() != null)      { setClauses.add("Profit = ?");      values.add(pos.getProfit()); }
-        if (pos.getCurrency() != null)    { setClauses.add("Währung = ?");     values.add(pos.getCurrency()); }
+        if (pos.getCurrency() != null)    { setClauses.add("currency = ?");   values.add(pos.getCurrency()); }
 
         if (setClauses.isEmpty()) return;
 
@@ -124,7 +124,7 @@ public class PositionDAO {
 
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT OrderPrice FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+                     "SELECT OrderPrice FROM positions WHERE Status IN (0, 1, 5) AND currency = ?")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
@@ -144,7 +144,7 @@ public class PositionDAO {
     public boolean positionExistsAtPrice(String currencyPair, double price) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT COUNT(*) AS count FROM positions WHERE Status IN (0, 1, 5) AND Währung = ? AND ABS(OrderPrice - ?) < 0.0001")) {
+                     "SELECT COUNT(*) AS count FROM positions WHERE Status IN (0, 1, 5) AND currency = ? AND ABS(OrderPrice - ?) < 0.0001")) {
             ps.setString(1, currencyPair);
             ps.setDouble(2, price);
             ResultSet rs = ps.executeQuery();
@@ -162,13 +162,16 @@ public class PositionDAO {
     public int countPendingOrders(String currencyPair) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT COUNT(*) AS cnt FROM positions WHERE Status = 0 AND Währung = ?")) {
+                     "SELECT COUNT(*) AS cnt FROM positions WHERE Status = 0 AND currency = ?")) {
             ps.setString(1, currencyPair);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt("cnt");
             }
         } catch (SQLException e) {
             System.err.println("[FEHLER] countPendingOrders: " + e.getMessage());
+            // Fail closed: Bei unbekanntem DB-Zustand keine moeglichen
+            // Doppelorders an die Exchange senden.
+            return Integer.MAX_VALUE;
         }
         return 0;
     }
@@ -177,7 +180,7 @@ public class PositionDAO {
         List<String> ids = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId FROM positions WHERE Status = 0 AND Währung = ?")) {
+                     "SELECT BuyOrderId FROM positions WHERE Status = 0 AND currency = ?")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
@@ -193,10 +196,10 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, Währung FROM positions WHERE Status = 5")) {
+                     "SELECT BuyOrderId, currency FROM positions WHERE Status = 5")) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Währung"));
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("currency"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());
@@ -229,7 +232,7 @@ public class PositionDAO {
     public double getSumQuantityForCurrency(String currencyPair) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT SUM(quantity) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND Währung = ?")) {
+                     "SELECT SUM(quantity) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND currency = ?")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("SumQuantity");
@@ -254,7 +257,7 @@ public class PositionDAO {
     public int getCountPOS(String currencyPair) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT COUNT(*) AS RecordCount FROM positions WHERE Status IN (0, 1) AND Währung = ?")) {
+                     "SELECT COUNT(*) AS RecordCount FROM positions WHERE Status IN (0, 1) AND currency = ?")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getInt("RecordCount");
@@ -280,7 +283,7 @@ public class PositionDAO {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
                      "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
-                     "FROM positions WHERE Status IN (1, 7) AND Währung = ? AND BuyAmount > 0")) {
+                     "FROM positions WHERE Status IN (1, 7) AND currency = ? AND BuyAmount > 0")) {
             ps.setString(1, currencyPair);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
@@ -298,7 +301,7 @@ public class PositionDAO {
             // Zuerst Status = 7
             try (PreparedStatement ps = con.prepareStatement(
                     "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
-                    "FROM positions WHERE Status = 7 AND Währung = ?")) {
+                    "FROM positions WHERE Status = 7 AND currency = ?")) {
                 ps.setString(1, currency);
                 ResultSet rs = ps.executeQuery();
                 while (rs.next()) {
@@ -309,7 +312,7 @@ public class PositionDAO {
             if (records.isEmpty()) {
                 try (PreparedStatement ps = con.prepareStatement(
                         "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
-                        "FROM positions WHERE Status = 1 AND Währung = ? AND BuyAmount > 10 " +
+                        "FROM positions WHERE Status = 1 AND currency = ? AND BuyAmount > 10 " +
                         "ORDER BY (BuyPrice - ?) DESC LIMIT 1")) {
                     ps.setString(1, currency);
                     ps.setDouble(2, livePrice);
@@ -339,6 +342,21 @@ public class PositionDAO {
         return 0.0;
     }
 
+    public boolean isTrailingStopActive(String buyOrderId) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement("SELECT TSL FROM positions WHERE BuyOrderId = ?")) {
+            ps.setString(1, buyOrderId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return "active".equalsIgnoreCase(rs.getString("TSL"));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Fehler beim Lesen des TSL-Status: " + e.getMessage());
+        }
+        return false;
+    }
+
     public void updatePeakPrice(String buyOrderId, double peakPrice) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement("UPDATE positions SET peakPrice = ? WHERE BuyOrderId = ?")) {
@@ -354,14 +372,14 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions " +
-                     "WHERE Status = 1 AND BuyAmount >= 10 AND Währung = ? " +
+                     "SELECT BuyOrderId, quantity, currency, BuyPrice, BuyAmount FROM positions " +
+                     "WHERE Status = 1 AND BuyAmount >= 10 AND currency = ? " +
                      "ORDER BY (BuyPrice - ?) DESC LIMIT 1")) {
             ps.setString(1, currencyPair);
             ps.setDouble(2, livePrice);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("quantity") + ", " + rs.getString("Währung"));
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("quantity") + ", " + rs.getString("currency"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());
@@ -373,13 +391,13 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions " +
-                     "WHERE Status = 1 AND BuyAmount < 10 AND Währung = ?")) {
+                     "SELECT BuyOrderId, quantity, currency, BuyPrice, BuyAmount FROM positions " +
+                     "WHERE Status = 1 AND BuyAmount < 10 AND currency = ?")) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 records.add(rs.getString("BuyOrderId") + ", " + rs.getString("quantity") + ", "
-                        + rs.getString("Währung") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
+                        + rs.getString("currency") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());
@@ -391,14 +409,14 @@ public class PositionDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, quantity, Währung, BuyPrice, BuyAmount FROM positions " +
-                     "WHERE Währung = ? AND BuyAmount < 10 AND Status = 1 AND (BuyPrice - ?) / BuyPrice >= 0.07")) {
+                     "SELECT BuyOrderId, quantity, currency, BuyPrice, BuyAmount FROM positions " +
+                     "WHERE currency = ? AND BuyAmount < 10 AND Status = 1 AND (BuyPrice - ?) / BuyPrice >= 0.07")) {
             ps.setString(1, currency);
             ps.setDouble(2, livePrice);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 records.add(rs.getString("BuyOrderId") + ", " + rs.getString("quantity") + ", "
-                        + rs.getString("Währung") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
+                        + rs.getString("currency") + ", " + rs.getString("BuyPrice") + ", " + rs.getString("BuyAmount"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());

@@ -10,8 +10,12 @@ public class AssetBalance {
 
     public String getAsset() { return symbol; }
     public void setSymbol(String symbol) { this.symbol = symbol; }
-    public String getFree() { return available; }
+    public String getFree() { return numericOrZero(available); }
     public void setAvailable(String available) { this.available = available; }
-    public String getLocked() { return locked; }
+    public String getLocked() { return numericOrZero(locked); }
     public void setLocked(String locked) { this.locked = locked; }
+
+    private static String numericOrZero(String value) {
+        return value == null || value.isBlank() ? "0" : value;
+    }
 }

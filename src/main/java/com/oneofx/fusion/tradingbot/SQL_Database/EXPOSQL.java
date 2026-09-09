@@ -9,7 +9,7 @@ import com.oneofx.fusion.tradingbot.Database.dbUrl;
 public class EXPOSQL {
 
        public static void insertnewBuyAmountEntry(String currencyPair, double buyAmount, double LivePrice) {        
-        String sql = "INSERT INTO currency(Währung) VALUES (?)";
+        String sql = "INSERT INTO currency(currency) VALUES (?)";
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
 

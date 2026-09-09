@@ -6,11 +6,19 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.domain.TradingRules;
 
 public class TradingRulesSQL {  
+
+    private static final Object SCHEMA_LOCK = new Object();
+    private static final Set<String> INITIALIZED_DATABASES = ConcurrentHashMap.newKeySet();
+    private static final Map<String, TradingRules> CACHE = new ConcurrentHashMap<>();
 
     public static void saveTradingRules(TradingRules rules) {
         if (rules == null || rules.getSymbol() == null) {
@@ -21,8 +29,9 @@ public class TradingRulesSQL {
                 + "(currency, tickSize, stepSize, minQty, amountIncrement, maxOrderSize, minOrderAmount, maxOrderAmount) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
-            ensureSchema(con);
+        String databaseUrl = dbUrl.getoneOfX();
+        try (Connection con = DriverManager.getConnection(databaseUrl)) {
+            ensureSchemaOnce(con, databaseUrl);
             try (PreparedStatement ps = con.prepareStatement(sql)) {
                 ps.setString(1, rules.getSymbol());
                 ps.setString(2, rules.getTickSize() != null ? rules.getTickSize().toPlainString() : "0.01");
@@ -34,6 +43,7 @@ public class TradingRulesSQL {
                 ps.setString(8, decimal(rules.getMaxOrderAmount()));
                 ps.executeUpdate();
             }
+            CACHE.put(cacheKey(databaseUrl, rules.getSymbol()), rules);
             
         } catch (SQLException err) {
             System.err.println("Fehler beim Speichern von TradingRules für " + rules.getSymbol() + ": " + err.getMessage());
@@ -45,11 +55,18 @@ public class TradingRulesSQL {
             return null;
         }
 
+        String databaseUrl = dbUrl.getoneOfX();
+        String cacheKey = cacheKey(databaseUrl, symbol);
+        TradingRules cached = CACHE.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
         String sql = "SELECT currency, tickSize, stepSize, minQty, amountIncrement, maxOrderSize, "
                 + "minOrderAmount, maxOrderAmount FROM tradingRules WHERE currency = ?";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
-            ensureSchema(con);
+        try (Connection con = DriverManager.getConnection(databaseUrl)) {
+            ensureSchemaOnce(con, databaseUrl);
             try (PreparedStatement ps = con.prepareStatement(sql)) {
                 ps.setString(1, symbol);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -62,6 +79,7 @@ public class TradingRulesSQL {
                         rules.setMaxOrderSize(toBigDecimal(rs.getString("maxOrderSize")));
                         rules.setMinOrderAmount(toBigDecimal(rs.getString("minOrderAmount")));
                         rules.setMaxOrderAmount(toBigDecimal(rs.getString("maxOrderAmount")));
+                        CACHE.put(cacheKey, rules);
                         return rules;
                     }
                 }
@@ -86,6 +104,15 @@ public class TradingRulesSQL {
         }
     }
 
+    /** Clears in-memory values, primarily for an explicit runtime rules reload. */
+    public static void clearCache() {
+        CACHE.clear();
+    }
+
+    private static String cacheKey(String databaseUrl, String symbol) {
+        return databaseUrl + '\0' + symbol.trim().toUpperCase(Locale.ROOT);
+    }
+
     private static String decimal(BigDecimal value) {
         return value == null ? null : value.toPlainString();
     }
@@ -100,6 +127,19 @@ public class TradingRulesSQL {
         addColumnIfMissing(con, "maxOrderSize");
         addColumnIfMissing(con, "minOrderAmount");
         addColumnIfMissing(con, "maxOrderAmount");
+    }
+
+    private static void ensureSchemaOnce(Connection con, String databaseUrl) throws SQLException {
+        if (INITIALIZED_DATABASES.contains(databaseUrl)) {
+            return;
+        }
+        synchronized (SCHEMA_LOCK) {
+            if (INITIALIZED_DATABASES.contains(databaseUrl)) {
+                return;
+            }
+            ensureSchema(con);
+            INITIALIZED_DATABASES.add(databaseUrl);
+        }
     }
 
     private static void addColumnIfMissing(Connection con, String column) throws SQLException {

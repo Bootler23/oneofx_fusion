@@ -10,6 +10,6 @@ public class TickerPrice {
 
     public String getSymbol() { return pair; }
     @JsonProperty("pair") public void setSymbol(String pair) { this.pair = pair; }
-    public String getPrice() { return price; }
+    public String getPrice() { return price == null || price.isBlank() ? "0" : price; }
     public void setPrice(String price) { this.price = price; }
 }

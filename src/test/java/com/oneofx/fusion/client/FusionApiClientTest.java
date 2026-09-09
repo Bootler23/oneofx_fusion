@@ -3,12 +3,15 @@ package com.oneofx.fusion.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oneofx.fusion.client.model.CandlestickInterval;
+import com.oneofx.fusion.client.model.AssetBalance;
 import com.oneofx.fusion.client.model.NewOrder;
 import com.oneofx.fusion.client.model.NewOrderResponse;
+import com.oneofx.fusion.client.model.Order;
 import com.oneofx.fusion.client.model.OrderSide;
 import com.oneofx.fusion.client.model.OrderType;
 import com.oneofx.fusion.client.model.TickerPrice;
 import com.oneofx.fusion.client.model.TimeInForce;
+import com.oneofx.fusion.client.model.Trade;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.After;
@@ -18,6 +21,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
@@ -81,6 +85,72 @@ public class FusionApiClientTest {
         assertEquals("2450.00", json.get("triggerPrice").asText());
         assertFalse(json.has("amount"));
         assertFalse(json.has("endTime"));
+    }
+
+    @Test
+    public void limitBuyBelowMarketHasNoTriggerPrice() throws Exception {
+        server.createContext("/v1/account/orders", exchange -> {
+            lastBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 202, "{\"id\":\"limit-buy-1\"}");
+        });
+        NewOrder order = new NewOrder("ETH-EUR", OrderSide.BUY, OrderType.LIMIT,
+                TimeInForce.GTC, "0.25", "2400.00");
+
+        new FusionApiClient("test-key", baseUrl).newOrder(order);
+        JsonNode json = new ObjectMapper().readTree(lastBody.get());
+
+        assertEquals("Limit", json.get("type").asText());
+        assertEquals("2400.00", json.get("limitPrice").asText());
+        assertFalse(json.has("triggerPrice"));
+    }
+
+    @Test
+    public void orderKeepsLimitPriceSeparateFromPartialFillAverage() throws Exception {
+        Order order = new ObjectMapper().readValue(
+                "{\"id\":\"partial-1\",\"limitPrice\":\"2400.00\","
+                        + "\"filledAveragePrice\":\"2399.50\"}",
+                Order.class);
+
+        assertEquals("2399.50", order.getPrice());
+        assertEquals("2400.00", order.getLimitPrice());
+    }
+
+    @Test
+    public void missingOptionalNumericResponseFieldsDefaultToZero() throws Exception {
+        Trade trade = new ObjectMapper().readValue("{}", Trade.class);
+        AssetBalance balance = new ObjectMapper().readValue("{}", AssetBalance.class);
+        TickerPrice ticker = new ObjectMapper().readValue("{}", TickerPrice.class);
+
+        assertEquals("0", trade.getQty());
+        assertEquals("0", trade.getPrice());
+        assertEquals("0", trade.getQuoteQty());
+        assertEquals("0", balance.getFree());
+        assertEquals("0", balance.getLocked());
+        assertEquals("0", ticker.getPrice());
+    }
+
+    @Test
+    public void tradeAmountIsMappedToExecutedQuantity() {
+        server.createContext("/v1/account/trades", exchange -> {
+            lastExchange.set(exchange);
+            respond(exchange, 200, "{\"data\":[{"
+                    + "\"id\":\"trade-1\",\"orderId\":\"order-1\",\"pair\":\"BTC-EUR\","
+                    + "\"side\":\"Buy\",\"price\":\"67451.90\",\"amount\":\"0.00051874\","
+                    + "\"fee\":{\"amount\":\"0.087475\",\"symbol\":\"EUR\"},"
+                    + "\"total\":\"34.99\"}],"
+                    + "\"meta\":{\"limit\":100,\"hasNextPage\":false,\"nextCursor\":null}}");
+        });
+
+        List<Trade> trades = new FusionApiClient("test-key", baseUrl)
+                .getTradesForOrder("BTCEUR", "order-1");
+
+        assertEquals(1, trades.size());
+        assertEquals("0.00051874", trades.get(0).getQty());
+        assertEquals("34.99", trades.get(0).getQuoteQty());
+        assertEquals("0.087475", trades.get(0).getCommission());
+        assertEquals("EUR", trades.get(0).getCommissionAsset());
+        assertEquals("pair=BTC-EUR&orderId=order-1&limit=100",
+                lastExchange.get().getRequestURI().getRawQuery());
     }
 
     @Test

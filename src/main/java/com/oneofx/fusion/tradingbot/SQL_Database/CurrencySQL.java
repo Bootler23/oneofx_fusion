@@ -160,7 +160,7 @@ public class CurrencySQL {
     // ---- Trailing Stop Loss (TSL) --------------------------------------------
 
     public static boolean getTSL(String currency) {
-        String sql = "SELECT TSL FROM currency WHERE currency = ?";
+        String sql = "SELECT TSL FROM tradeSettings WHERE currency = ?";
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, currency);
@@ -177,13 +177,13 @@ public class CurrencySQL {
     }
 
     public static double getTSLActivate(String currency) {
-        String sql = "SELECT TSLactivate FROM currency WHERE currency = ?";
+        String sql = "SELECT TSL_activate FROM tradeSettings WHERE currency = ?";
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, currency);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getDouble("TSLactivate");
+                return rs.getDouble("TSL_activate");
                 }
             }
         } catch (Exception e) {
@@ -193,13 +193,13 @@ public class CurrencySQL {
     }
 
     public static double getTSLDecline(String currency) {
-        String sql = "SELECT TSLdecline FROM currency WHERE currency = ?";
+        String sql = "SELECT TSL_decline FROM tradeSettings WHERE currency = ?";
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, currency);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getDouble("TSLdecline");
+                return rs.getDouble("TSL_decline");
                 }
             }
         } catch (Exception e) {

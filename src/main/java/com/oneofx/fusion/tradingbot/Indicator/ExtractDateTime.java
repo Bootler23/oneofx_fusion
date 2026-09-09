@@ -21,7 +21,7 @@ public class ExtractDateTime {
             dataRecords.clear();
             Connection con = DriverManager.getConnection(SQL);
             Statement query = con.createStatement();
-            String SQL1 = "SELECT BuyOrderId, BuyTime, SellTime FROM HIST";
+            String SQL1 = "SELECT BuyOrderId, BuyTime, SellTime FROM historyPosition";
             ResultSet rs = query.executeQuery(SQL1);
 
             while (rs.next()) {

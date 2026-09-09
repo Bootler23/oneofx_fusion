@@ -14,7 +14,7 @@ import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 import com.oneofx.fusion.tradingbot.domain.HistoryPosition;
 
 /**
- * DAO für die HIST-Tabelle. Ersetzt HISTSQL (statisch) durch Instanz-Methoden
+ * DAO für die historyPosition-Tabelle. Ersetzt HISTSQL (statisch) durch Instanz-Methoden
  * mit modularem insert/update und PreparedStatements überall.
  */
 public class HistDAO {
@@ -29,7 +29,7 @@ public class HistDAO {
         List<String> columns = new ArrayList<>();
         List<Object> values = new ArrayList<>();
 
-        columns.add("Währung");     values.add(pos.getCurrency());
+        columns.add("currency");   values.add(pos.getCurrency());
         columns.add("BuyOrderId");  values.add(pos.getBuyOrderId());
 
         if (pos.getQuantity() != null)           { columns.add("Quantity");           values.add(pos.getQuantity()); }
@@ -62,7 +62,7 @@ public class HistDAO {
 
         String cols = String.join(", ", columns);
         String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
-        String sql = "INSERT INTO HIST (" + cols + ") VALUES (" + placeholders + ")";
+        String sql = "INSERT INTO historyPosition (" + cols + ") VALUES (" + placeholders + ")";
 
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
@@ -71,7 +71,7 @@ public class HistDAO {
             }
             ps.executeUpdate();
         } catch (SQLException e) {
-            System.err.println("Fehler beim Insert in HIST: " + e.getMessage());
+            System.err.println("Fehler beim Insert in historyPosition: " + e.getMessage());
         }
     }
 
@@ -106,7 +106,7 @@ public class HistDAO {
 
         if (setClauses.isEmpty()) return;
 
-        String sql = "UPDATE HIST SET " + String.join(", ", setClauses) + " WHERE BuyOrderId = ?";
+        String sql = "UPDATE historyPosition SET " + String.join(", ", setClauses) + " WHERE BuyOrderId = ?";
         values.add(pos.getBuyOrderId());
 
         try (Connection con = getConnection();
@@ -116,7 +116,7 @@ public class HistDAO {
             }
             ps.executeUpdate();
         } catch (SQLException e) {
-            System.err.println("Fehler beim Update in HIST (BuyOrderId): " + e.getMessage());
+            System.err.println("Fehler beim Update in historyPosition (BuyOrderId): " + e.getMessage());
         }
     }
 
@@ -146,7 +146,7 @@ public class HistDAO {
 
         if (setClauses.isEmpty()) return;
 
-        String sql = "UPDATE HIST SET " + String.join(", ", setClauses) + " WHERE SellOrderId = ?";
+        String sql = "UPDATE historyPosition SET " + String.join(", ", setClauses) + " WHERE SellOrderId = ?";
         values.add(pos.getSellOrderId());
 
         try (Connection con = getConnection();
@@ -156,7 +156,7 @@ public class HistDAO {
             }
             ps.executeUpdate();
         } catch (SQLException e) {
-            System.err.println("Fehler beim Update in HIST (SellOrderId): " + e.getMessage());
+            System.err.println("Fehler beim Update in historyPosition (SellOrderId): " + e.getMessage());
         }
     }
 
@@ -166,11 +166,11 @@ public class HistDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT SellOrderId, Quantity, Währung, BuyPrice FROM HIST WHERE Status = 0")) {
+                     "SELECT SellOrderId, Quantity, currency, BuyPrice FROM historyPosition WHERE Status = 0")) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 records.add(rs.getString("SellOrderId") + ", " + rs.getString("Quantity") + ", "
-                        + rs.getString("BuyPrice") + ", " + rs.getString("Währung"));
+                        + rs.getString("BuyPrice") + ", " + rs.getString("currency"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());
@@ -182,11 +182,11 @@ public class HistDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, Split, Währung FROM HIST WHERE Status = 1 AND Split IS NOT NULL AND Währung = ?")) {
+                     "SELECT BuyOrderId, Split, currency FROM historyPosition WHERE Status = 1 AND Split IS NOT NULL AND currency = ?")) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Split") + ", " + rs.getString("Währung"));
+                records.add(rs.getString("BuyOrderId") + ", " + rs.getString("Split") + ", " + rs.getString("currency"));
             }
         } catch (SQLException e) {
             System.err.println("SQL-Fehler: " + e.getMessage());
@@ -196,7 +196,7 @@ public class HistDAO {
 
     public double getTaxe() {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM HIST")) {
+             PreparedStatement ps = con.prepareStatement("SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM historyPosition")) {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("TotalTax");
         } catch (SQLException e) {
@@ -207,7 +207,7 @@ public class HistDAO {
 
     public double getBuyAmount(String sellOrderId) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT BuyAmount FROM HIST WHERE SellOrderId = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT BuyAmount FROM historyPosition WHERE SellOrderId = ?")) {
             ps.setString(1, sellOrderId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("BuyAmount");
@@ -219,7 +219,7 @@ public class HistDAO {
 
     public double getBuyFee(String sellOrderId) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT BuyFee FROM HIST WHERE SellOrderId = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT BuyFee FROM historyPosition WHERE SellOrderId = ?")) {
             ps.setString(1, sellOrderId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("BuyFee");
@@ -231,7 +231,7 @@ public class HistDAO {
 
     public double getBuyPrice(String sellOrderId) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT BuyPrice FROM HIST WHERE SellOrderId = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT BuyPrice FROM historyPosition WHERE SellOrderId = ?")) {
             ps.setString(1, sellOrderId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("BuyPrice");
@@ -243,7 +243,7 @@ public class HistDAO {
 
     public String getBuyOrderId(String sellOrderId) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT BuyOrderId FROM HIST WHERE SellOrderId = ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT BuyOrderId FROM historyPosition WHERE SellOrderId = ?")) {
             ps.setString(1, sellOrderId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getString("BuyOrderId") : null;
@@ -255,7 +255,7 @@ public class HistDAO {
     }
 
     public void resetPendingSell(String sellOrderId) {
-        String sql = "UPDATE HIST SET SellOrderId = NULL, SellDate = NULL, SellTime = NULL, Status = NULL "
+        String sql = "UPDATE historyPosition SET SellOrderId = NULL, SellDate = NULL, SellTime = NULL, Status = NULL "
                 + "WHERE SellOrderId = ?";
         try (Connection con = getConnection(); PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, sellOrderId);
@@ -267,7 +267,7 @@ public class HistDAO {
 
     public int getCountHist() {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) AS TotalCount FROM HIST")) {
+             PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) AS TotalCount FROM historyPosition")) {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getInt("TotalCount");
         } catch (SQLException e) {
@@ -278,7 +278,7 @@ public class HistDAO {
 
     public void setSellFee(String sellOrderId, double sellFee) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("UPDATE HIST SET SellFee = ? WHERE SellOrderId = ?")) {
+             PreparedStatement ps = con.prepareStatement("UPDATE historyPosition SET SellFee = ? WHERE SellOrderId = ?")) {
             ps.setDouble(1, sellFee);
             ps.setString(2, sellOrderId);
             ps.executeUpdate();

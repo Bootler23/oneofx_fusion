@@ -3,8 +3,6 @@ package com.oneofx.fusion.tradingbot.TradingMain;
 import com.oneofx.fusion.tradingbot.BuyOrderProcess.BuyOrderPocess;
 import com.oneofx.fusion.tradingbot.BuyOrderProcess.CheckOrderStatus;
 import com.oneofx.fusion.tradingbot.BuyOrderProcess.Ticker;
-import com.oneofx.fusion.tradingbot.HelperFunctions.Asset;
-import com.oneofx.fusion.tradingbot.HelperFunctions.BalanceReconciliation;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
 import com.oneofx.fusion.tradingbot.HelperFunctions.sleep;
 import com.oneofx.fusion.tradingbot.Indicator.Merge;
@@ -21,6 +19,7 @@ import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.Settings.CurrencyConfig;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
+import com.oneofx.fusion.tradingbot.Database.DatabaseSchema;
 import com.oneofx.fusion.tradingbot.service.TradingRulesService;
 import com.oneofx.fusion.tradingbot.domain.TradingRules;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
@@ -87,7 +86,9 @@ public class oneofx {
             System.err.println("⚠️ Lock-Datei konnte nicht erstellt werden: " + e.getMessage());
         }
 
-        // ========== Trading-Rules initialisieren ==========
+        // ========== Datenbankschema und Trading-Rules initialisieren ==========
+
+        DatabaseSchema.initialize();
 
         System.out.println("📋 Initialisiere Trading-Rules...");
 
@@ -227,13 +228,14 @@ public class oneofx {
                     count++;
                     System.out.print(".");
 
-                    // Buy
-                    BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
-
-                    // Check
+                    // Erst bestehende Orders abgleichen. Dadurch werden Fills und
+                    // Cancels verbucht, bevor fehlende Buy-Orders ergaenzt werden.
                     OrderIdList.clear();
                     OrderIdList.addAll(positionDAO.getBuyOrderIdsWhereStatusZero(currency));
                     CheckOrderStatus.OrderStatus(currency, FusionClientProvider.getClient(), OrderIdList, LivePrice);
+
+                    // Buy: bis zu zwei offene Limit-Orders unter dem Markt ergaenzen.
+                    BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
 
                     // Sell
                     getDataRecords.clear();
@@ -255,6 +257,7 @@ public class oneofx {
                 continue;
             } catch (Exception e) {
                 System.err.println("⚠️ Unerwarteter Fehler: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+                e.printStackTrace(System.err);
                 System.out.println(Time.getCurrent_DateTimeWith_HHmmss());
                 System.out.println("↻ Warte 60s und versuche erneut...");
                 sleep.for_60_seconds();

@@ -46,27 +46,25 @@ public class SellOrderProcess {
                 continue;
             }
 
-            // ---- Dynamischer Trailing Stop Loss --------------------------------
-            // Aktivierung: highestProfitPct >= TSLactivate (z.B. 1.2 %)
-            // Stop wird proportional gezogen:
-            //   trailingFactor   = (TSLactivate - TSLdecline) / TSLactivate   (z.B. 0.6667)
-            //   trailingStopPct  = highestProfitPct * trailingFactor
-            //   tslTriggerPrice  = buyPrice * (1 + trailingStopPct/100)
-            // → Je höher der Peak, desto größer der Abstand zum Stop.
+            // TSL_activate ist nur die Aktivierungsschwelle. Nach der Aktivierung
+            // folgt der Stop dem Peak mit dem festen Abstand TSL_decline.
             if (currencyDAO.getTSL(currency)) {
                 double tslActivatePct = currencyDAO.getTSLActivate(currency);
                 double tslDeclinePct  = currencyDAO.getTSLDecline(currency);
 
-                double peakPrice = positionDAO.getPeakPrice(BuyOrderId);
-                if (peakPrice <= 0) {
-                    peakPrice = Math.max(BuyPrice_Double, currentPrice);
-                    positionDAO.updatePeakPrice(BuyOrderId, peakPrice);
-                } else if (currentPrice > peakPrice) {
-                    peakPrice = currentPrice;
-                    positionDAO.updatePeakPrice(BuyOrderId, peakPrice);
-                }
+                double storedPeakPrice = positionDAO.getPeakPrice(BuyOrderId);
+                boolean wasActive = positionDAO.isTrailingStopActive(BuyOrderId);
+                TrailingStopDecision decision = evaluateTrailingStop(
+                        BuyPrice_Double,
+                        currentPrice,
+                        storedPeakPrice,
+                        wasActive,
+                        tslActivatePct,
+                        tslDeclinePct);
 
-                double highestProfitPct = (peakPrice - BuyPrice_Double) / BuyPrice_Double * 100.0;
+                if (Double.compare(storedPeakPrice, decision.peakPrice()) != 0) {
+                    positionDAO.updatePeakPrice(BuyOrderId, decision.peakPrice());
+                }
 
                 // Profit immer aktualisieren (positiv oder negativ)
                 double profitPct = round.three((currentPrice - BuyPrice_Double) / BuyPrice_Double * 100.0);
@@ -74,31 +72,54 @@ public class SellOrderProcess {
                         .profit(profitPct)
                         .build());
 
-                if (tslActivatePct > 0 && highestProfitPct >= tslActivatePct) {
-                    // TSL aktiv → Status in DB setzen
+                if (!wasActive && decision.active()) {
                     positionDAO.update(new Position.Builder(null, BuyOrderId)
                             .tsl("active")
                             .build());
+                    System.out.println("TSL AKTIVIERT: " + currency
+                            + " | Buy: " + BuyPrice_Double
+                            + " | Peak: " + round.four(decision.peakPrice())
+                            + " | Aktivierung: " + round.three(tslActivatePct) + "%"
+                            + " | Abstand: " + round.three(tslDeclinePct) + "%");
+                }
 
-                    double trailingFactor  = (tslActivatePct - tslDeclinePct) / tslActivatePct;
-                    double trailingStopPct = highestProfitPct * trailingFactor;
-                    double tslTriggerPrice = BuyPrice_Double * (1.0 + trailingStopPct / 100.0);
-
-                    if (currentPrice <= tslTriggerPrice) {
-                        empty.Line();
-                        System.out.println("🟡 TRAILING STOP-LOSS: " + currency
-                                + " | Buy: " + BuyPrice_Double
-                                + " | Peak: " + round.four(peakPrice)
-                                + " | HighProfit%: " + round.three(highestProfitPct)
-                                + " | StopProfit%: " + round.three(trailingStopPct)
-                                + " | Trigger: " + round.four(tslTriggerPrice)
-                                + " | Aktuell: " + currentPrice);
-                        executeSell(currency, client, BuyOrderId, Quantity_String);
-                        continue;
-                    }
+                if (decision.sell()) {
+                    empty.Line();
+                    System.out.println("TRAILING STOP-LOSS: " + currency
+                            + " | Buy: " + BuyPrice_Double
+                            + " | Peak: " + round.four(decision.peakPrice())
+                            + " | HighProfit%: " + round.three(decision.highestProfitPct())
+                            + " | Abstand: " + round.three(tslDeclinePct) + "%"
+                            + " | Trigger: " + round.four(decision.triggerPrice())
+                            + " | Aktuell: " + currentPrice);
+                    executeSell(currency, client, BuyOrderId, Quantity_String);
+                    continue;
                 }
             }
         }
+    }
+
+    static TrailingStopDecision evaluateTrailingStop(double buyPrice, double currentPrice,
+            double storedPeakPrice, boolean active, double activationPct, double declinePct) {
+        double peakPrice = storedPeakPrice > 0
+                ? Math.max(storedPeakPrice, currentPrice)
+                : Math.max(buyPrice, currentPrice);
+        double highestProfitPct = (peakPrice - buyPrice) / buyPrice * 100.0;
+        boolean activeAfterEvaluation = active
+                || (activationPct > 0 && highestProfitPct >= activationPct);
+
+        boolean validDecline = declinePct > 0 && declinePct < 100;
+        double triggerPrice = activeAfterEvaluation && validDecline
+                ? peakPrice * (1.0 - declinePct / 100.0)
+                : Double.NaN;
+        boolean sell = activeAfterEvaluation && validDecline && currentPrice <= triggerPrice;
+
+        return new TrailingStopDecision(
+                peakPrice, highestProfitPct, activeAfterEvaluation, triggerPrice, sell);
+    }
+
+    record TrailingStopDecision(double peakPrice, double highestProfitPct,
+            boolean active, double triggerPrice, boolean sell) {
     }
 
     private static void executeSell(String currency, FusionApiClient client, String BuyOrderId, String Quantity_String) {

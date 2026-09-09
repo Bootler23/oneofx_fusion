@@ -17,7 +17,7 @@ public class HISTSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
                 ResultSet rs = query
-                        .executeQuery("SELECT SellOrderId, Quantity, Währung, BuyPrice FROM HIST WHERE Status = 0")) {
+                        .executeQuery("SELECT SellOrderId, Quantity, currency, BuyPrice FROM historyPosition WHERE Status = 0")) {
 
             records.clear();
 
@@ -25,9 +25,9 @@ public class HISTSQL {
                 String sellOrderId = rs.getString("SellOrderId");
                 String quantity = rs.getString("Quantity");
                 String buyPrice = rs.getString("BuyPrice");
-                String Währung = rs.getString("Währung");
+                String currency = rs.getString("currency");
 
-                String dataRecord = sellOrderId + ", " + quantity + ", " + buyPrice + ", " + Währung;
+                String dataRecord = sellOrderId + ", " + quantity + ", " + buyPrice + ", " + currency;
                 records.add(dataRecord);
             }
         } catch (SQLException err) {
@@ -37,7 +37,7 @@ public class HISTSQL {
 
     public static void getDataRecords_WhereStatusOne(String currency, List<String> GetDataRecord) {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement query = con.prepareStatement("SELECT BuyOrderId, Split, Währung FROM HIST WHERE Status = 1 AND Split IS NOT NULL AND Währung = ?")) {
+                PreparedStatement query = con.prepareStatement("SELECT BuyOrderId, Split, currency FROM historyPosition WHERE Status = 1 AND Split IS NOT NULL AND currency = ?")) {
 
             query.setString(1, currency);
             ResultSet rs = query.executeQuery();
@@ -46,7 +46,7 @@ public class HISTSQL {
             while (rs.next()) {
                 String BuyOrderId = rs.getString("BuyOrderId");
                 String SplitValue = rs.getString("Split");
-                String currency_Split = rs.getString("Währung");
+                String currency_Split = rs.getString("currency");
 
                 String dataRecord = BuyOrderId + ", " + SplitValue + ", " + currency_Split;
                 GetDataRecord.add(dataRecord);
@@ -78,7 +78,7 @@ public class HISTSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement stmt = con.createStatement()) {
 
-            String query = "SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM HIST";
+            String query = "SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM historyPosition";
 
             ResultSet rs = stmt.executeQuery(query);
             if (rs.next()) {
@@ -94,7 +94,7 @@ public class HISTSQL {
     public static double getbuyamount(String sellorderID) {
         double buyamount = 0.0;
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement pstmt = con.prepareStatement("SELECT BuyAmount FROM HIST WHERE SellOrderId = ?")) {
+                PreparedStatement pstmt = con.prepareStatement("SELECT BuyAmount FROM historyPosition WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
             ResultSet rs = pstmt.executeQuery();
@@ -112,7 +112,7 @@ public class HISTSQL {
     public static double getbuyfee(String sellorderID) {
         double buyfee = 0.0;
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement pstmt = con.prepareStatement("SELECT BuyFee FROM HIST WHERE SellOrderId = ?")) {
+                PreparedStatement pstmt = con.prepareStatement("SELECT BuyFee FROM historyPosition WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
             ResultSet rs = pstmt.executeQuery();
@@ -130,7 +130,7 @@ public class HISTSQL {
     public static double getbuyprice(String sellorderID) {
         double buyprice = 0.0;
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement pstmt = con.prepareStatement("SELECT BuyPrice FROM HIST WHERE SellOrderId = ?")) {
+                PreparedStatement pstmt = con.prepareStatement("SELECT BuyPrice FROM historyPosition WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
             ResultSet rs = pstmt.executeQuery();
@@ -150,7 +150,7 @@ public class HISTSQL {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
                 Statement stmt = con.createStatement()) {
 
-            String query = "SELECT COUNT(*) AS TotalCount FROM HIST";
+            String query = "SELECT COUNT(*) AS TotalCount FROM historyPosition";
 
             ResultSet rs = stmt.executeQuery(query);
             if (rs.next()) {
@@ -158,14 +158,14 @@ public class HISTSQL {
             }
 
         } catch (SQLException err) {
-            System.err.println("SQL-Fehler beim Abrufen der HIST-Anzahl: " + err.getMessage());
+            System.err.println("SQL-Fehler beim Abrufen der historyPosition-Anzahl: " + err.getMessage());
         }
         return count;
     }
 
     public static void setsellfee(String sellorderID, double sellfee) {
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-                PreparedStatement pstmt = con.prepareStatement("UPDATE HIST SET SellFee = ? WHERE SellOrderId = ?")) {
+                PreparedStatement pstmt = con.prepareStatement("UPDATE historyPosition SET SellFee = ? WHERE SellOrderId = ?")) {
 
             pstmt.setDouble(1, sellfee);
             pstmt.setString(2, sellorderID);

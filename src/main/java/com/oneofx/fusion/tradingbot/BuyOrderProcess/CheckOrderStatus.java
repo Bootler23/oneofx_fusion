@@ -11,6 +11,7 @@ import com.oneofx.fusion.client.model.Account;
 import com.oneofx.fusion.client.model.AssetBalance;
 import com.oneofx.fusion.client.model.Order;
 import com.oneofx.fusion.client.FusionApiException;
+import com.oneofx.fusion.client.model.OrderType;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
@@ -27,6 +28,8 @@ public class CheckOrderStatus {
     private static final PositionDAO positionDAO = new PositionDAO();
     private static final HistDAO histDAO = new HistDAO();
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
+    static final int MAX_GRID_LEVELS_BELOW_MARKET = 2;
+    private static final int MAX_GRID_SCAN_STEPS = 10_000;
 
     /**
      * Prüft den Status aller offenen Buy-Orders für eine Währung.
@@ -75,7 +78,16 @@ public class CheckOrderStatus {
                     continue; // Nicht unsere Buy-Order (z.B. Sell-Order oder andere)
                 }
 
-                Double orderPrice = Double.parseDouble(order.getPrice());
+                double orderPrice = getConfiguredBuyPrice(currency, order);
+
+                // Alte Stop-Limit-Buys liegen oberhalb des Marktes und gehoeren
+                // nicht mehr zur neuen Strategie. Kontrolliert stornieren und
+                // erst nach bestaetigtem Ergebnis aus der DB entfernen.
+                if (order.getType() != OrderType.LIMIT) {
+                    cancelAndHandleOrder(currency, client, LivePrice, orderId, orderPrice,
+                            LivePrice.get(0), -1);
+                    continue;
+                }
 
                 if (order.getStatus() == OrderStatus.NEW) {
                     BUY_NEW(currency, client, LivePrice, orderId, orderPrice);
@@ -156,9 +168,8 @@ public class CheckOrderStatus {
 
     private static void BUY_FILLED(String currency, FusionApiClient client, String BuyOrderId, Order order, List<Double> LivePrice) {
 
-        // OrderPrice = stopPrice = der Preis, zu dem wir die Order am Markt platziert haben (Trigger).
-        // BuyPrice   = tatsächlicher Ausführungspreis = cummulativeQuoteQty / executedQty.
-        double OrderPrice = TradingRulesFormatter.formatPrice(currency, Double.valueOf(order.getStopPrice()));
+        // OrderPrice = eingestelltes Limit; BuyPrice = tatsächlicher Durchschnittspreis.
+        double OrderPrice = getConfiguredBuyPrice(currency, order);
         double ActualBuyPrice = computeActualFillPrice(currency, order, OrderPrice);
         double Quantity = TradingRulesFormatter.formatQuantity(currency, Double.valueOf(order.getExecutedQty()));
         double BuyAmount = round.five(ActualBuyPrice * Quantity);
@@ -175,6 +186,8 @@ public class CheckOrderStatus {
                 .buyAmount(BuyAmount)
                 .status(5)
                 .statusCode("FILLED")
+                .peakPrice(ActualBuyPrice)
+                .tsl("inactive")
                 .buyTime(BuyTime)
                 .buyDate(BuyDate)
                 .build());
@@ -237,9 +250,9 @@ public class CheckOrderStatus {
             int grid = set.getGridforCurrency(currency);
             double livePrice = LivePrice.get(0);
 
-            int stepsBetween = gridStepsBetweenOrderAndLive(currency, athPrice, grid, orderPrice, livePrice);
+            int stepsBetween = gridStepsBetweenLiveAndOrder(currency, athPrice, grid, livePrice, orderPrice);
 
-            if (stepsBetween > 3) {
+            if (stepsBetween > MAX_GRID_LEVELS_BELOW_MARKET) {
                 cancelAndHandleOrder(currency, client, LivePrice, BuyOrderId, orderPrice,
                         livePrice, stepsBetween);
             }
@@ -256,8 +269,8 @@ public class CheckOrderStatus {
             int grid = set.getGridforCurrency(currency);
             double livePrice = LivePrice.get(0);
 
-            int stepsBetween = gridStepsBetweenOrderAndLive(currency, athPrice, grid, orderPrice, livePrice);
-            if (stepsBetween > 3) {
+            int stepsBetween = gridStepsBetweenLiveAndOrder(currency, athPrice, grid, livePrice, orderPrice);
+            if (stepsBetween > MAX_GRID_LEVELS_BELOW_MARKET) {
                 cancelAndHandleOrder(currency, client, LivePrice, BuyOrderId, orderPrice,
                         livePrice, stepsBetween);
             }
@@ -278,7 +291,7 @@ public class CheckOrderStatus {
 
         Order cancelResult = client.cancelOrder(buyOrderId);
 
-        System.out.println("Cancel angefordert (Markt zu weit unter Order): " + currency
+        System.out.println("Cancel angefordert: " + currency
                 + " orderPrice=" + orderPrice + " livePrice=" + livePrice
                 + " stepsBetween=" + stepsBetween);
 
@@ -340,8 +353,7 @@ public class CheckOrderStatus {
 
     /** Speichert die nach einem bestätigten Cancel tatsächlich ausgeführte Teilmenge. */
     private static void savePartiallyFilledOrder(String currency, String buyOrderId, Order order) {
-        double orderPrice = TradingRulesFormatter.formatPrice(currency,
-                Double.valueOf(order.getStopPrice()));
+        double orderPrice = getConfiguredBuyPrice(currency, order);
         double buyPrice = computeActualFillPrice(currency, order, orderPrice);
         String buyDate = Time.getCurrentDate();
         String buyTime = Time.getCurrentTime_HHmmss();
@@ -374,52 +386,110 @@ public class CheckOrderStatus {
     }
 
     /**
-     * Zählt die Grid-Stufen strikt zwischen orderPrice (über dem Markt) und livePrice.
-     * Strategie-Kontext: STOP_LOSS_LIMIT BUY liegt ÜBER dem Markt. Fällt der Markt,
-     * wächst der Abstand - veraltete Orders sollten gecancelt werden.
+     * Zählt die Grid-Stufen strikt zwischen dem Livekurs und einer Limit-Order darunter.
+     * Steigt der Markt, wächst der Abstand und eine zu weit entfernte Order wird storniert.
      *
-     * @return Anzahl Stufen zwischen Order und Markt, 0 wenn Order schon unter/auf Markt,
-     *         -1 wenn Order nicht auf dem Grid liegt.
+     * @return Anzahl dazwischenliegender Stufen oder -1 bei ungültigen Eingaben.
      */
-    private static int gridStepsBetweenOrderAndLive(String currency, double athPrice, int grid,
-            double orderPrice, double livePrice) {
+    static int gridStepsBetweenLiveAndOrder(String currency, double athPrice, int grid,
+            double livePrice, double orderPrice) {
 
         if (orderPrice <= 0 || livePrice <= 0 || athPrice <= 0 || grid <= 0) {
             return -1;
         }
-        if (orderPrice <= livePrice) {
+        if (orderPrice >= livePrice) {
             return 0;
         }
 
-        double price = athPrice;
-        boolean passedOrder = false;
+        double formattedOrderPrice = TradingRulesFormatter.formatPrice(currency, orderPrice);
+        double startPrice = Math.max(athPrice, livePrice);
+        double factor = 1.0 - (1.0 / (100.0 * grid));
+        if (factor <= 0.0 || factor >= 1.0) {
+            return -1;
+        }
+
+        // Direkt zur ersten Grid-Stufe in der Naehe des Livepreises springen.
+        // Ein linearer Lauf vom ATH bis zum Markt kann bei alten ATHs tausende
+        // Iterationen pro offener Order benoetigen.
+        int level = firstCandidateLevel(startPrice, livePrice, factor);
+        double price = startPrice * Math.pow(factor, level);
+        double formatted = TradingRulesFormatter.formatPrice(currency, price);
+
+        // Rundung auf tickSize kann den logarithmischen Kandidaten um wenige
+        // Stufen verschieben. Lokal korrigieren, ohne wieder am ATH zu beginnen.
+        for (int adjustments = 0; formatted >= livePrice && adjustments < MAX_GRID_SCAN_STEPS; adjustments++) {
+            level++;
+            price *= factor;
+            formatted = TradingRulesFormatter.formatPrice(currency, price);
+        }
+        if (formatted >= livePrice) {
+            return -1;
+        }
+
+        double previousFormattedLevel = Double.NaN;
         int stepsBetween = 0;
 
-        for (int i = 0; i < 10000; i++) {
-            price = price - (price / 100.0 / grid);
-            double formatted = TradingRulesFormatter.formatPrice(currency, price);
+        for (int i = 0; i < MAX_GRID_SCAN_STEPS; i++) {
+            if (Double.compare(formatted, previousFormattedLevel) == 0) {
+                price *= factor;
+                formatted = TradingRulesFormatter.formatPrice(currency, price);
+                continue;
+            }
+            previousFormattedLevel = formatted;
 
-            if (!passedOrder) {
-                if (Math.abs(formatted - orderPrice) / orderPrice < 0.001) {
-                    passedOrder = true;
-                    continue;
-                }
-                if (formatted < orderPrice * 0.999) {
-                    return -1;
-                }
-            } else {
-                if (formatted > livePrice) {
-                    stepsBetween++;
-                } else {
-                    return stepsBetween;
-                }
+            // Die Order muss nicht exakt auf dem aktuellen Grid liegen. Das ATH
+            // kann seit ihrer Erstellung gestiegen sein und das Grid verschoben haben.
+            if (formatted <= formattedOrderPrice) {
+                return stepsBetween;
+            }
+            stepsBetween++;
+
+            // Der Aufrufer muss nur wissen, ob die Order mehr als zwei Grid-Stufen
+            // entfernt ist. Danach ist die exakte Distanz irrelevant.
+            if (stepsBetween > MAX_GRID_LEVELS_BELOW_MARKET) {
+                return stepsBetween;
             }
 
-            if (formatted < livePrice * 0.5) {
-                return passedOrder ? stepsBetween : -1;
-            }
+            price *= factor;
+            formatted = TradingRulesFormatter.formatPrice(currency, price);
         }
         return -1;
+    }
+
+    private static int firstCandidateLevel(double startPrice, double livePrice, double factor) {
+        if (startPrice <= livePrice) {
+            return 1;
+        }
+        double rawLevel = Math.log(livePrice / startPrice) / Math.log(factor);
+        if (!Double.isFinite(rawLevel) || rawLevel < 1.0) {
+            return 1;
+        }
+        return Math.max(1, (int) Math.floor(rawLevel));
+    }
+
+    private static double getConfiguredBuyPrice(String currency, Order order) {
+        double triggerPrice = parsePositive(order.getTriggerPrice());
+        if (triggerPrice > 0.0) {
+            // Kompatibilitaet mit bereits vorhandenen Stop-Limit-Orders.
+            return TradingRulesFormatter.formatPrice(currency, triggerPrice);
+        }
+
+        double limitPrice = parsePositive(order.getLimitPrice());
+        if (limitPrice > 0.0) {
+            return TradingRulesFormatter.formatPrice(currency, limitPrice);
+        }
+
+        throw new IllegalArgumentException("Buy-Order " + order.getOrderId()
+                + " besitzt keinen gueltigen Limit- oder Triggerpreis");
+    }
+
+    private static double parsePositive(String value) {
+        try {
+            double parsed = Double.parseDouble(value);
+            return parsed > 0.0 ? parsed : 0.0;
+        } catch (RuntimeException ex) {
+            return 0.0;
+        }
     }
 
     public static class BalanceInfo {

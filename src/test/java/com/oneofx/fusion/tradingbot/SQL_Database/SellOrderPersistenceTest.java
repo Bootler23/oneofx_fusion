@@ -38,8 +38,8 @@ public class SellOrderPersistenceTest {
 
         try (Connection con = DriverManager.getConnection(jdbcUrl);
              Statement statement = con.createStatement()) {
-            statement.executeUpdate("CREATE TABLE positions (BuyOrderId TEXT, Status INTEGER, Währung TEXT)");
-            statement.executeUpdate("CREATE TABLE HIST (BuyOrderId TEXT, Status INTEGER, "
+            statement.executeUpdate("CREATE TABLE positions (BuyOrderId TEXT, Status INTEGER, currency TEXT)");
+            statement.executeUpdate("CREATE TABLE historyPosition (BuyOrderId TEXT, Status INTEGER, "
                     + "SellOrderId TEXT, SellTime TEXT, SellDate TEXT, SellAmount REAL, "
                     + "SellPrice REAL, Tax REAL, Fee REAL, Gewinn REAL, GewinnAfterTax REAL, "
                     + "LossAfterTax REAL, Profit REAL, SellFee REAL, Split REAL, statusCode TEXT)");
@@ -73,8 +73,8 @@ public class SellOrderPersistenceTest {
         assertEquals(TradingConstants.POSITION_STATUS_SELL_PENDING,
                 selectInt("SELECT Status FROM positions WHERE BuyOrderId = 'buy-2'"));
         assertEquals("sell-2", selectString(
-                "SELECT SellOrderId FROM HIST WHERE BuyOrderId = 'buy-2'"));
-        assertEquals(0, selectInt("SELECT Status FROM HIST WHERE BuyOrderId = 'buy-2'"));
+                "SELECT SellOrderId FROM historyPosition WHERE BuyOrderId = 'buy-2'"));
+        assertEquals(0, selectInt("SELECT Status FROM historyPosition WHERE BuyOrderId = 'buy-2'"));
         assertEquals("SUBMITTED", selectString(
                 "SELECT state FROM sell_attempts WHERE attempt_id = '" + reservation.attemptId() + "'"));
     }
@@ -83,7 +83,7 @@ public class SellOrderPersistenceTest {
     public void recordSubmittedRollsBackWhenHistoryRowIsMissing() throws Exception {
         insertPositionAndHistory("buy-3", 1, true);
         Reservation reservation = persistence.reserve("buy-3", "BTC-EUR", "0.02").orElseThrow();
-        executeUpdate("DELETE FROM HIST WHERE BuyOrderId = 'buy-3'");
+        executeUpdate("DELETE FROM historyPosition WHERE BuyOrderId = 'buy-3'");
 
         assertThrows(SQLException.class, () -> persistence.recordSubmitted(
                 reservation, "sell-3", "2026-09-07", "21:16:00"));
@@ -124,7 +124,7 @@ public class SellOrderPersistenceTest {
     @Test
     public void existingSellOrderPreventsReservation() throws Exception {
         insertPositionAndHistory("buy-6", 1, true);
-        executeUpdate("UPDATE HIST SET SellOrderId = 'existing-sell' WHERE BuyOrderId = 'buy-6'");
+        executeUpdate("UPDATE historyPosition SET SellOrderId = 'existing-sell' WHERE BuyOrderId = 'buy-6'");
 
         assertFalse(persistence.reserve("buy-6", "BTC-EUR", "0.05").isPresent());
         assertEquals(1, selectInt("SELECT Status FROM positions WHERE BuyOrderId = 'buy-6'"));
@@ -138,7 +138,7 @@ public class SellOrderPersistenceTest {
 
         persistence.recordCompleted(completedSell("sell-7"));
 
-        assertEquals(1, selectInt("SELECT Status FROM HIST WHERE SellOrderId = 'sell-7'"));
+        assertEquals(1, selectInt("SELECT Status FROM historyPosition WHERE SellOrderId = 'sell-7'"));
         assertEquals(0, selectInt("SELECT COUNT(*) FROM positions WHERE BuyOrderId = 'buy-7'"));
         assertEquals(1, selectInt("SELECT COUNT(*) FROM performance WHERE SellOrderId = 'sell-7'"));
         assertEquals("COMPLETED", selectString(
@@ -155,7 +155,7 @@ public class SellOrderPersistenceTest {
 
         assertThrows(SQLException.class, () -> persistence.recordCompleted(completedSell("sell-8")));
 
-        assertEquals(0, selectInt("SELECT Status FROM HIST WHERE SellOrderId = 'sell-8'"));
+        assertEquals(0, selectInt("SELECT Status FROM historyPosition WHERE SellOrderId = 'sell-8'"));
         assertEquals(1, selectInt("SELECT COUNT(*) FROM positions WHERE BuyOrderId = 'buy-8'"));
         assertEquals(0, selectInt("SELECT COUNT(*) FROM performance WHERE SellOrderId = 'sell-8'"));
         assertEquals("SUBMITTED", selectString(
@@ -172,7 +172,7 @@ public class SellOrderPersistenceTest {
             throws SQLException {
         try (Connection con = DriverManager.getConnection(jdbcUrl)) {
             try (PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO positions (BuyOrderId, Status, Währung) VALUES (?, ?, ?)")) {
+                    "INSERT INTO positions (BuyOrderId, Status, currency) VALUES (?, ?, ?)")) {
                 ps.setString(1, buyOrderId);
                 ps.setInt(2, status);
                 ps.setString(3, "BTC-EUR");
@@ -180,7 +180,7 @@ public class SellOrderPersistenceTest {
             }
             if (withHistory) {
                 try (PreparedStatement ps = con.prepareStatement(
-                        "INSERT INTO HIST (BuyOrderId) VALUES (?)")) {
+                        "INSERT INTO historyPosition (BuyOrderId) VALUES (?)")) {
                     ps.setString(1, buyOrderId);
                     ps.executeUpdate();
                 }
