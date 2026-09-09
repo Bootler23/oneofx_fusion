@@ -4,6 +4,7 @@ import static com.oneofx.fusion.client.model.NewOrder.marketSell;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +19,7 @@ import com.oneofx.fusion.tradingbot.HelperFunctions.sleep;
 import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence;
+import com.oneofx.fusion.tradingbot.SQL_Database.StrategyStateDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence.Reservation;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.domain.Position;
@@ -27,6 +29,8 @@ public class SellOrderProcess {
     private static final PositionDAO positionDAO = new PositionDAO();
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
     private static final SellOrderPersistence sellOrderPersistence = new SellOrderPersistence();
+    private static final StrategyStateDAO strategyStateDAO = new StrategyStateDAO();
+    private static final Duration HARD_STOP_BUY_COOLDOWN = Duration.ofHours(24);
 
     public static void setSellOrder(String currency, FusionApiClient client,
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
@@ -43,6 +47,27 @@ public class SellOrderProcess {
             double BuyPrice_Double = Double.valueOf(BuyPrice_String);
 
             if (BuyPrice_Double <= 0) {
+                continue;
+            }
+
+            double stopLossPercent = currencyDAO.getStopLossPercent(currency);
+            if (shouldTriggerHardStop(BuyPrice_Double, currentPrice, stopLossPercent)) {
+                empty.Line();
+                System.out.println("HARD STOP-LOSS: " + currency
+                        + " | Buy: " + BuyPrice_Double
+                        + " | Stop: " + round.four(BuyPrice_Double * (1.0 - stopLossPercent / 100.0))
+                        + " | Aktuell: " + currentPrice);
+                // Vor dem Verkauf speichern. Auch ein unklarer Orderausgang darf
+                // keinen sofortigen Ersatzkauf auslösen.
+                try {
+                    strategyStateDAO.blockBuys(
+                            currency, HARD_STOP_BUY_COOLDOWN, "HARD_STOP_LOSS");
+                } catch (IllegalStateException ex) {
+                    // Der Lesepfad sperrt Käufe bei einem Fehler. Der Verkauf bleibt
+                    // deshalb sinnvoll, auch wenn das Ablaufdatum nicht gespeichert wurde.
+                    System.err.println("KRITISCH: " + ex.getMessage());
+                }
+                executeSell(currency, client, BuyOrderId, Quantity_String);
                 continue;
             }
 
@@ -120,6 +145,32 @@ public class SellOrderProcess {
 
     record TrailingStopDecision(double peakPrice, double highestProfitPct,
             boolean active, double triggerPrice, boolean sell) {
+    }
+
+    static boolean shouldTriggerHardStop(double buyPrice, double currentPrice,
+            double stopLossPercent) {
+        return buyPrice > 0.0
+                && currentPrice > 0.0
+                && stopLossPercent > 0.0
+                && stopLossPercent < 100.0
+                && currentPrice <= buyPrice * (1.0 - stopLossPercent / 100.0);
+    }
+
+    /** Schließt bei einem bestätigten Regime-Ausstieg alle verkaufbaren Bot-Positionen. */
+    public static void closePositionsForRegime(String currency, FusionApiClient client,
+            List<String> positionRecords) {
+        for (String dataRecord : positionRecords) {
+            String[] parts = dataRecord.split(", ");
+            if (parts.length < 6) {
+                System.err.println("Ungueltiger Positionsdatensatz beim MACD-Ausstieg: " + dataRecord);
+                continue;
+            }
+            String buyOrderId = parts[0];
+            String quantity = parts[3];
+            System.out.println("1D-MACD EXIT: Schliesse " + currency
+                    + " Position " + buyOrderId);
+            executeSell(currency, client, buyOrderId, quantity);
+        }
     }
 
     private static void executeSell(String currency, FusionApiClient client, String BuyOrderId, String Quantity_String) {

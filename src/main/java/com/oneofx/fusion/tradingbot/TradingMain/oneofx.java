@@ -9,6 +9,7 @@ import com.oneofx.fusion.tradingbot.Indicator.Merge;
 import com.oneofx.fusion.tradingbot.SQL_Database.CurrencyDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
+import com.oneofx.fusion.tradingbot.SQL_Database.StrategyStateDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.SETSQL;
 import com.oneofx.fusion.tradingbot.SQL_Database.TradingRulesSQL;
 import com.oneofx.fusion.tradingbot.SellOrderProcess.SellOrderProcess;
@@ -20,7 +21,10 @@ import com.oneofx.fusion.tradingbot.Settings.CurrencyConfig;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.Database.DatabaseSchema;
+import com.oneofx.fusion.tradingbot.Database.PortablePaths;
 import com.oneofx.fusion.tradingbot.service.TradingRulesService;
+import com.oneofx.fusion.tradingbot.service.MarketRegimeService;
+import com.oneofx.fusion.tradingbot.service.MarketRegimeService.Regime;
 import com.oneofx.fusion.tradingbot.domain.TradingRules;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.Stream.PricePoller;
@@ -31,6 +35,8 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Set;
 
 public class oneofx {
 
@@ -39,13 +45,17 @@ public class oneofx {
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
     private static final HistDAO histDAO = new HistDAO();
     private static final PositionDAO positionDAO = new PositionDAO();
+    private static final StrategyStateDAO strategyStateDAO = new StrategyStateDAO();
     private static PricePoller pricePoller;
+    private static FileChannel lockChannel;
+    private static FileLock instanceLock;
 
     /**
      * Aktives Waehrungs-Array — wird im Update-Zyklus direkt aus der DB geladen.
      * Volatile fuer sicheren Zugriff aus dem Main-Loop.
      */
     private static volatile String[] activeCurrencies = new String[0];
+    private static volatile Set<String> buyEnabledCurrencies = Set.of();
 
     /**
      * Stoppt den Trading Bot.
@@ -67,26 +77,16 @@ public class oneofx {
     public static void main(String[] args) {
 
         running = true;
+        PortablePaths.initialize();
 
-        // ========== Schutz gegen Doppelstart ==========
-        try {
-            FileChannel lockChannel = new RandomAccessFile("oneofx.lock", "rw").getChannel();
-            FileLock lock = lockChannel.tryLock();
-            if (lock == null) {
-                System.err.println("⛔ Eine andere Instanz läuft bereits. Abbruch.");
-                System.exit(1);
-            }
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                try { lock.release(); lockChannel.close(); } catch (Exception ignored) {}
-            }));
-        } catch (Exception e) {
-            // REVIEW [HOCH]: Bei einem Lock-Fehler laeuft der Bot trotzdem weiter.
-            // Dann koennen zwei Instanzen gleichzeitig dieselben Positionen lesen
-            // und doppelte Orders ausloesen. Ein sicherer Start sollte hier abbrechen.
-            System.err.println("⚠️ Lock-Datei konnte nicht erstellt werden: " + e.getMessage());
+        if (!acquireInstanceLock()) {
+            System.err.println("⛔ Eine andere Instanz läuft bereits oder die Sperrdatei ist nicht verfügbar.");
+            running = false;
+            return;
         }
 
-        // ========== Datenbankschema und Trading-Rules initialisieren ==========
+        try {
+            // ========== Datenbankschema und Trading-Rules initialisieren ==========
 
         DatabaseSchema.initialize();
 
@@ -116,7 +116,8 @@ public class oneofx {
         // ========== Combined WebSocket Stream starten (1 Connection für alle Symbole)
         // ==========
 
-        String[] BuyCurrencies = CurrencyConfig.getBuyCurrencies();
+        String[] BuyCurrencies = CurrencyConfig.getMonitoredCurrencies();
+        buyEnabledCurrencies = Set.copyOf(Arrays.asList(tradingCurrencies));
 
         System.out.println("📡 Starte REST-Preis-Polling für " + BuyCurrencies.length + " Währungen...");
 
@@ -136,7 +137,7 @@ public class oneofx {
             return;
         }
         System.out.println("✅ " + activeStreams + "/" + BuyCurrencies.length + " Symbole verfügbar");
-        // Aktives Waehrungs-Array initialisieren. Es wird im Update-Zyklus aus der DB neu geladen.
+        // Auch Paare mit Altpositionen bleiben aktiv, wenn deren buyStatus aus ist.
         activeCurrencies = BuyCurrencies;
 
         while (running) {
@@ -200,8 +201,11 @@ public class oneofx {
 
                     if (count == TradingConstants.UPDATE_CYCLE_COUNT || FirstRound) {
 
-                        // Waehrungen aus DB aktualisieren (buystatus true/false)
-                        String[] dbCurrencies = CurrencyConfig.getBuyCurrencies();
+                        // Kauf-Freigabe und operative Ueberwachung sind getrennt:
+                        // Altpositionen muessen auch bei buyStatus=false verkauft werden koennen.
+                        String[] dbBuyCurrencies = CurrencyConfig.getBuyCurrencies();
+                        String[] dbCurrencies = CurrencyConfig.getMonitoredCurrencies();
+                        buyEnabledCurrencies = Set.copyOf(Arrays.asList(dbBuyCurrencies));
                         pricePoller.addSymbols(dbCurrencies);
                         activeCurrencies = dbCurrencies;
 
@@ -228,19 +232,39 @@ public class oneofx {
                     count++;
                     System.out.print(".");
 
-                    // Erst bestehende Orders abgleichen. Dadurch werden Fills und
-                    // Cancels verbucht, bevor fehlende Buy-Orders ergaenzt werden.
+                    // Erst bestehende Orders abgleichen. Dadurch werden Ausführungen und
+                    // Stornierungen verbucht, bevor fehlende Kauforders ergänzt werden.
                     OrderIdList.clear();
                     OrderIdList.addAll(positionDAO.getBuyOrderIdsWhereStatusZero(currency));
                     CheckOrderStatus.OrderStatus(currency, FusionClientProvider.getClient(), OrderIdList, LivePrice);
 
-                    // Buy: bis zu zwei offene Limit-Orders unter dem Markt ergaenzen.
-                    BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
+                    MarketRegimeService.Snapshot market = MarketRegimeService.getInstance()
+                            .getSnapshot(currency, FusionClientProvider.getClient());
 
-                    // Sell
+                    // Bestehende Positionen werden vor der Kaufentscheidung geprüft.
+                    // Ein Notstopp kann so noch im selben Durchlauf die Kaufsperre setzen.
                     getDataRecords.clear();
                     getDataRecords.addAll(positionDAO.getDataRecordsWhereStatusOneOrSeven(currency));
-                    SellOrderProcess.setSellOrder(currency, FusionClientProvider.getClient(), getDataRecords, LivePrice);
+                    if (market.regime() == Regime.EXIT) {
+                        SellOrderProcess.closePositionsForRegime(
+                                currency, FusionClientProvider.getClient(), getDataRecords);
+                    } else {
+                        SellOrderProcess.setSellOrder(
+                                currency, FusionClientProvider.getClient(), getDataRecords, LivePrice);
+                    }
+
+                    boolean cooldownActive = strategyStateDAO.isBuyBlocked(currency);
+                    if (buyEnabledCurrencies.contains(currency)
+                            && market.regime() == Regime.BUY_ALLOWED
+                            && !cooldownActive) {
+                        // Kauf: bis zu zwei offene Limit-Orders unter dem Markt ergänzen.
+                        BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
+                    } else {
+                        OrderIdList.clear();
+                        OrderIdList.addAll(positionDAO.getBuyOrderIdsWhereStatusZero(currency));
+                        CheckOrderStatus.cancelOpenBuyOrdersForRegime(
+                                currency, FusionClientProvider.getClient(), OrderIdList, LivePrice);
+                    }
                 }
 
             } catch (FusionApiException e) {
@@ -263,7 +287,48 @@ public class oneofx {
                 sleep.for_60_seconds();
                 continue;
             }
-        }       
+        }
+        } finally {
+            if (pricePoller != null) {
+                pricePoller.stop();
+                pricePoller = null;
+            }
+            releaseInstanceLock();
+        }
+    }
+
+    private static synchronized boolean acquireInstanceLock() {
+        try {
+            lockChannel = new RandomAccessFile(
+                    PortablePaths.getBaseDirectory().resolve("oneofx.lock").toFile(), "rw")
+                    .getChannel();
+            instanceLock = lockChannel.tryLock();
+            if (instanceLock == null) {
+                lockChannel.close();
+                lockChannel = null;
+                return false;
+            }
+            return true;
+        } catch (Exception ex) {
+            System.err.println("Sperrdatei konnte nicht erstellt werden: " + ex.getMessage());
+            releaseInstanceLock();
+            return false;
+        }
+    }
+
+    private static synchronized void releaseInstanceLock() {
+        try {
+            if (instanceLock != null && instanceLock.isValid()) instanceLock.release();
+        } catch (Exception ignored) {
+        } finally {
+            instanceLock = null;
+        }
+        try {
+            if (lockChannel != null) lockChannel.close();
+        } catch (Exception ignored) {
+        } finally {
+            lockChannel = null;
+        }
     }
 
 }

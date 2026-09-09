@@ -22,6 +22,8 @@ import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
 import com.oneofx.fusion.tradingbot.Settings.set;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
 import com.oneofx.fusion.tradingbot.domain.Position;
+import com.oneofx.fusion.tradingbot.grid.GridCalculator;
+import com.oneofx.fusion.tradingbot.grid.GridSettings;
 
 public class BuyOrderPocess {
 
@@ -34,16 +36,16 @@ public class BuyOrderPocess {
 
         double ath = currencyDAO.getAllTimeHigh(currency);
         double tickerPrice = LivePrice.get(0);
-        int grid = set.getGridforCurrency(currency);
+        GridSettings gridSettings = set.getGridSettings(currency);
         BuyOrderPersistence buyOrderPersistence = new BuyOrderPersistence();
 
         if (ath <= 0.0) {
             System.err.println("ATH fuer " + currency + " ist 0 - Buy-Order wird uebersprungen.");
             return;
         }
-        if (grid <= 0 || tickerPrice <= 0.0) {
+        if (tickerPrice <= 0.0) {
             System.err.println("Ungueltige Grid- oder Preisdaten fuer " + currency
-                    + ": grid=" + grid + ", ticker=" + tickerPrice);
+                    + ": grid=" + gridSettings + ", ticker=" + tickerPrice);
             return;
         }
 
@@ -55,14 +57,17 @@ public class BuyOrderPocess {
         // Das Grid bleibt am ATH verankert. Gesucht werden ausschliesslich freie
         // Grid-Stufen unter dem aktuellen Kurs. Pro Durchlauf werden so viele
         // LIMIT-Buys ergaenzt, bis insgesamt zwei Pending-Orders vorhanden sind.
-        double currentLevel = Math.max(ath, tickerPrice);
+        double anchorPrice = Math.max(ath, tickerPrice);
+        long nextLevel = GridCalculator.firstLevelBelow(
+                anchorPrice, tickerPrice, gridSettings);
         double previousFormattedLevel = Double.NaN;
         int gridLevelsBelowMarket = 0;
 
         for (int count = 0;
                 count < MAX_GRID_STEPS && pendingOrders < MAX_PENDING_BUY_ORDERS;
                 count++) {
-            currentLevel = currentLevel - ((currentLevel / 100.0) / grid);
+            double currentLevel = GridCalculator.level(
+                    anchorPrice, nextLevel++, gridSettings);
             double gridPrice = TradingRulesFormatter.formatPrice(currency, currentLevel);
 
             // Bei kleinen Preisen koennen mehrere rechnerische Grid-Stufen auf
@@ -107,6 +112,22 @@ public class BuyOrderPocess {
         double buyAmount = BuyAmountFunktion.getsimplebuyamount(currency);
         if (buyAmount <= 0) {
             buyAmount = currencyDAO.getMinBuyAmount(currency);
+        }
+
+        double maxBuyAmount = currencyDAO.getMaxBuyAmount(currency);
+        double committedBuyAmount = positionDAO.getCommittedBuyAmount(currency);
+        if (!Double.isFinite(committedBuyAmount)) {
+            System.err.println("Buy-Budget fuer " + currency
+                    + " konnte nicht sicher bestimmt werden; Kauf bleibt gesperrt.");
+            return false;
+        }
+        if (maxBuyAmount <= 0.0
+                || committedBuyAmount + buyAmount > maxBuyAmount + 0.000001) {
+            System.out.println("Buy-Budget erreicht fuer " + currency
+                    + ": gebunden=" + round.two(committedBuyAmount)
+                    + " EUR, naechster Kauf=" + round.two(buyAmount)
+                    + " EUR, Limit=" + round.two(maxBuyAmount) + " EUR");
+            return false;
         }
 
         String limitPriceStr = TradingRulesFormatter.formatOrderPrice(currency, limitLevel);
@@ -158,6 +179,8 @@ public class BuyOrderPocess {
 
             Position position = new Position.Builder(currency, exchangeOrderId)
                     .orderPrice(new BigDecimal(limitPriceStr).doubleValue())
+                    .quantity(new BigDecimal(quantity).doubleValue())
+                    .buyAmount(buyAmount)
                     .status(0)
                     .statusCode(TradingConstants.STATUS_NEW)
                     .build();

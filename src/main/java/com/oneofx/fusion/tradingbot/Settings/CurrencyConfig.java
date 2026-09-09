@@ -10,6 +10,8 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 public class CurrencyConfig {
 
@@ -23,7 +25,9 @@ public class CurrencyConfig {
     public static String[] getBuyCurrencies() {
         List<String> currencies = new ArrayList<>();
 
-        String sql = "SELECT currency FROM currency WHERE buystatus = 'true' OR buystatus = '1'";
+        String sql = "SELECT currency FROM currency WHERE "
+                + "(buystatus = 'true' OR buystatus = '1') "
+                + "AND COALESCE(archived, 0) = 0";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
@@ -50,7 +54,9 @@ public class CurrencyConfig {
     }
 
     public static int getActiveCurrencyCount() {
-        String sql = "SELECT COUNT(*) FROM currency WHERE buystatus = 'true' OR buystatus = '1'";
+        String sql = "SELECT COUNT(*) FROM currency WHERE "
+                + "(buystatus = 'true' OR buystatus = '1') "
+                + "AND COALESCE(archived, 0) = 0";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
@@ -75,7 +81,7 @@ public class CurrencyConfig {
     public static String[] getAllCurrencies() {
         List<String> currencies = new ArrayList<>();
 
-        String sql = "SELECT currency FROM currency";
+        String sql = "SELECT currency FROM currency WHERE COALESCE(archived, 0) = 0";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
@@ -92,6 +98,38 @@ public class CurrencyConfig {
             logger.error("Fehler beim Laden aller Waehrungen aus der DB: {}", e.getMessage());
         }
 
+        return currencies.toArray(new String[0]);
+    }
+
+    /**
+     * Lädt alle Paare, die weiterhin überwacht werden müssen. Ein deaktivierter
+     * Kaufstatus darf Orderabgleich, Stop-Loss und Verkäufe vorhandener
+     * Bot-Positionen nicht beenden.
+     */
+    public static String[] getMonitoredCurrencies() {
+        Set<String> currencies = new LinkedHashSet<>();
+        String sql = "SELECT currency FROM currency "
+                + "WHERE (buyStatus = 'true' OR buyStatus = '1') "
+                + "AND COALESCE(archived, 0) = 0 "
+                + "UNION SELECT currency FROM positions "
+                + "WHERE Status IN (0, 1, 2, 5, 7, 8) "
+                + "ORDER BY currency";
+
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+             Statement stmt = con.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                String currency = rs.getString("currency");
+                if (currency != null && !currency.isBlank()) {
+                    currencies.add(currency.trim());
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Fehler beim Laden der zu ueberwachenden Waehrungen: {}", e.getMessage());
+            for (String currency : getBuyCurrencies()) {
+                currencies.add(currency);
+            }
+        }
         return currencies.toArray(new String[0]);
     }
 

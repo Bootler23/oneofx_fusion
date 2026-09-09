@@ -8,8 +8,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Validates the unified OneOfX database and applies additive schema upgrades.
- * Existing tables and data are never dropped or renamed here.
+ * Prüft die gemeinsame OneOfX-Datenbank und führt additive Schemaänderungen aus.
+ * Vorhandene Tabellen und Daten werden hier niemals gelöscht oder umbenannt.
  */
 public final class DatabaseSchema {
 
@@ -30,13 +30,11 @@ public final class DatabaseSchema {
         try (Connection con = open(jdbcUrl)) {
             con.setAutoCommit(false);
             try {
-                requireTable(con, "currency");
-                requireTable(con, "positions");
-                requireTable(con, "historyPosition");
-
+                createCoreTradingTables(con);
                 createTradeSettings(con);
                 createTradingRules(con);
                 createPerformance(con);
+                createStrategyState(con);
 
                 addColumnIfMissing(con, "historyPosition", "Split", "REAL");
                 addColumnIfMissing(con, "historyPosition", "Balance_atBuy", "REAL");
@@ -50,6 +48,11 @@ public final class DatabaseSchema {
                 addColumnIfMissing(con, "positions", "peakPrice", "REAL");
 
                 addColumnIfMissing(con, "currency", "maxBuyAmount", "REAL DEFAULT 500.0");
+                addColumnIfMissing(con, "currency", "gridMode",
+                        "TEXT NOT NULL DEFAULT 'GEOMETRIC'");
+                addColumnIfMissing(con, "currency", "gridSpacing", "REAL");
+                addColumnIfMissing(con, "currency", "archived",
+                        "INTEGER NOT NULL DEFAULT 0");
                 addColumnIfMissing(con, "currency", "exchange", "REAL");
                 addColumnIfMissing(con, "currency", "database", "REAL");
                 addColumnIfMissing(con, "currency", "differenz", "REAL");
@@ -76,6 +79,8 @@ public final class DatabaseSchema {
                 addColumnIfMissing(con, "currency", "emafast", "REAL");
                 addColumnIfMissing(con, "currency", "emaslow", "REAL");
                 addColumnIfMissing(con, "currency", "updateTime", "TEXT");
+
+                initializeGridSettings(con);
 
                 requireTradeSettingsForActiveCurrencies(con);
                 con.commit();
@@ -130,6 +135,35 @@ public final class DatabaseSchema {
         }
     }
 
+    /**
+     * Legt bei einer Neuinstallation die bisher vorausgesetzten Kerntabellen an.
+     * CREATE TABLE IF NOT EXISTS verändert vorhandene Installationen nicht.
+     */
+    private static void createCoreTradingTables(Connection con) throws SQLException {
+        try (Statement statement = con.createStatement()) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS currency ("
+                    + "currency TEXT PRIMARY KEY, buyStatus TEXT DEFAULT 'false', "
+                    + "sellStatus TEXT DEFAULT 'true', buyAmount REAL DEFAULT 10.0, "
+                    + "allTimeHigh REAL DEFAULT 0.000000001, grid INTEGER DEFAULT 23)");
+
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS positions ("
+                    + "currency TEXT NOT NULL, BuyOrderId TEXT PRIMARY KEY, "
+                    + "OrderPrice REAL, quantity REAL, BuyAmount REAL, BuyPrice REAL, "
+                    + "side TEXT, Profit REAL, SL REAL, BuyDate TEXT, BuyTime TEXT, "
+                    + "Status INTEGER, statusCode TEXT, positionId TEXT, limitprice REAL, "
+                    + "OrigPrice REAL, realisierterPNL REAL, unrealisierterPNL REAL)");
+
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS historyPosition ("
+                    + "currency TEXT, BuyOrderId TEXT PRIMARY KEY, Quantity REAL, "
+                    + "BuyAmount REAL, OrigPrice REAL, BuyPrice REAL, side TEXT, "
+                    + "Profit REAL, strategie TEXT, tense TEXT, SellPrice REAL, "
+                    + "SellOrderId TEXT, BuyDate TEXT, BuyTime TEXT, buyunixtime INTEGER, "
+                    + "SellDate TEXT, SellAmount REAL, SellTime TEXT, Fee REAL, Tax REAL, "
+                    + "Gewinn REAL, GewinnAfterTax REAL, LossAfterTax REAL, Status INTEGER, "
+                    + "BuyFee REAL, SellFee REAL, statusCode TEXT, Exittype TEXT)");
+        }
+    }
+
     private static void requireTable(Connection con, String table) throws SQLException {
         try (PreparedStatement ps = con.prepareStatement(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")) {
@@ -170,6 +204,14 @@ public final class DatabaseSchema {
         }
     }
 
+    private static void createStrategyState(Connection con) throws SQLException {
+        try (Statement statement = con.createStatement()) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS strategyState ("
+                    + "currency TEXT PRIMARY KEY, buyBlockedUntil INTEGER NOT NULL DEFAULT 0, "
+                    + "reason TEXT, updatedAt INTEGER NOT NULL)");
+        }
+    }
+
     private static void requireTradeSettingsForActiveCurrencies(Connection con) throws SQLException {
         String sql = "SELECT c.currency FROM currency c "
                 + "LEFT JOIN tradeSettings t ON t.currency = c.currency "
@@ -185,6 +227,18 @@ public final class DatabaseSchema {
         }
         if (missing.length() > 0) {
             throw new SQLException("tradeSettings fehlen für aktive Währungen: " + missing);
+        }
+    }
+
+    /** Überführt den bisherigen Grid-Divisor verlustfrei in einen Prozentabstand. */
+    private static void initializeGridSettings(Connection con) throws SQLException {
+        try (Statement statement = con.createStatement()) {
+            statement.executeUpdate("UPDATE currency SET gridMode = 'GEOMETRIC' "
+                    + "WHERE gridMode IS NULL OR gridMode NOT IN ('ARITHMETIC', 'GEOMETRIC')");
+            statement.executeUpdate("UPDATE currency SET gridSpacing = "
+                    + "CASE WHEN grid > 0 THEN 1.0 / grid ELSE 1.0 END "
+                    + "WHERE gridSpacing IS NULL OR gridSpacing <= 0");
+            statement.executeUpdate("UPDATE currency SET archived = 0 WHERE archived IS NULL");
         }
     }
 

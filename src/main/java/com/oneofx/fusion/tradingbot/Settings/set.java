@@ -7,6 +7,9 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
+import com.oneofx.fusion.tradingbot.grid.GridMode;
+import com.oneofx.fusion.tradingbot.grid.GridSettings;
+
 public class set {
 
     private static final int DEFAULT_GRID = 7;
@@ -32,6 +35,28 @@ public class set {
 
         System.out.println("Kein Grid-Wert für " + currency + " gefunden, verwende Default: " + DEFAULT_GRID);
         return DEFAULT_GRID;
+    }
+
+    public static GridSettings getGridSettings(String currency) {
+        String sql = "SELECT gridMode, gridSpacing, grid FROM currency WHERE currency = ?";
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+                PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, currency);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    double spacing = rs.getDouble("gridSpacing");
+                    if (spacing > 0.0 && Double.isFinite(spacing)) {
+                        return new GridSettings(
+                                GridMode.fromDatabase(rs.getString("gridMode")), spacing);
+                    }
+                    return GridSettings.legacy(rs.getInt("grid"));
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Fehler beim Laden der Grid-Einstellungen für "
+                    + currency + ": " + e.getMessage());
+        }
+        return GridSettings.legacy(DEFAULT_GRID);
     }
 
     /**

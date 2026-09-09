@@ -216,6 +216,27 @@ public class CurrencyDAO {
         return 1.0;
     }
 
+    /**
+     * Liefert den konfigurierten harten Stop-Abstand in Prozent. Null deaktiviert
+     * den Stop. Ältere Datenbanken speichern zwei Prozent als 2 oder -2, deshalb
+     * wird immer der Betrag des gespeicherten Werts verwendet.
+     */
+    public double getStopLossPercent(String currency) {
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(
+                     "SELECT SL FROM tradeSettings WHERE currency = ?")) {
+            ps.setString(1, currency);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                double value = Math.abs(rs.getDouble("SL"));
+                return Double.isFinite(value) && value < 100.0 ? value : 0.0;
+            }
+        } catch (Exception e) {
+            System.err.println("Fehler beim Lesen des Stop-Loss fuer " + currency + ": " + e.getMessage());
+        }
+        return 0.0;
+    }
+
     public boolean updateBalanceInfo(String currency, double exchange, double database, double differenz) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement("UPDATE currency SET exchange = ?, database = ?, differenz = ? WHERE currency = ?")) {

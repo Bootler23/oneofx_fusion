@@ -169,8 +169,8 @@ public class PositionDAO {
             }
         } catch (SQLException e) {
             System.err.println("[FEHLER] countPendingOrders: " + e.getMessage());
-            // Fail closed: Bei unbekanntem DB-Zustand keine moeglichen
-            // Doppelorders an die Exchange senden.
+            // Im Zweifel sperren: Bei unbekanntem Datenbankzustand keine
+            // möglichen Doppelorders an die Börse senden.
             return Integer.MAX_VALUE;
         }
         return 0;
@@ -340,6 +340,64 @@ public class PositionDAO {
             System.err.println("Fehler beim Lesen von peakPrice: " + e.getMessage());
         }
         return 0.0;
+    }
+
+    /**
+     * Ermittelt das bereits gebundene Kapital anhand der Anschaffungskosten statt
+     * des aktuellen Marktwerts. Offene und ungeklärte Kaufübermittlungen werden
+     * mitgezählt, damit fallende Kurse kein künstliches Kaufbudget freigeben.
+     */
+    public double getCommittedBuyAmount(String currencyPair) {
+        try (Connection con = getConnection()) {
+            boolean hasAttemptJournal;
+            try (PreparedStatement ps = con.prepareStatement(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'buy_attempts'");
+                 ResultSet rs = ps.executeQuery()) {
+                hasAttemptJournal = rs.next();
+            }
+
+            if (!hasAttemptJournal) {
+                try (PreparedStatement ps = con.prepareStatement(
+                        "SELECT COALESCE(SUM(BuyAmount), 0) FROM positions WHERE currency = ?")) {
+                    ps.setString(1, currencyPair);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        return rs.next() ? rs.getDouble(1) : 0.0;
+                    }
+                }
+            }
+
+            double committed = 0.0;
+            String positionSql = "SELECT COALESCE(SUM(CASE "
+                    + "WHEN p.BuyAmount IS NOT NULL AND p.BuyAmount > 0 THEN p.BuyAmount "
+                    + "ELSE CAST(a.quantity AS REAL) * CAST(a.limit_price AS REAL) END), 0) "
+                    + "FROM positions p LEFT JOIN buy_attempts a "
+                    + "ON a.exchange_order_id = p.BuyOrderId WHERE p.currency = ?";
+            try (PreparedStatement ps = con.prepareStatement(positionSql)) {
+                ps.setString(1, currencyPair);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) committed += rs.getDouble(1);
+                }
+            }
+
+            String unresolvedSql = "SELECT COALESCE(SUM(CAST(a.quantity AS REAL) "
+                    + "* CAST(a.limit_price AS REAL)), 0) FROM buy_attempts a "
+                    + "LEFT JOIN positions p ON p.BuyOrderId = a.exchange_order_id "
+                    + "WHERE a.currency_pair = ? "
+                    + "AND a.state IN ('SUBMITTING', 'RECONCILIATION_REQUIRED') "
+                    + "AND p.BuyOrderId IS NULL";
+            try (PreparedStatement ps = con.prepareStatement(unresolvedSql)) {
+                ps.setString(1, currencyPair);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) committed += rs.getDouble(1);
+                }
+            }
+            return committed;
+        } catch (SQLException e) {
+            System.err.println("Kapitalbindung fuer " + currencyPair
+                    + " konnte nicht bestimmt werden: " + e.getMessage());
+            // Im Zweifel sperren: Unbekannte Kapitalbindung darf keinen Kauf erlauben.
+            return Double.POSITIVE_INFINITY;
+        }
     }
 
     public boolean isTrailingStopActive(String buyOrderId) {

@@ -48,4 +48,11 @@ public class SellOrderProcessTest {
         assertFalse(decision.sell());
         assertTrue(Double.isNaN(decision.triggerPrice()));
     }
+
+    @Test
+    public void hardStopUsesConfiguredDistanceFromEachBuyPrice() {
+        assertFalse(SellOrderProcess.shouldTriggerHardStop(100.0, 98.01, 2.0));
+        assertTrue(SellOrderProcess.shouldTriggerHardStop(100.0, 98.0, 2.0));
+        assertFalse(SellOrderProcess.shouldTriggerHardStop(100.0, 80.0, 0.0));
+    }
 }

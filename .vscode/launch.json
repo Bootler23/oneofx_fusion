@@ -3,9 +3,9 @@
     "configurations": [
         {
             "type": "java",
-            "name": "oneofx",
+            "name": "OneOfX Desktop",
             "request": "launch",
-            "mainClass": "com.oneofx.fusion.tradingbot.TradingMain.oneofx",
+            "mainClass": "com.oneofx.fusion.tradingbot.desktop.DesktopLauncher",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "vmArgs": "-Xshare:off",

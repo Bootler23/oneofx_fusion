@@ -65,11 +65,19 @@ public class DatabaseSchemaTest {
             assertTrue(columnExists(statement, "positions", "TSL"));
             assertTrue(columnExists(statement, "positions", "peakPrice"));
             assertTrue(columnExists(statement, "tradingRules", "amountIncrement"));
+            assertTrue(columnExists(statement, "currency", "gridMode"));
+            assertTrue(columnExists(statement, "currency", "gridSpacing"));
+            assertTrue(columnExists(statement, "currency", "archived"));
             assertTrue(tableExists(statement, "performance"));
+            assertTrue(tableExists(statement, "strategyState"));
             assertTrue(tableExists(statement, "SETTING"));
             assertTrue(tableExists(statement, "WPD"));
             assertEquals(1, scalarInt(statement,
                     "SELECT COUNT(*) FROM currency WHERE currency = 'BTCEUR' AND buyAmount = 60"));
+            assertEquals("GEOMETRIC", scalarString(statement,
+                    "SELECT gridMode FROM currency WHERE currency = 'BTCEUR'"));
+            assertEquals(1.0 / 23.0, scalarDouble(statement,
+                    "SELECT gridSpacing FROM currency WHERE currency = 'BTCEUR'"), 0.000000001);
             assertEquals(1, scalarInt(statement, "SELECT COUNT(*) FROM SETTING"));
         }
     }
@@ -104,6 +112,18 @@ public class DatabaseSchemaTest {
     private static int scalarInt(Statement statement, String sql) throws Exception {
         try (ResultSet rs = statement.executeQuery(sql)) {
             return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    private static String scalarString(Statement statement, String sql) throws Exception {
+        try (ResultSet rs = statement.executeQuery(sql)) {
+            return rs.next() ? rs.getString(1) : null;
+        }
+    }
+
+    private static double scalarDouble(Statement statement, String sql) throws Exception {
+        try (ResultSet rs = statement.executeQuery(sql)) {
+            return rs.next() ? rs.getDouble(1) : Double.NaN;
         }
     }
 }

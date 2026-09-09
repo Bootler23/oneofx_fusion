@@ -26,6 +26,8 @@ import org.junit.rules.TemporaryFolder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.tradingbot.grid.GridMode;
+import com.oneofx.fusion.tradingbot.grid.GridSettings;
 import com.sun.net.httpserver.HttpServer;
 
 public class BuyOrderPocessTest {
@@ -124,8 +126,18 @@ public class BuyOrderPocessTest {
     }
 
     @Test
+    public void gridDistanceSupportsArithmeticPrices() {
+        int steps = CheckOrderStatus.gridStepsBetweenLiveAndOrder(
+                "BTC-EUR", 100.0,
+                new GridSettings(GridMode.ARITHMETIC, 2.5), 100.0, 90.0);
+
+        assertEquals(3, steps);
+    }
+
+    @Test
     public void doesNotCreateReplacementOutsideCancellationWindow() throws Exception {
-        executeUpdate("INSERT INTO positions VALUES "
+        executeUpdate("INSERT INTO positions "
+                + "(currency, BuyOrderId, OrderPrice, Status, statusCode) VALUES "
                 + "('BTC-EUR', 'filled-1', 99.00, 1, 'FILLED CHECKED'),"
                 + "('BTC-EUR', 'filled-2', 98.01, 1, 'FILLED CHECKED'),"
                 + "('BTC-EUR', 'pending-1', 97.03, 0, 'NEW')");
@@ -142,6 +154,19 @@ public class BuyOrderPocessTest {
                 "BTC-EUR", 100.0, 1, 100.0, 96.06));
     }
 
+    @Test
+    public void doesNotExceedConfiguredCurrencyBudget() throws Exception {
+        executeUpdate("UPDATE currency SET maxBuyAmount = 15 WHERE currency = 'BTC-EUR'");
+        FusionApiClient client = new FusionApiClient("test-key",
+                "http://127.0.0.1:" + server.getAddress().getPort());
+
+        BuyOrderPocess.setBuyOrder("BTC-EUR", client, List.of(100.0));
+
+        assertEquals(1, submittedOrders.size());
+        assertEquals(1, selectInt(
+                "SELECT COUNT(*) FROM positions WHERE currency = 'BTC-EUR' AND Status = 0"));
+    }
+
     private static void assertLimitBuyBelow(JsonNode order, double tickerPrice) {
         assertEquals("Buy", order.get("side").asText());
         assertEquals("Limit", order.get("type").asText());
@@ -154,12 +179,15 @@ public class BuyOrderPocessTest {
         try (Connection connection = DriverManager.getConnection(jdbcUrl);
              Statement statement = connection.createStatement()) {
             statement.executeUpdate("CREATE TABLE currency (currency TEXT PRIMARY KEY, "
-                    + "alltimehigh REAL, grid INTEGER, buyAmount REAL)");
+                    + "alltimehigh REAL, grid INTEGER, gridMode TEXT, gridSpacing REAL, "
+                    + "buyAmount REAL, maxBuyAmount REAL)");
             statement.executeUpdate("INSERT INTO currency "
-                    + "(currency, alltimehigh, grid, buyAmount) "
-                    + "VALUES ('BTC-EUR', 100.0, 1, 10.0)");
+                    + "(currency, alltimehigh, grid, gridMode, gridSpacing, "
+                    + "buyAmount, maxBuyAmount) "
+                    + "VALUES ('BTC-EUR', 100.0, 1, 'GEOMETRIC', 1.0, 10.0, 500.0)");
             statement.executeUpdate("CREATE TABLE positions (currency TEXT, "
-                    + "BuyOrderId TEXT PRIMARY KEY, OrderPrice REAL, Status INTEGER, statusCode TEXT)");
+                    + "BuyOrderId TEXT PRIMARY KEY, OrderPrice REAL, Status INTEGER, statusCode TEXT, "
+                    + "quantity REAL, BuyAmount REAL)");
             statement.executeUpdate("CREATE TABLE tradingRules (currency TEXT PRIMARY KEY, "
                     + "tickSize TEXT, stepSize TEXT, minQty TEXT, amountIncrement TEXT, "
                     + "maxOrderSize TEXT, minOrderAmount TEXT, maxOrderAmount TEXT)");

@@ -12,6 +12,8 @@ import com.oneofx.fusion.client.model.OrderType;
 import com.oneofx.fusion.client.model.TickerPrice;
 import com.oneofx.fusion.client.model.TimeInForce;
 import com.oneofx.fusion.client.model.Trade;
+import com.oneofx.fusion.client.model.TradingPair;
+import com.oneofx.fusion.tradingbot.desktop.TradingPairValidator;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.After;
@@ -59,6 +61,22 @@ public class FusionApiClientTest {
         assertEquals("50000.12", ticker.getPrice());
         assertEquals("pair=BTC-EUR", lastExchange.get().getRequestURI().getRawQuery());
         assertEquals("test-key", lastExchange.get().getRequestHeaders().getFirst("x-api-key"));
+    }
+
+    @Test
+    public void pairValidatorAcceptsOnlyPairWithUsableTradingRules() {
+        server.createContext("/v1/pairs", exchange -> {
+            lastExchange.set(exchange);
+            respond(exchange, 200, "[{\"pair\":\"BTC-EUR\","
+                    + "\"tickSize\":\"0.01\",\"sizeIncrement\":\"0.00001\","
+                    + "\"minOrderAmount\":\"10\"}]");
+        });
+
+        TradingPair pair = new TradingPairValidator().validate("btc/eur",
+                new FusionApiClient("test-key", baseUrl));
+
+        assertEquals("BTC-EUR", pair.getPair());
+        assertEquals("pair=BTC-EUR", lastExchange.get().getRequestURI().getRawQuery());
     }
 
     @Test

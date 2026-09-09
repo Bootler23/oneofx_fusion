@@ -22,6 +22,8 @@ import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
 import com.oneofx.fusion.tradingbot.Settings.set;
 import com.oneofx.fusion.tradingbot.domain.HistoryPosition;
 import com.oneofx.fusion.tradingbot.domain.Position;
+import com.oneofx.fusion.tradingbot.grid.GridCalculator;
+import com.oneofx.fusion.tradingbot.grid.GridSettings;
 
 public class CheckOrderStatus {
 
@@ -53,6 +55,28 @@ public class CheckOrderStatus {
         }
 
         checkOrdersViaBatch(currency, client, BuyOrderIdList, LivePrice);
+    }
+
+    /**
+     * Storniert alle noch offenen Kauforders, wenn der Marktfilter keine neuen
+     * Einstiege erlaubt. Eine Teilfüllung bleibt erhalten und wird durch die
+     * normale Abschlussverarbeitung als Position verbucht.
+     */
+    public static void cancelOpenBuyOrdersForRegime(String currency, FusionApiClient client,
+            List<String> buyOrderIds, List<Double> livePrice) {
+        for (String buyOrderId : buyOrderIds) {
+            try {
+                Order cancelResult = client.cancelOrder(buyOrderId);
+                System.out.println("1D-MARKTFILTER KAUFPAUSE: Cancel angefordert fuer "
+                        + currency + " Order " + buyOrderId);
+                handleTerminalBuyOrder(currency, client, buyOrderId, cancelResult,
+                        livePrice, "1D-Marktfilter Kaufpause");
+            } catch (FusionApiException e) {
+                handleFusionException(e, buyOrderId);
+            } catch (Exception e) {
+                handleGeneralException(e, buyOrderId);
+            }
+        }
     }
 
     /**
@@ -247,7 +271,7 @@ public class CheckOrderStatus {
 
         try {
             double athPrice = currencyDAO.getAllTimeHigh(currency);
-            int grid = set.getGridforCurrency(currency);
+            GridSettings grid = set.getGridSettings(currency);
             double livePrice = LivePrice.get(0);
 
             int stepsBetween = gridStepsBetweenLiveAndOrder(currency, athPrice, grid, livePrice, orderPrice);
@@ -266,7 +290,7 @@ public class CheckOrderStatus {
 
         try {
             double athPrice = currencyDAO.getAllTimeHigh(currency);
-            int grid = set.getGridforCurrency(currency);
+            GridSettings grid = set.getGridSettings(currency);
             double livePrice = LivePrice.get(0);
 
             int stepsBetween = gridStepsBetweenLiveAndOrder(currency, athPrice, grid, livePrice, orderPrice);
@@ -394,7 +418,15 @@ public class CheckOrderStatus {
     static int gridStepsBetweenLiveAndOrder(String currency, double athPrice, int grid,
             double livePrice, double orderPrice) {
 
-        if (orderPrice <= 0 || livePrice <= 0 || athPrice <= 0 || grid <= 0) {
+        if (grid <= 0) return -1;
+        return gridStepsBetweenLiveAndOrder(currency, athPrice,
+                GridSettings.legacy(grid), livePrice, orderPrice);
+    }
+
+    static int gridStepsBetweenLiveAndOrder(String currency, double athPrice,
+            GridSettings grid, double livePrice, double orderPrice) {
+
+        if (orderPrice <= 0 || livePrice <= 0 || athPrice <= 0 || grid == null) {
             return -1;
         }
         if (orderPrice >= livePrice) {
@@ -403,23 +435,25 @@ public class CheckOrderStatus {
 
         double formattedOrderPrice = TradingRulesFormatter.formatPrice(currency, orderPrice);
         double startPrice = Math.max(athPrice, livePrice);
-        double factor = 1.0 - (1.0 / (100.0 * grid));
-        if (factor <= 0.0 || factor >= 1.0) {
-            return -1;
-        }
 
         // Direkt zur ersten Grid-Stufe in der Naehe des Livepreises springen.
         // Ein linearer Lauf vom ATH bis zum Markt kann bei alten ATHs tausende
         // Iterationen pro offener Order benoetigen.
-        int level = firstCandidateLevel(startPrice, livePrice, factor);
-        double price = startPrice * Math.pow(factor, level);
+        long level;
+        double price;
+        try {
+            level = GridCalculator.firstLevelBelow(startPrice, livePrice, grid);
+            price = GridCalculator.level(startPrice, level, grid);
+        } catch (IllegalArgumentException ex) {
+            return -1;
+        }
         double formatted = TradingRulesFormatter.formatPrice(currency, price);
 
         // Rundung auf tickSize kann den logarithmischen Kandidaten um wenige
         // Stufen verschieben. Lokal korrigieren, ohne wieder am ATH zu beginnen.
         for (int adjustments = 0; formatted >= livePrice && adjustments < MAX_GRID_SCAN_STEPS; adjustments++) {
             level++;
-            price *= factor;
+            price = GridCalculator.level(startPrice, level, grid);
             formatted = TradingRulesFormatter.formatPrice(currency, price);
         }
         if (formatted >= livePrice) {
@@ -431,7 +465,7 @@ public class CheckOrderStatus {
 
         for (int i = 0; i < MAX_GRID_SCAN_STEPS; i++) {
             if (Double.compare(formatted, previousFormattedLevel) == 0) {
-                price *= factor;
+                price = GridCalculator.level(startPrice, ++level, grid);
                 formatted = TradingRulesFormatter.formatPrice(currency, price);
                 continue;
             }
@@ -450,21 +484,11 @@ public class CheckOrderStatus {
                 return stepsBetween;
             }
 
-            price *= factor;
+            price = GridCalculator.level(startPrice, ++level, grid);
+            if (price <= 0.0) return stepsBetween;
             formatted = TradingRulesFormatter.formatPrice(currency, price);
         }
         return -1;
-    }
-
-    private static int firstCandidateLevel(double startPrice, double livePrice, double factor) {
-        if (startPrice <= livePrice) {
-            return 1;
-        }
-        double rawLevel = Math.log(livePrice / startPrice) / Math.log(factor);
-        if (!Double.isFinite(rawLevel) || rawLevel < 1.0) {
-            return 1;
-        }
-        return Math.max(1, (int) Math.floor(rawLevel));
     }
 
     private static double getConfiguredBuyPrice(String currency, Order order) {

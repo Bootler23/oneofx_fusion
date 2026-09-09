@@ -11,6 +11,8 @@ import com.oneofx.fusion.tradingbot.Settings.CurrencyConfig;
 import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.Settings.set;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Asset;
+import com.oneofx.fusion.tradingbot.grid.GridCalculator;
+import com.oneofx.fusion.tradingbot.grid.GridSettings;
 
 public class BuyAmountFunktion {
 
@@ -21,33 +23,23 @@ public class BuyAmountFunktion {
     public static double getBuyAmount(String currencyPair, FusionApiClient client, List<Double> LivePrice,
             boolean wahr) {
 
-        int grid = set.getGridforCurrency(currencyPair);
-        double BuyPrice = currencyDAO.getAllTimeHigh(currencyPair);
+        GridSettings grid = set.getGridSettings(currencyPair);
+        double anchorPrice = currencyDAO.getAllTimeHigh(currencyPair);
         double unten = positionDAO.getLastDownSidePrice(currencyPair, LivePrice);
 
         double getBuyAmount = 0.0;
-        boolean Loop1 = true;
-        boolean Loop2 = true;
         int count_PositionToBottom = 0;
-        double priceBottom = (currencyDAO.getAllTimeHigh(currencyPair) * 0.23);
+        double priceBottom = anchorPrice * 0.23;
         double minBuyAmount = currencyDAO.getMinBuyAmount(currencyPair);
         double Tax = histDAO.getTaxe();
         double freeBalance = Asset.getFree_Balance("USDC", client);
 
-        while (Loop1) {
-            while (Loop2) {
-
-                BuyPrice = BuyPrice - ((BuyPrice / 100) / grid);
-                if (((LivePrice.get(0) >= BuyPrice)) && (unten > BuyPrice)) {
-
-                    count_PositionToBottom++;
-
-                    if (priceBottom > BuyPrice) {
-                        Loop2 = false;
-                    }
-                }
+        for (long level = 1; level <= 100_000; level++) {
+            double buyPrice = GridCalculator.level(anchorPrice, level, grid);
+            if (buyPrice <= 0.0 || buyPrice < priceBottom) break;
+            if (LivePrice.get(0) >= buyPrice && unten > buyPrice) {
+                count_PositionToBottom++;
             }
-            Loop1 = false;
         }
 
         getBuyAmount = (freeBalance - (count_PositionToBottom * minBuyAmount));

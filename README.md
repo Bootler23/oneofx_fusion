@@ -44,12 +44,79 @@ API-Keys gehören nie in Java-Dateien, `.env`-Dateien oder Commits.
 mvn test
 ```
 
-Der Programmeinstieg ist
-`com.oneofx.fusion.tradingbot.TradingMain.oneofx`. Vor echtem Handel sollten
-zuerst nur Read-Rechte verwendet und Preise, Paare, Trading-Regeln sowie
+Der Programmeinstieg der Oberfläche ist
+`com.oneofx.fusion.tradingbot.desktop.DesktopLauncher`. Der bisherige direkte
+Konsolenstart bleibt unter
+`com.oneofx.fusion.tradingbot.TradingMain.oneofx` verfügbar. Vor echtem Handel
+sollten zuerst nur Read-Rechte verwendet und Preise, Paare, Trading-Regeln sowie
 Balance-Abgleich kontrolliert werden.
 
 In VS Code startet `Strg+F5` direkt diesen Programmeinstieg.
+
+## Desktop-Oberfläche und portable Version
+
+Die Desktop-Oberfläche enthält:
+
+- dunkles OneOfX-Dashboard mit Seitenleiste, Status-Karten und HiDPI-Skalierung
+- dauerhaft erreichbare Start-/Stop-Steuerung mit Engine-Status
+- Hinzufügen von Handelspaaren erst nach Live-Prüfung gegen den Fusion-Paarkatalog
+- sicheres Entfernen: unbenutzte Paare werden gelöscht, Paare mit Positionen archiviert
+- getrennte Einstellungsbereiche für Kaufstrategie und Risikomanagement
+- arithmetische Grids mit festem Preisabstand und geometrische Grids mit Prozentabstand
+- automatische, transaktionale Speicherung ohne Speichern-Schaltfläche
+- geschützter API-Zugang nur für die aktuelle Sitzung
+
+Eine bereits gebaute lokale Testversion liegt unter:
+
+```text
+dist\oneofx\oneofx.exe
+```
+
+`oneofx.exe` kann per Doppelklick gestartet werden. Für den Einsatz auf einem
+USB-Stick wird der vollständige Ordner `dist\oneofx` kopiert. Datenbank und
+weitere beschreibbare Daten liegen innerhalb dieses Ordners und wandern dadurch
+mit dem Stick mit.
+
+Eine neue portable Version wird unter PowerShell erzeugt mit:
+
+```powershell
+.\scripts\build-portable.ps1
+```
+
+Dafür werden Maven 3.9 sowie ein JDK ab Version 17 mit `jpackage` benötigt.
+
+## Aktive Strategie- und Schutzregeln
+
+Die Kaufseite wird durch MACD(12,26,9) und StochRSI(14,14,3,3) auf dem
+1D-Timeframe gesteuert. Der Bot berechnet beide Indikatoren einmal pro Minute
+neu und bezieht dabei ausdrücklich die aktuell laufende UTC-Tageskerze ein.
+Die Freigabe kann sich deshalb innerhalb eines Tages mehrfach ändern.
+
+| Bestätigter Zustand | Neue Grid-Buys | Vorhandene Bot-Positionen |
+| --- | --- | --- |
+| MACD > 0, MACD > Signallinie und StochRSI %K > %D | erlaubt, wenn `buyStatus` aktiv ist und das Budget reicht | TSL und harter Stop bleiben aktiv |
+| MACD > 0, aber Histogramm nicht positiv oder %K <= %D | pausiert; offene Buy-Restmengen werden storniert | TSL und harter Stop bleiben aktiv |
+| MACD <= 0 | pausiert; offene Buy-Restmengen werden storniert | werden per Market-Sell geschlossen |
+| Signaldaten fehlen oder sind veraltet | pausiert; offene Buy-Restmengen werden storniert | kein MACD-Verkauf; Stops bleiben aktiv |
+
+`currency.maxBuyAmount` ist die Gesamtgrenze der gebundenen Kaufbeträge eines
+Paares, nicht die Größe einer einzelnen Order. Gezählt werden vorhandene
+Bot-Positionen, offene Buy-Orders und ungeklärte Buy-Übermittlungen. Gebühren
+sind darin nicht zusätzlich reserviert; das konfigurierte Limit sollte deshalb
+unter der tatsächlich gewünschten Kapitalobergrenze liegen.
+
+`tradeSettings.SL` ist der harte Stop-Abstand in Prozent je Position. `0`
+deaktiviert ihn; positive und historisch negativ gespeicherte Werte werden als
+Betrag interpretiert. Nach einem harten Stop sperrt `strategyState` neue Käufe
+für dieses Paar 24 Stunden. TSL und MACD-Ausstieg bleiben daneben aktiv.
+
+Wichtig: Diese Regeln gelten beim ersten Start auch für bereits in `positions`
+gespeicherte Bot-Positionen. Eine MACD-Linie unter oder auf der Nulllinie oder
+ein bereits verletzter `SL` kann daher unmittelbar echte Market-Sells auslösen.
+Weitere Hintergründe stehen im [Strategiekonzept](docs/strategie-konzept.md).
+Der aktuelle Umsetzungsstand und der noch offene Funktionsumfang der lokalen
+Cryptohopper-Alternative stehen in der
+[OneOfX-Local-Roadmap](docs/oneofx-local-roadmap.md).
 
 ## Fusion-spezifisches Verhalten
 
