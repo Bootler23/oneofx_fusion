@@ -151,9 +151,27 @@ public final class BuyOrderPersistence {
                     + ")");
             statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS uq_buy_attempt_exchange_order "
                     + "ON buy_attempts(exchange_order_id) WHERE exchange_order_id IS NOT NULL");
-            statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS uq_active_buy_attempt "
-                    + "ON buy_attempts(currency_pair, stop_price) "
-                    + "WHERE state IN ('SUBMITTING', 'RECONCILIATION_REQUIRED')");
+            if (columnExists(con, "buy_attempts", "bot_id")) {
+                statement.executeUpdate("DROP INDEX IF EXISTS uq_active_buy_attempt");
+                statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS uq_active_buy_attempt_bot "
+                        + "ON buy_attempts(bot_id, currency_pair, stop_price) "
+                        + "WHERE state IN ('SUBMITTING', 'RECONCILIATION_REQUIRED')");
+            } else {
+                statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS uq_active_buy_attempt "
+                        + "ON buy_attempts(currency_pair, stop_price) "
+                        + "WHERE state IN ('SUBMITTING', 'RECONCILIATION_REQUIRED')");
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection con, String table, String column)
+            throws SQLException {
+        try (Statement statement = con.createStatement();
+             java.sql.ResultSet rs = statement.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) return true;
+            }
+            return false;
         }
     }
 

@@ -8,8 +8,9 @@ import java.sql.SQLException;
 import java.time.Duration;
 
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
+import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 
-/** Speichert Schutz- und Sperrzustände dauerhaft über einen Bot-Neustart hinweg. */
+/** Speichert Schutz- und Sperrzustände je Bot dauerhaft über einen Neustart hinweg. */
 public final class StrategyStateDAO {
 
     public void blockBuys(String currency, Duration duration, String reason) {
@@ -24,21 +25,29 @@ public final class StrategyStateDAO {
     }
 
     void blockBuysUntil(String currency, long until, String reason, long now) {
-        String sql = "INSERT INTO strategyState "
-                + "(currency, buyBlockedUntil, reason, updatedAt) VALUES (?, ?, ?, ?) "
-                + "ON CONFLICT(currency) DO UPDATE SET "
-                + "buyBlockedUntil = MAX(strategyState.buyBlockedUntil, excluded.buyBlockedUntil), "
-                + "reason = excluded.reason, updatedAt = excluded.updatedAt";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setString(1, currency);
-            ps.setLong(2, until);
-            ps.setString(3, reason);
-            ps.setLong(4, now);
-            ps.executeUpdate();
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
+            boolean botAware = tableExists(con, "botStrategyState");
+            String sql = botAware
+                    ? "INSERT INTO botStrategyState (bot_id, currency, buyBlockedUntil, reason, updatedAt) "
+                            + "VALUES (?, ?, ?, ?, ?) ON CONFLICT(bot_id, currency) DO UPDATE SET "
+                            + "buyBlockedUntil = MAX(botStrategyState.buyBlockedUntil, excluded.buyBlockedUntil), "
+                            + "reason = excluded.reason, updatedAt = excluded.updatedAt"
+                    : "INSERT INTO strategyState (currency, buyBlockedUntil, reason, updatedAt) "
+                            + "VALUES (?, ?, ?, ?) ON CONFLICT(currency) DO UPDATE SET "
+                            + "buyBlockedUntil = MAX(strategyState.buyBlockedUntil, excluded.buyBlockedUntil), "
+                            + "reason = excluded.reason, updatedAt = excluded.updatedAt";
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                int index = 1;
+                if (botAware) ps.setLong(index++, BotRuntime.activeBotId());
+                ps.setString(index++, currency);
+                ps.setLong(index++, until);
+                ps.setString(index++, reason);
+                ps.setLong(index, now);
+                ps.executeUpdate();
+            }
         } catch (SQLException ex) {
             throw new IllegalStateException(
-                    "Kaufsperre fuer " + currency + " konnte nicht gespeichert werden", ex);
+                    "Kaufsperre für " + currency + " konnte nicht gespeichert werden", ex);
         }
     }
 
@@ -47,18 +56,36 @@ public final class StrategyStateDAO {
     }
 
     public long getBuyBlockedUntil(String currency) {
-        String sql = "SELECT buyBlockedUntil FROM strategyState WHERE currency = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setString(1, currency);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getLong(1) : 0L;
+        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
+            boolean botAware = tableExists(con, "botStrategyState");
+            String sql = botAware
+                    ? "SELECT buyBlockedUntil FROM botStrategyState WHERE bot_id = ? AND currency = ?"
+                    : "SELECT buyBlockedUntil FROM strategyState WHERE currency = ?";
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                if (botAware) {
+                    ps.setLong(1, BotRuntime.activeBotId());
+                    ps.setString(2, currency);
+                } else {
+                    ps.setString(1, currency);
+                }
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getLong(1) : 0L;
+                }
             }
         } catch (SQLException ex) {
-            // Ein fehlender oder unlesbarer Schutzstatus darf Käufe nicht freigeben.
-            System.err.println("KRITISCH: Kaufsperre fuer " + currency
+            System.err.println("KRITISCH: Kaufsperre für " + currency
                     + " konnte nicht gelesen werden: " + ex.getMessage());
             return Long.MAX_VALUE;
+        }
+    }
+
+    private static boolean tableExists(Connection con, String table) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 }

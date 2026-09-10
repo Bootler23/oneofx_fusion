@@ -5,11 +5,19 @@ import static com.oneofx.fusion.client.model.NewOrder.marketSell;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
 import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.client.model.NewOrderResponse;
+import com.oneofx.fusion.client.model.NewOrder;
+import com.oneofx.fusion.client.model.OrderSide;
+import com.oneofx.fusion.client.model.OrderType;
+import com.oneofx.fusion.client.model.TimeInForce;
 import com.oneofx.fusion.client.FusionApiException;
 import com.oneofx.fusion.tradingbot.BuyOrderProcess.Ticker;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
@@ -23,6 +31,9 @@ import com.oneofx.fusion.tradingbot.SQL_Database.StrategyStateDAO;
 import com.oneofx.fusion.tradingbot.SQL_Database.SellOrderPersistence.Reservation;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.domain.Position;
+import com.oneofx.fusion.tradingbot.service.TradingDecisionPolicy;
+import com.oneofx.fusion.tradingbot.desktop.BaseConfigRepository;
+import com.oneofx.fusion.tradingbot.desktop.BotBaseConfig;
 
 public class SellOrderProcess {
 
@@ -30,12 +41,21 @@ public class SellOrderProcess {
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
     private static final SellOrderPersistence sellOrderPersistence = new SellOrderPersistence();
     private static final StrategyStateDAO strategyStateDAO = new StrategyStateDAO();
+    private static final BaseConfigRepository baseConfigRepository = new BaseConfigRepository();
     private static final Duration HARD_STOP_BUY_COOLDOWN = Duration.ofHours(24);
 
     public static void setSellOrder(String currency, FusionApiClient client,
             List<String> GetRecordFromDataBase_POS, List<Double> LivePrice) {
 
         double currentPrice = LivePrice.get(0);
+        BotBaseConfig baseConfig;
+        try {
+            baseConfig = baseConfigRepository.loadEffective(currency);
+        } catch (SQLException ex) {
+            baseConfig = BotBaseConfig.defaults(0);
+            System.err.println("Baseconfig fuer " + currency
+                    + " fehlt; sichere Standardwerte werden verwendet: " + ex.getMessage());
+        }
 
         for (String dataRecord : GetRecordFromDataBase_POS) {
             String[] parts = dataRecord.split(", ");
@@ -47,6 +67,23 @@ public class SellOrderProcess {
             double BuyPrice_Double = Double.valueOf(BuyPrice_String);
 
             if (BuyPrice_Double <= 0) {
+                continue;
+            }
+
+            if (baseConfig.takeProfitPercent() > 0
+                    && currentPrice >= BuyPrice_Double
+                            * (1.0 + baseConfig.takeProfitPercent() / 100.0)) {
+                System.out.println("TAKE PROFIT: " + currency + " | Buy: " + BuyPrice_Double
+                        + " | Aktuell: " + currentPrice);
+                executeSell(currency, client, BuyOrderId, Quantity_String, currentPrice);
+                continue;
+            }
+
+            if (parts.length > 7 && isPositionExpired(parts[6], parts[7],
+                    baseConfig.closeAfterMinutes())
+                    && (!baseConfig.onlySellWithProfit() || currentPrice > BuyPrice_Double)) {
+                System.out.println("ZEIT-AUSSTIEG: " + currency + " | Position: " + BuyOrderId);
+                executeSell(currency, client, BuyOrderId, Quantity_String, currentPrice);
                 continue;
             }
 
@@ -67,7 +104,7 @@ public class SellOrderProcess {
                     // deshalb sinnvoll, auch wenn das Ablaufdatum nicht gespeichert wurde.
                     System.err.println("KRITISCH: " + ex.getMessage());
                 }
-                executeSell(currency, client, BuyOrderId, Quantity_String);
+                executeSell(currency, client, BuyOrderId, Quantity_String, currentPrice);
                 continue;
             }
 
@@ -117,7 +154,7 @@ public class SellOrderProcess {
                             + " | Abstand: " + round.three(tslDeclinePct) + "%"
                             + " | Trigger: " + round.four(decision.triggerPrice())
                             + " | Aktuell: " + currentPrice);
-                    executeSell(currency, client, BuyOrderId, Quantity_String);
+                    executeSell(currency, client, BuyOrderId, Quantity_String, currentPrice);
                     continue;
                 }
             }
@@ -126,21 +163,12 @@ public class SellOrderProcess {
 
     static TrailingStopDecision evaluateTrailingStop(double buyPrice, double currentPrice,
             double storedPeakPrice, boolean active, double activationPct, double declinePct) {
-        double peakPrice = storedPeakPrice > 0
-                ? Math.max(storedPeakPrice, currentPrice)
-                : Math.max(buyPrice, currentPrice);
-        double highestProfitPct = (peakPrice - buyPrice) / buyPrice * 100.0;
-        boolean activeAfterEvaluation = active
-                || (activationPct > 0 && highestProfitPct >= activationPct);
-
-        boolean validDecline = declinePct > 0 && declinePct < 100;
-        double triggerPrice = activeAfterEvaluation && validDecline
-                ? peakPrice * (1.0 - declinePct / 100.0)
-                : Double.NaN;
-        boolean sell = activeAfterEvaluation && validDecline && currentPrice <= triggerPrice;
-
-        return new TrailingStopDecision(
-                peakPrice, highestProfitPct, activeAfterEvaluation, triggerPrice, sell);
+        TradingDecisionPolicy.ExitDecision decision = TradingDecisionPolicy.evaluateExit(
+                buyPrice, currentPrice, storedPeakPrice, active, 0.0, true,
+                activationPct, declinePct);
+        return new TrailingStopDecision(decision.peakPrice(),
+                decision.highestProfitPercent(), decision.trailingActive(),
+                decision.triggerPrice(), decision.shouldExit());
     }
 
     record TrailingStopDecision(double peakPrice, double highestProfitPct,
@@ -149,16 +177,20 @@ public class SellOrderProcess {
 
     static boolean shouldTriggerHardStop(double buyPrice, double currentPrice,
             double stopLossPercent) {
-        return buyPrice > 0.0
-                && currentPrice > 0.0
-                && stopLossPercent > 0.0
-                && stopLossPercent < 100.0
-                && currentPrice <= buyPrice * (1.0 - stopLossPercent / 100.0);
+        return TradingDecisionPolicy.isHardStop(buyPrice, currentPrice, stopLossPercent);
     }
 
     /** Schließt bei einem bestätigten Regime-Ausstieg alle verkaufbaren Bot-Positionen. */
     public static void closePositionsForRegime(String currency, FusionApiClient client,
             List<String> positionRecords) {
+        closePositionsForRegime(currency, client, positionRecords, Double.NaN);
+    }
+
+    public static void closePositionsForRegime(String currency, FusionApiClient client,
+            List<String> positionRecords, double currentPrice) {
+        BotBaseConfig config;
+        try { config = baseConfigRepository.loadEffective(currency); }
+        catch (SQLException ex) { config = BotBaseConfig.defaults(0); }
         for (String dataRecord : positionRecords) {
             String[] parts = dataRecord.split(", ");
             if (parts.length < 6) {
@@ -167,13 +199,23 @@ public class SellOrderProcess {
             }
             String buyOrderId = parts[0];
             String quantity = parts[3];
+            double buyPrice;
+            try { buyPrice = Double.parseDouble(parts[5]); }
+            catch (RuntimeException ex) { buyPrice = Double.NaN; }
+            if (config.onlySellWithProfit() && Double.isFinite(currentPrice)
+                    && Double.isFinite(buyPrice) && currentPrice <= buyPrice) {
+                System.out.println("Regime-Ausstieg fuer " + buyOrderId
+                        + " durch Gewinnbedingung zurueckgestellt.");
+                continue;
+            }
             System.out.println("1D-MACD EXIT: Schliesse " + currency
                     + " Position " + buyOrderId);
-            executeSell(currency, client, buyOrderId, quantity);
+            executeSell(currency, client, buyOrderId, quantity, currentPrice);
         }
     }
 
-    private static void executeSell(String currency, FusionApiClient client, String BuyOrderId, String Quantity_String) {
+    private static void executeSell(String currency, FusionApiClient client, String BuyOrderId,
+            String Quantity_String, double currentPrice) {
 
         String validatedQuantity;
         try {
@@ -206,7 +248,8 @@ public class SellOrderProcess {
 
         NewOrderResponse orderResponse;
         try {
-            orderResponse = getNewSellOrderResponse(currency, client, validatedQuantity);
+            orderResponse = client.newOrder(createSellOrder(currency, validatedQuantity,
+                    currentPrice));
         } catch (FusionApiException ex) {
             handleSubmissionFailure(reservation, ex);
             System.err.println("Fehler beim Verkauf: " + ex.getMessage() + " " + currency);
@@ -231,6 +274,15 @@ public class SellOrderProcess {
 
         try {
             sellOrderPersistence.recordSubmitted(reservation, sellOrderId, Time.getCurrentDate(), Time.getCurrentTime_HHmmss());
+            try {
+                BotBaseConfig config = baseConfigRepository.loadEffective(currency);
+                if (config.cooldownMinutes() > 0) {
+                    strategyStateDAO.blockBuys(currency,
+                            Duration.ofMinutes(config.cooldownMinutes()), "SELL_COOLDOWN");
+                }
+            } catch (SQLException ex) {
+                System.err.println("Cooldown konnte nicht geladen werden: " + ex.getMessage());
+            }
             System.out.println("DEBUG: Verkauf eingereicht für BuyOrderId: "
                     + BuyOrderId + " " + currency + ", SellOrderId: " + sellOrderId);
         } catch (SQLException ex) {
@@ -240,6 +292,33 @@ public class SellOrderProcess {
                     + " existiert, konnte aber lokal nicht vollständig verbucht werden. "
                     + "Die Position bleibt gesperrt: " + ex.getMessage());
         }
+    }
+
+    private static NewOrder createSellOrder(String currency, String quantity, double currentPrice) {
+        BotBaseConfig config;
+        try { config = baseConfigRepository.loadEffective(currency); }
+        catch (SQLException ex) { config = BotBaseConfig.defaults(0); }
+        OrderType type = OrderType.valueOf(config.sellOrderType());
+        if (type == OrderType.MARKET || !Double.isFinite(currentPrice) || currentPrice <= 0) {
+            return marketSell(currency, quantity);
+        }
+        TimeInForce tif = config.maxSellOrderMinutes() > 0 ? TimeInForce.GTD : TimeInForce.GTC;
+        String price = TradingRulesFormatter.formatOrderPrice(currency, currentPrice);
+        NewOrder order = new NewOrder(currency, OrderSide.SELL, type, tif, quantity,
+                type == OrderType.LIMIT ? price : null);
+        if (type == OrderType.STOP_MARKET) order.triggerPrice(price);
+        if (tif == TimeInForce.GTD) order.endTime(Instant.now()
+                .plus(config.maxSellOrderMinutes(), ChronoUnit.MINUTES).toString());
+        return order;
+    }
+
+    private static boolean isPositionExpired(String date, String time, int maximumMinutes) {
+        if (maximumMinutes <= 0 || date == null || time == null) return false;
+        try {
+            LocalDateTime opened = LocalDateTime.parse(date + " " + time,
+                    DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"));
+            return opened.plusMinutes(maximumMinutes).isBefore(LocalDateTime.now());
+        } catch (RuntimeException ex) { return false; }
     }
 
     private static void handleSubmissionFailure(Reservation reservation, FusionApiException ex) {
@@ -288,6 +367,6 @@ public class SellOrderProcess {
         String Quantity_String = recordParts[1];
         String CurrencyPair = recordParts[2];
 
-        executeSell(CurrencyPair, client, BuyOrderId, Quantity_String);
+        executeSell(CurrencyPair, client, BuyOrderId, Quantity_String, livePrice);
     }
 }

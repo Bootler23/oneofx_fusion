@@ -13,7 +13,9 @@ public class getTradeInformation {
 
         records.clear();      
         String columnList = String.join(", ", columns);
-        String sql = String.format("SELECT %s FROM %s WHERE Status = %d", columnList, tableName, status);
+        String sql = String.format("SELECT %s FROM %s WHERE Status = %d "
+                + "AND bot_id = (SELECT selected_bot_id FROM runtimeState WHERE id = 1)",
+                columnList, tableName, status);
 
         try (Connection con = DriverManager.getConnection(dbUrl);
                 Statement query = con.createStatement();

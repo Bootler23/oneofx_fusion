@@ -1,6 +1,6 @@
 # OneOfX Local – Funktionsumfang und Roadmap
 
-Stand: 9. September 2026
+Stand: 10. September 2026
 
 ## Zielbild
 
@@ -51,6 +51,8 @@ Risikoregeln müssen zur Bitpanda-Fusion-API und zur lokalen Architektur passen.
   bisherigen Preisverhaltens migriert.
 - **Umgesetzt:** gültige Änderungen werden automatisch und transaktional
   gespeichert; ein Speichern-Button ist nicht mehr erforderlich.
+- **Umgesetzt:** reaktive Grid-Vorschau mit allen kapitalgedeckten Preisstufen,
+  Ordermengen, Tick-Rundung, Mindestorderprüfung, Kapitalbedarf und Preisband.
 
 ### Bestehende Handelslogik
 
@@ -61,24 +63,33 @@ Risikoregeln müssen zur Bitpanda-Fusion-API und zur lokalen Architektur passen.
 - **Umgesetzt:** MACD- und StochRSI-Filter der aktiven Strategie.
 - **Umgesetzt:** persistentes Journal für gesendete beziehungsweise ungeklärte
   Kauf- und Verkaufsversuche.
-- **Teilweise:** Dashboard, Positionen, Orderstatus und Performancewerte sind
-  technisch beziehungsweise in SQLite vorhanden, werden aber noch nicht als
-  vollständige Arbeitsbereiche dargestellt.
+- **Teilweise:** grundlegende Performancewerte liegen in SQLite; eine
+  vollständige Performanceanalyse nach Bot, Paar und Zeitraum fehlt noch.
+- **Umgesetzt:** eigene, automatisch aktualisierte Arbeitsbereiche für offene
+  Orders, aktive Positionen und ungeklärte Kauf-/Verkaufsübermittlungen.
+- **Umgesetzt:** Kontostände können bei Bedarf live von Fusion geladen werden;
+  verfügbare, gesperrte und gesamte Beträge werden getrennt angezeigt.
+- **Umgesetzt:** lokale Warnzentrale und dauerhaftes Aktivitätsprotokoll für
+  Oberfläche, Engine, Konfigurationsänderungen und Orderjournale.
 
 ## Noch umzusetzen
 
 ### Phase 1 – Bot-Fundament vervollständigen
 
-- **Offen:** Grid-Vorschau mit Preisstufen, Orderanzahl, Preisband und
+- **Umgesetzt:** Grid-Vorschau mit Preisstufen, Orderanzahl, Preisband und
   benötigtem Kapital vor der Aktivierung.
-- **Offen:** mehrere voneinander unabhängige Bots mit Name, Budget,
-  Handelspaaren, Strategie, Modus und eigenem Status.
-- **Offen:** Paper-Trading-Modus mit virtuellen Beständen und derselben
-  Strategie-Engine wie im Live-Betrieb.
-- **Offen:** vollständige Ansichten für offene Orders, Positionen,
+- **Umgesetzt:** mehrere voneinander unabhängige Bots mit Name, Budget,
+  Handelspaaren, Strategie, Live-/Paper-Modus und eigenem Status. Bestehende
+  Installationen werden automatisch einem verlustfreien Standard-Bot zugeordnet.
+- **Umgesetzt:** Paper-Trading-Modus mit persistenten virtuellen Beständen,
+  Limit-Käufen, Market-Verkäufen, Gebühren, Slippage und derselben Marktfilter-,
+  Grid-, Stop-Loss- und Trailing-Stop-Entscheidungslogik wie im Live-Betrieb.
+  Paper- und Live-Daten sind in Status, Orders, Positionen und Kontoständen
+  sichtbar getrennt. Vorerst werden EUR-Paare und Vollausführungen simuliert.
+- **Umgesetzt:** vollständige, zunächst beobachtende Ansichten für offene Orders, Positionen,
   Kontostände und das Aktivitätsprotokoll.
 - **Offen:** Speicherung und Anzeige aller für ein Paar erlaubten Ordertypen.
-- **Offen:** Fehler-/Warnzentrale für API-Probleme, fehlende Marktdaten,
+- **Umgesetzt:** Fehler-/Warnzentrale für API-Probleme, fehlende Marktdaten,
   ungeklärte Orders und verletzte Handelsregeln.
 
 ### Phase 2 – Vollständige Bot-Konfiguration
@@ -86,26 +97,33 @@ Risikoregeln müssen zur Bitpanda-Fusion-API und zur lokalen Architektur passen.
 In Anlehnung an Baseconfig und
 [Config Pools](https://docs.cryptohopper.com/docs/trading-bot/what-are-config-pools):
 
-- **Offen:** globale Basiskonfiguration je Bot.
-- **Offen:** überschreibende Einstellungen für einzelne Paare und Paargruppen.
-- **Teilweise:** Limit- und Market-Orders existieren in der Engine; eine freie
-  Auswahl von Market-, Limit- und Stop-Orders in der Oberfläche fehlt.
-- **Offen:** konfigurierbare maximale Anzahl offener Positionen sowie offener
-  Kauf- und Verkaufsorders.
-- **Offen:** maximale Laufzeit für Kauf- und Verkaufsorders.
-- **Teilweise:** Cooldown ist vorhanden, aber noch fest auf den Stop-Fall und
-  24 Stunden begrenzt.
-- **Teilweise:** Take-Profit-Daten sind im Schema angelegt; eine vollständig
-  konfigurierbare und getestete Take-Profit-Funktion fehlt.
+- **Umgesetzt:** globale Basiskonfiguration je Bot mit Name, Status, Modus,
+  Strategie, Budget, Risikolimits, Ordertypen, Laufzeiten, Cooldown,
+  Take Profit, Trailing Stop-Buy, Gewinnbedingung, Zeitausstieg und DCA.
+- **Umgesetzt:** benannte Config Pools überschreiben die Baseconfig für alle
+  zugeordneten Paare. Ein Pool kann mehreren Paaren zugeordnet werden und bildet
+  dadurch eine lokale Paargruppe. Ohne Pool gilt automatisch die Bot-Baseconfig.
+- **Umgesetzt:** Auswahl von Limit-, Market- und Stop-Ordertypen in der
+  Oberfläche sowie deren Verwendung durch Live- und Paper-Ausführung.
+- **Umgesetzt:** konfigurierbare maximale Anzahl offener Positionen sowie
+  offener Kauf- und Verkaufsorders als harte Bot-Grenzen.
+- **Umgesetzt:** maximale Laufzeit für Kauf- und Verkaufsorders; Live-Orders
+  verwenden GTD, Paper-Kauforders werden lokal nach Ablauf storniert.
+- **Umgesetzt:** konfigurierbarer Cooldown nach Verkäufen; der separate
+  24-Stunden-Schutz nach hartem Stop bleibt als strengere Sperre erhalten.
+- **Umgesetzt:** konfigurierbarer Take Profit mit gemeinsamer Exit-Entscheidung
+  für Live und Paper.
 - **Umgesetzt:** harter Stop-Loss und Trailing Stop-Loss als paarspezifische
   Schutzregeln.
-- **Offen:** Trailing Stop-Buy.
-- **Offen:** Option „nur mit Gewinn verkaufen“.
-- **Offen:** zeitgesteuertes Schließen von Positionen.
-- **Teilweise:** Grid-Nachkäufe existieren; eine eigenständige DCA-Funktion mit
-  maximalen Nachkäufen, Triggern und variabler Ordergröße fehlt.
-- **Teilweise:** Kapitallimit je Paar ist vorhanden; Bot-weite Portfolio-,
-  Exposure- und Positionslimits fehlen.
+- **Umgesetzt:** persistenter Trailing Stop-Buy mit Drop-Aktivierung und
+  Rebound-Trigger je Bot und Paar.
+- **Umgesetzt:** Option „nur mit Gewinn verkaufen“ für reguläre Regime- und
+  Zeitausstiege; Schutzstopps bleiben davon bewusst unberührt.
+- **Umgesetzt:** zeitgesteuertes Schließen von Positionen.
+- **Umgesetzt:** DCA mit maximalen Nachkäufen, Kursrückgang als Trigger und
+  konfigurierbarem Ordergrößen-Multiplikator.
+- **Teilweise:** Kapitallimit je Paar sowie botweites Budget, Exposure-,
+  Positions- und Orderlimit sind vorhanden; Portfolioquoten nach Asset fehlen.
 
 ### Phase 3 – Strategie-Designer
 
@@ -186,13 +204,9 @@ nicht zum aktiven Backlog der Phasen oben:
 
 ## Empfohlene nächste Reihenfolge
 
-1. Grid-Vorschau sowie vollständige Order-, Positions- und Ereignisansichten.
-2. Mehrbot-Datenmodell und botweite Risiko-/Kapitalgrenzen.
-3. Gemeinsame Ausführungsabstraktion für Live und Paper Trading.
-4. vollständige Baseconfig und Config Pools.
-5. Strategie-Designer mit erklärbaren Signalen.
-6. Backtest-Engine und Performanceanalyse.
-7. Trading-Terminal, Portfoliofunktionen und erst danach Market Making oder
+1. Strategie-Designer mit erklärbaren Signalen.
+2. Backtest-Engine und Performanceanalyse.
+3. Trading-Terminal, Portfoliofunktionen und erst danach Market Making oder
    Arbitrage.
 
 Market Making und Arbitrage sollten erst nach Paper Trading, Backtesting,

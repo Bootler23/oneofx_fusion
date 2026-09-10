@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,23 +14,25 @@ import com.oneofx.fusion.client.model.FusionSymbol;
 import com.oneofx.fusion.client.model.TradingPair;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.SQL_Database.TradingRulesSQL;
+import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 import com.oneofx.fusion.tradingbot.grid.GridMode;
+import com.oneofx.fusion.tradingbot.grid.GridPreviewService;
 
 /** Liest und speichert die Oberflächeneinstellungen in SQLite. */
 public final class CurrencySettingsRepository {
 
     public List<CurrencySettings> loadAll() throws SQLException {
-        String sql = "SELECT c.currency, c.buyStatus, c.buyAmount, c.maxBuyAmount, "
-                + "c.gridMode, c.gridSpacing, "
-                + "COALESCE(t.SL, 0) AS SL, COALESCE(t.TSL, 'false') AS TSL, "
-                + "COALESCE(t.TSL_activate, 0) AS TSL_activate, "
-                + "COALESCE(t.TSL_decline, 0) AS TSL_decline "
-                + "FROM currency c LEFT JOIN tradeSettings t ON t.currency = c.currency "
-                + "WHERE COALESCE(c.archived, 0) = 0 ORDER BY c.currency";
+        return loadAll(BotRuntime.activeBotId());
+    }
+
+    public List<CurrencySettings> loadAll(long botId) throws SQLException {
+        String sql = "SELECT currency, buyStatus, buyAmount, maxBuyAmount, gridMode, "
+                + "gridSpacing, SL, TSL, TSL_activate, TSL_decline "
+                + "FROM botPairSettings WHERE bot_id = ? AND archived = 0 ORDER BY currency";
         List<CurrencySettings> result = new ArrayList<>();
-        try (Connection con = open();
-             Statement statement = con.createStatement();
-             ResultSet rs = statement.executeQuery(sql)) {
+        try (Connection con = open(); PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, botId);
+            try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(new CurrencySettings(
                         rs.getString("currency"),
@@ -43,16 +46,48 @@ public final class CurrencySettingsRepository {
                         rs.getDouble("TSL_activate"),
                         rs.getDouble("TSL_decline")));
             }
+            }
         }
         return result;
     }
 
     public CurrencySettings load(String currency) throws SQLException {
+        return load(BotRuntime.activeBotId(), currency);
+    }
+
+    public CurrencySettings load(long botId, String currency) throws SQLException {
         String normalized = CurrencySettings.normalizeCurrency(currency);
-        return loadAll().stream()
+        return loadAll(botId).stream()
                 .filter(settings -> settings.currency().equals(normalized))
                 .findFirst()
                 .orElseThrow(() -> new SQLException("Handelspaar nicht gefunden: " + normalized));
+    }
+
+    public GridPreviewContext loadGridPreviewContext(String currency) throws SQLException {
+        return loadGridPreviewContext(BotRuntime.activeBotId(), currency);
+    }
+
+    public GridPreviewContext loadGridPreviewContext(long botId, String currency) throws SQLException {
+        String normalized = CurrencySettings.normalizeCurrency(currency);
+        String sql = "SELECT c.allTimeHigh, r.tickSize, r.stepSize, "
+                + "r.minOrderAmount, r.maxOrderAmount FROM botPairSettings b "
+                + "JOIN currency c ON c.currency = b.currency "
+                + "LEFT JOIN tradingRules r ON r.currency = c.currency "
+                + "WHERE b.bot_id = ? AND b.currency = ? AND b.archived = 0";
+        try (Connection con = open(); PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, botId);
+            ps.setString(2, normalized);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Handelspaar nicht gefunden: " + normalized);
+                }
+                return new GridPreviewContext(rs.getDouble("allTimeHigh"),
+                        new GridPreviewService.Rules(decimal(rs.getString("tickSize")),
+                                decimal(rs.getString("stepSize")),
+                                number(rs.getString("minOrderAmount")),
+                                number(rs.getString("maxOrderAmount"))));
+            }
+        }
     }
 
     /**
@@ -60,6 +95,11 @@ public final class CurrencySettingsRepository {
      * Ein früher archiviertes Paar wird dadurch wieder aktiviert.
      */
     public void addVerified(CurrencySettings settings, TradingPair pair) throws SQLException {
+        addVerified(BotRuntime.activeBotId(), settings, pair);
+    }
+
+    public void addVerified(long botId, CurrencySettings settings, TradingPair pair)
+            throws SQLException {
         String verifiedSymbol = FusionSymbol.compactPair(pair.getPair());
         if (!settings.currency().equals(verifiedSymbol)) {
             throw new IllegalArgumentException("Das bestätigte Fusion-Paar passt nicht zur Eingabe.");
@@ -69,6 +109,7 @@ public final class CurrencySettingsRepository {
             try {
                 upsertCurrency(con, settings);
                 upsertTradeSettings(con, settings);
+                upsertBotPair(con, botId, settings);
                 upsertTradingRules(con, pair);
                 con.commit();
                 TradingRulesSQL.clearCache();
@@ -81,11 +122,16 @@ public final class CurrencySettingsRepository {
 
     /** Für kontrollierte Importe und Tests ohne externen API-Aufruf. */
     public void add(CurrencySettings settings) throws SQLException {
+        add(BotRuntime.activeBotId(), settings);
+    }
+
+    public void add(long botId, CurrencySettings settings) throws SQLException {
         try (Connection con = open()) {
             con.setAutoCommit(false);
             try {
                 upsertCurrency(con, settings);
                 upsertTradeSettings(con, settings);
+                upsertBotPair(con, botId, settings);
                 con.commit();
             } catch (SQLException | RuntimeException ex) {
                 rollback(con, ex);
@@ -95,25 +141,36 @@ public final class CurrencySettingsRepository {
     }
 
     public void save(CurrencySettings settings) throws SQLException {
+        save(BotRuntime.activeBotId(), settings);
+    }
+
+    public void save(long botId, CurrencySettings settings) throws SQLException {
         try (Connection con = open()) {
             con.setAutoCommit(false);
             try {
                 try (PreparedStatement ps = con.prepareStatement(
-                        "UPDATE currency SET buyStatus = ?, buyAmount = ?, "
-                                + "maxBuyAmount = ?, gridMode = ?, gridSpacing = ?, grid = ? "
-                                + "WHERE currency = ? AND COALESCE(archived, 0) = 0")) {
+                        "UPDATE botPairSettings SET buyStatus = ?, buyAmount = ?, "
+                                + "maxBuyAmount = ?, gridMode = ?, gridSpacing = ?, SL = ?, "
+                                + "TSL = ?, TSL_activate = ?, TSL_decline = ? "
+                                + "WHERE bot_id = ? AND currency = ? AND archived = 0")) {
                     ps.setString(1, settings.buyEnabled() ? "true" : "false");
                     ps.setDouble(2, settings.buyAmount());
                     ps.setDouble(3, settings.maxBuyAmount());
                     ps.setString(4, settings.gridMode().name());
                     ps.setDouble(5, settings.gridSpacing());
-                    ps.setInt(6, legacyGrid(settings));
-                    ps.setString(7, settings.currency());
+                    ps.setDouble(6, settings.stopLoss());
+                    ps.setString(7, settings.trailingStopEnabled() ? "true" : "false");
+                    ps.setDouble(8, settings.trailingStopActivation());
+                    ps.setDouble(9, settings.trailingStopDecline());
+                    ps.setLong(10, botId);
+                    ps.setString(11, settings.currency());
                     if (ps.executeUpdate() != 1) {
                         throw new SQLException(
                                 "Handelspaar nicht gefunden: " + settings.currency());
                     }
                 }
+                // Kompatibilitätskopie für noch nicht migrierte Analysepfade.
+                upsertCurrency(con, settings);
                 upsertTradeSettings(con, settings);
                 con.commit();
             } catch (SQLException | RuntimeException ex) {
@@ -128,36 +185,69 @@ public final class CurrencySettingsRepository {
      * und archiviert, damit Orderabgleich und Historie erhalten bleiben.
      */
     public RemovalResult remove(String currency) throws SQLException {
+        return remove(BotRuntime.activeBotId(), currency);
+    }
+
+    public RemovalResult remove(long botId, String currency) throws SQLException {
         String normalized = CurrencySettings.normalizeCurrency(currency);
         try (Connection con = open()) {
             con.setAutoCommit(false);
             try {
                 int positions = count(con,
-                        "SELECT COUNT(*) FROM positions WHERE currency = ?", normalized);
+                        "SELECT COUNT(*) FROM positions WHERE bot_id = ? AND currency = ?",
+                        botId, normalized);
+                if (tableExists(con, "paperPositions")) {
+                    positions += count(con, "SELECT COUNT(*) FROM paperPositions "
+                            + "WHERE bot_id = ? AND currency = ? AND status = 'OPEN'",
+                            botId, normalized);
+                }
                 int unresolvedAttempts = tableExists(con, "buy_attempts")
                         ? count(con, "SELECT COUNT(*) FROM buy_attempts "
-                                + "WHERE currency_pair = ? AND state IN "
-                                + "('SUBMITTING', 'RECONCILIATION_REQUIRED')", normalized)
+                                + "WHERE bot_id = ? AND currency_pair = ? AND state IN "
+                                + "('SUBMITTING', 'RECONCILIATION_REQUIRED')", botId, normalized)
                         : 0;
+                if (tableExists(con, "sell_attempts")) {
+                    unresolvedAttempts += count(con, "SELECT COUNT(*) FROM sell_attempts "
+                            + "WHERE bot_id = ? AND currency_pair = ? AND state IN "
+                            + "('SUBMITTING', 'RECONCILIATION_REQUIRED')", botId, normalized);
+                }
+                if (tableExists(con, "paperOrders")) {
+                    unresolvedAttempts += count(con, "SELECT COUNT(*) FROM paperOrders "
+                            + "WHERE bot_id = ? AND currency = ? AND status = 'OPEN'",
+                            botId, normalized);
+                }
 
                 if (positions > 0 || unresolvedAttempts > 0) {
                     try (PreparedStatement ps = con.prepareStatement(
-                            "UPDATE currency SET buyStatus = 'false', archived = 1 "
-                                    + "WHERE currency = ?")) {
-                        ps.setString(1, normalized);
+                            "UPDATE botPairSettings SET buyStatus = 'false', archived = 1 "
+                                    + "WHERE bot_id = ? AND currency = ?")) {
+                        ps.setLong(1, botId);
+                        ps.setString(2, normalized);
                         requireOne(ps.executeUpdate(), normalized);
                     }
                     con.commit();
                     return RemovalResult.archived(positions, unresolvedAttempts);
                 }
 
-                deleteByCurrency(con, "tradeSettings", normalized);
-                deleteByCurrency(con, "tradingRules", normalized);
-                deleteByCurrency(con, "strategyState", normalized);
                 try (PreparedStatement ps = con.prepareStatement(
-                        "DELETE FROM currency WHERE currency = ?")) {
-                    ps.setString(1, normalized);
+                        "DELETE FROM botPairSettings WHERE bot_id = ? AND currency = ?")) {
+                    ps.setLong(1, botId);
+                    ps.setString(2, normalized);
                     requireOne(ps.executeUpdate(), normalized);
+                }
+                // Globale Paar-/Regelmetadaten nur entfernen, wenn kein Bot sie mehr nutzt.
+                if (count(con, "SELECT COUNT(*) FROM botPairSettings WHERE currency = ?",
+                        normalized) == 0
+                        && count(con, "SELECT COUNT(*) FROM positions WHERE currency = ?",
+                                normalized) == 0) {
+                    deleteByCurrency(con, "tradeSettings", normalized);
+                    deleteByCurrency(con, "tradingRules", normalized);
+                    deleteByCurrency(con, "strategyState", normalized);
+                    try (PreparedStatement ps = con.prepareStatement(
+                            "DELETE FROM currency WHERE currency = ?")) {
+                        ps.setString(1, normalized);
+                        ps.executeUpdate();
+                    }
                 }
                 con.commit();
                 TradingRulesSQL.clearCache();
@@ -170,16 +260,34 @@ public final class CurrencySettingsRepository {
     }
 
     public DashboardStats loadDashboardStats() throws SQLException {
+        return loadDashboardStats(BotRuntime.activeBotId());
+    }
+
+    public DashboardStats loadDashboardStats(long botId) throws SQLException {
+        boolean paper = false;
+        try (Connection con = open(); PreparedStatement ps = con.prepareStatement(
+                "SELECT mode FROM bots WHERE id = ?")) {
+            ps.setLong(1, botId);
+            try (ResultSet rs = ps.executeQuery()) {
+                paper = rs.next() && "PAPER".equals(rs.getString(1));
+            }
+        }
         String sql = "SELECT "
-                + "(SELECT COUNT(*) FROM currency WHERE COALESCE(archived, 0) = 0) AS currencies, "
-                + "(SELECT COUNT(*) FROM currency WHERE COALESCE(archived, 0) = 0 "
+                + "(SELECT COUNT(*) FROM botPairSettings WHERE bot_id = ? AND archived = 0) AS currencies, "
+                + "(SELECT COUNT(*) FROM botPairSettings WHERE bot_id = ? AND archived = 0 "
                 + "AND buyStatus IN ('true', '1')) AS enabled, "
-                + "(SELECT COUNT(*) FROM positions WHERE Status = 0) AS pending, "
-                + "(SELECT COUNT(*) FROM positions WHERE Status IN (1, 5, 7, 8)) AS positions, "
-                + "(SELECT COALESCE(SUM(BuyAmount), 0) FROM positions) AS capital";
-        try (Connection con = open();
-             Statement statement = con.createStatement();
-             ResultSet rs = statement.executeQuery(sql)) {
+                + (paper
+                    ? "(SELECT COUNT(*) FROM paperOrders WHERE bot_id = ? AND status = 'OPEN') AS pending, "
+                        + "(SELECT COUNT(*) FROM paperPositions WHERE bot_id = ? AND status = 'OPEN') AS positions, "
+                        + "((SELECT COALESCE(SUM(buy_amount), 0) FROM paperPositions WHERE bot_id = ? AND status = 'OPEN') + "
+                        + "(SELECT COALESCE(SUM(amount), 0) FROM paperOrders WHERE bot_id = ? AND status = 'OPEN')) AS capital"
+                    : "(SELECT COUNT(*) FROM positions WHERE bot_id = ? AND Status = 0) AS pending, "
+                        + "(SELECT COUNT(*) FROM positions WHERE bot_id = ? AND Status IN (1, 5, 7, 8)) AS positions, "
+                        + "(SELECT COALESCE(SUM(BuyAmount), 0) FROM positions WHERE bot_id = ?) AS capital");
+        try (Connection con = open(); PreparedStatement ps = con.prepareStatement(sql)) {
+            int parameterCount = paper ? 6 : 5;
+            for (int i = 1; i <= parameterCount; i++) ps.setLong(i, botId);
+            try (ResultSet rs = ps.executeQuery()) {
             if (!rs.next()) {
                 throw new SQLException("Dashboardwerte konnten nicht geladen werden.");
             }
@@ -189,6 +297,33 @@ public final class CurrencySettingsRepository {
                     rs.getInt("pending"),
                     rs.getInt("positions"),
                     rs.getDouble("capital"));
+            }
+        }
+    }
+
+    private static void upsertBotPair(Connection con, long botId, CurrencySettings settings)
+            throws SQLException {
+        String sql = "INSERT INTO botPairSettings (bot_id, currency, buyStatus, buyAmount, "
+                + "maxBuyAmount, gridMode, gridSpacing, SL, TSL, TSL_activate, TSL_decline, archived) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0) "
+                + "ON CONFLICT(bot_id, currency) DO UPDATE SET buyStatus = excluded.buyStatus, "
+                + "buyAmount = excluded.buyAmount, maxBuyAmount = excluded.maxBuyAmount, "
+                + "gridMode = excluded.gridMode, gridSpacing = excluded.gridSpacing, "
+                + "SL = excluded.SL, TSL = excluded.TSL, TSL_activate = excluded.TSL_activate, "
+                + "TSL_decline = excluded.TSL_decline, archived = 0";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, botId);
+            ps.setString(2, settings.currency());
+            ps.setString(3, settings.buyEnabled() ? "true" : "false");
+            ps.setDouble(4, settings.buyAmount());
+            ps.setDouble(5, settings.maxBuyAmount());
+            ps.setString(6, settings.gridMode().name());
+            ps.setDouble(7, settings.gridSpacing());
+            ps.setDouble(8, settings.stopLoss());
+            ps.setString(9, settings.trailingStopEnabled() ? "true" : "false");
+            ps.setDouble(10, settings.trailingStopActivation());
+            ps.setDouble(11, settings.trailingStopDecline());
+            ps.executeUpdate();
         }
     }
 
@@ -271,6 +406,17 @@ public final class CurrencySettingsRepository {
         }
     }
 
+    private static int count(Connection con, String sql, long botId, String currency)
+            throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, botId);
+            ps.setString(2, currency);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
     private static void deleteByCurrency(Connection con, String table, String currency)
             throws SQLException {
         if (!tableExists(con, table)) return;
@@ -309,6 +455,22 @@ public final class CurrencySettingsRepository {
         return "true".equalsIgnoreCase(value) || "1".equals(value);
     }
 
+    private static BigDecimal decimal(String value) {
+        try {
+            return value == null ? null : new BigDecimal(value);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static double number(String value) {
+        try {
+            return value == null ? 0.0 : Double.parseDouble(value);
+        } catch (NumberFormatException ex) {
+            return 0.0;
+        }
+    }
+
     private static void rollback(Connection con, Exception original) {
         try {
             con.rollback();
@@ -326,4 +488,7 @@ public final class CurrencySettingsRepository {
             return new RemovalResult(true, positions, unresolvedAttempts);
         }
     }
+
+    public record GridPreviewContext(double allTimeHigh,
+            GridPreviewService.Rules rules) { }
 }

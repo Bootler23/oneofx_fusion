@@ -70,6 +70,18 @@ public class DatabaseSchemaTest {
             assertTrue(columnExists(statement, "currency", "archived"));
             assertTrue(tableExists(statement, "performance"));
             assertTrue(tableExists(statement, "strategyState"));
+            assertTrue(tableExists(statement, "buy_attempts"));
+            assertTrue(tableExists(statement, "sell_attempts"));
+            assertTrue(tableExists(statement, "activityLog"));
+            assertTrue(tableExists(statement, "bots"));
+            assertTrue(tableExists(statement, "botPairSettings"));
+            assertTrue(tableExists(statement, "runtimeState"));
+            assertTrue(tableExists(statement, "botStrategyState"));
+            assertTrue(tableExists(statement, "botBaseConfig"));
+            assertTrue(tableExists(statement, "configPools"));
+            assertTrue(columnExists(statement, "botPairSettings", "config_pool_id"));
+            assertTrue(columnExists(statement, "positions", "bot_id"));
+            assertTrue(columnExists(statement, "historyPosition", "bot_id"));
             assertTrue(tableExists(statement, "SETTING"));
             assertTrue(tableExists(statement, "WPD"));
             assertEquals(1, scalarInt(statement,
@@ -79,6 +91,8 @@ public class DatabaseSchemaTest {
             assertEquals(1.0 / 23.0, scalarDouble(statement,
                     "SELECT gridSpacing FROM currency WHERE currency = 'BTCEUR'"), 0.000000001);
             assertEquals(1, scalarInt(statement, "SELECT COUNT(*) FROM SETTING"));
+            assertEquals(1, scalarInt(statement,
+                    "SELECT COUNT(*) FROM botPairSettings WHERE bot_id = 1 AND currency = 'BTCEUR'"));
         }
     }
 

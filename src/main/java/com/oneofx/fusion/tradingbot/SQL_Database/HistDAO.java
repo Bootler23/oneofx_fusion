@@ -19,6 +19,9 @@ import com.oneofx.fusion.tradingbot.domain.HistoryPosition;
  */
 public class HistDAO {
 
+    private static final String BOT_SCOPE =
+            " AND bot_id = (SELECT selected_bot_id FROM runtimeState WHERE id = 1) ";
+
     private Connection getConnection() throws SQLException {
         return DriverManager.getConnection(dbUrl.getoneOfX());
     }
@@ -166,7 +169,7 @@ public class HistDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT SellOrderId, Quantity, currency, BuyPrice FROM historyPosition WHERE Status = 0")) {
+                     "SELECT SellOrderId, Quantity, currency, BuyPrice FROM historyPosition WHERE Status = 0" + BOT_SCOPE)) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 records.add(rs.getString("SellOrderId") + ", " + rs.getString("Quantity") + ", "
@@ -182,7 +185,7 @@ public class HistDAO {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT BuyOrderId, Split, currency FROM historyPosition WHERE Status = 1 AND Split IS NOT NULL AND currency = ?")) {
+                     "SELECT BuyOrderId, Split, currency FROM historyPosition WHERE Status = 1 AND Split IS NOT NULL AND currency = ?" + BOT_SCOPE)) {
             ps.setString(1, currency);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
@@ -196,7 +199,7 @@ public class HistDAO {
 
     public double getTaxe() {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM historyPosition")) {
+             PreparedStatement ps = con.prepareStatement("SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM historyPosition WHERE 1=1" + BOT_SCOPE)) {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("TotalTax");
         } catch (SQLException e) {
@@ -267,7 +270,7 @@ public class HistDAO {
 
     public int getCountHist() {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) AS TotalCount FROM historyPosition")) {
+             PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) AS TotalCount FROM historyPosition WHERE 1=1" + BOT_SCOPE)) {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getInt("TotalCount");
         } catch (SQLException e) {
@@ -289,7 +292,8 @@ public class HistDAO {
 
     public double getSumColumnToday(String url, String columnName, String tableName) {
         String todayString = Time.getCurrentDate();
-        String sql = "SELECT SUM(" + sanitizeIdentifier(columnName) + ") AS SumColumn FROM " + sanitizeIdentifier(tableName) + " WHERE SellDate = ?";
+        String sql = "SELECT SUM(" + sanitizeIdentifier(columnName) + ") AS SumColumn FROM "
+                + sanitizeIdentifier(tableName) + " WHERE SellDate = ?" + BOT_SCOPE;
         try (Connection con = DriverManager.getConnection(url);
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, todayString);

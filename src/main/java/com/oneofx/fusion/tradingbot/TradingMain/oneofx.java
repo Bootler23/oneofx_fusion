@@ -24,6 +24,8 @@ import com.oneofx.fusion.tradingbot.Database.DatabaseSchema;
 import com.oneofx.fusion.tradingbot.Database.PortablePaths;
 import com.oneofx.fusion.tradingbot.service.TradingRulesService;
 import com.oneofx.fusion.tradingbot.service.MarketRegimeService;
+import com.oneofx.fusion.tradingbot.desktop.BaseConfigRepository;
+import com.oneofx.fusion.tradingbot.desktop.BotBaseConfig;
 import com.oneofx.fusion.tradingbot.service.MarketRegimeService.Regime;
 import com.oneofx.fusion.tradingbot.domain.TradingRules;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
@@ -46,6 +48,7 @@ public class oneofx {
     private static final HistDAO histDAO = new HistDAO();
     private static final PositionDAO positionDAO = new PositionDAO();
     private static final StrategyStateDAO strategyStateDAO = new StrategyStateDAO();
+    private static final BaseConfigRepository baseConfigRepository = new BaseConfigRepository();
     private static PricePoller pricePoller;
     private static FileChannel lockChannel;
     private static FileLock instanceLock;
@@ -247,18 +250,32 @@ public class oneofx {
                     getDataRecords.addAll(positionDAO.getDataRecordsWhereStatusOneOrSeven(currency));
                     if (market.regime() == Regime.EXIT) {
                         SellOrderProcess.closePositionsForRegime(
-                                currency, FusionClientProvider.getClient(), getDataRecords);
+                                currency, FusionClientProvider.getClient(), getDataRecords,
+                                LivePrice.get(0));
                     } else {
                         SellOrderProcess.setSellOrder(
                                 currency, FusionClientProvider.getClient(), getDataRecords, LivePrice);
                     }
 
                     boolean cooldownActive = strategyStateDAO.isBuyBlocked(currency);
-                    if (buyEnabledCurrencies.contains(currency)
-                            && market.regime() == Regime.BUY_ALLOWED
-                            && !cooldownActive) {
+                    boolean baseBuyAllowed = buyEnabledCurrencies.contains(currency)
+                            && market.regime() == Regime.BUY_ALLOWED && !cooldownActive;
+                    boolean trailingBuyReady = true;
+                    BotBaseConfig executionConfig = baseConfigRepository.loadEffective(currency);
+                    if (baseBuyAllowed && executionConfig.trailingStopBuyEnabled()) {
+                        trailingBuyReady = baseConfigRepository.evaluateTrailingBuy(
+                                com.oneofx.fusion.tradingbot.bot.BotRuntime.activeBotId(), currency,
+                                LivePrice.get(0), executionConfig.trailingStopBuyActivationPercent(),
+                                executionConfig.trailingStopBuyReboundPercent());
+                    }
+                    if (baseBuyAllowed && trailingBuyReady) {
                         // Kauf: bis zu zwei offene Limit-Orders unter dem Markt ergänzen.
                         BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
+                        if (executionConfig.trailingStopBuyEnabled()) {
+                            baseConfigRepository.resetTrailingBuy(
+                                    com.oneofx.fusion.tradingbot.bot.BotRuntime.activeBotId(),
+                                    currency, LivePrice.get(0));
+                        }
                     } else {
                         OrderIdList.clear();
                         OrderIdList.addAll(positionDAO.getBuyOrderIdsWhereStatusZero(currency));

@@ -59,12 +59,32 @@ Die Desktop-Oberfläche enthält:
 
 - dunkles OneOfX-Dashboard mit Seitenleiste, Status-Karten und HiDPI-Skalierung
 - dauerhaft erreichbare Start-/Stop-Steuerung mit Engine-Status
+- mehrere getrennte Bots mit eigener Paarliste, Strategie, Status und Auswahl
+- botweites Budget, Exposure-Limit sowie Grenzen für offene Positionen und Orders
+- echte lokale Paper-Ausführung mit virtuellem EUR-Konto, Orders, Positionen,
+  konfigurierbaren Gebühren und Slippage
+- vollständige Bot-Baseconfig mit Ordertypen, Orderlaufzeiten, Cooldown,
+  Take Profit, Trailing Stop-Buy, Gewinnbedingung, Zeitausstieg und DCA
+- benannte Config Pools, die mehreren Handelspaaren als gemeinsame
+  Ausführungsüberschreibung zugeordnet werden können
 - Hinzufügen von Handelspaaren erst nach Live-Prüfung gegen den Fusion-Paarkatalog
 - sicheres Entfernen: unbenutzte Paare werden gelöscht, Paare mit Positionen archiviert
 - getrennte Einstellungsbereiche für Kaufstrategie und Risikomanagement
 - arithmetische Grids mit festem Preisabstand und geometrische Grids mit Prozentabstand
+- reaktive Grid-Vorschau mit Preisstufen, Kapitalbedarf und Handelsregelprüfung
 - automatische, transaktionale Speicherung ohne Speichern-Schaltfläche
+- Ansichten für offene Orders, Positionen, ungeklärte Übermittlungen und Kontostände
+- lokale Warnzentrale und dauerhaftes Aktivitätsprotokoll
 - geschützter API-Zugang nur für die aktuelle Sitzung
+
+Beim ersten Start nach dem Update werden alle vorhandenen Einstellungen,
+Positionen, Orderjournale und Aktivitäten automatisch dem `Standard-Bot`
+zugeordnet. Die lokale Engine handelt immer nur den oben ausgewählten Bot.
+Live- und Paper-Bots verwenden denselben Marktfilter sowie dieselben Grid-,
+Stop-Loss- und Trailing-Stop-Regeln. Paper-Orders werden ausschließlich lokal
+verbucht; aktuell simuliert die Engine EUR-Paare und vollständige Ausführungen
+beim Erreichen eines Limitpreises. Das Paper-Konto lässt sich bewusst per
+Schaltfläche auf das Bot-Budget zurücksetzen.
 
 Eine bereits gebaute lokale Testversion liegt unter:
 

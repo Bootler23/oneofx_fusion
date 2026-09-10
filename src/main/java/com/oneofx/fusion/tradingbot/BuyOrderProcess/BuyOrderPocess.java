@@ -2,6 +2,8 @@ package com.oneofx.fusion.tradingbot.BuyOrderProcess;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import com.oneofx.fusion.client.FusionApiClient;
@@ -22,15 +24,19 @@ import com.oneofx.fusion.tradingbot.SQL_Database.PositionDAO;
 import com.oneofx.fusion.tradingbot.Settings.set;
 import com.oneofx.fusion.tradingbot.constants.TradingConstants;
 import com.oneofx.fusion.tradingbot.domain.Position;
-import com.oneofx.fusion.tradingbot.grid.GridCalculator;
 import com.oneofx.fusion.tradingbot.grid.GridSettings;
+import com.oneofx.fusion.tradingbot.service.BotRiskService;
+import com.oneofx.fusion.tradingbot.service.GridOrderPlanner;
+import com.oneofx.fusion.tradingbot.desktop.BaseConfigRepository;
+import com.oneofx.fusion.tradingbot.desktop.BotBaseConfig;
 
 public class BuyOrderPocess {
 
     private static final PositionDAO positionDAO = new PositionDAO();
     private static final CurrencyDAO currencyDAO = new CurrencyDAO();
+    private static final BotRiskService botRiskService = new BotRiskService();
+    private static final BaseConfigRepository baseConfigRepository = new BaseConfigRepository();
     private static final int MAX_PENDING_BUY_ORDERS = 2;
-    private static final int MAX_GRID_STEPS = 10000;
 
     public static void setBuyOrder(String currency, FusionApiClient client, List<Double> LivePrice) {
 
@@ -38,6 +44,13 @@ public class BuyOrderPocess {
         double tickerPrice = LivePrice.get(0);
         GridSettings gridSettings = set.getGridSettings(currency);
         BuyOrderPersistence buyOrderPersistence = new BuyOrderPersistence();
+        BotBaseConfig executionConfig;
+        try { executionConfig = baseConfigRepository.loadEffective(currency); }
+        catch (SQLException ex) {
+            executionConfig = BotBaseConfig.defaults(0);
+            System.err.println("Baseconfig fuer " + currency
+                    + " fehlt; sichere Standardwerte werden verwendet: " + ex.getMessage());
+        }
 
         if (ath <= 0.0) {
             System.err.println("ATH fuer " + currency + " ist 0 - Buy-Order wird uebersprungen.");
@@ -57,61 +70,43 @@ public class BuyOrderPocess {
         // Das Grid bleibt am ATH verankert. Gesucht werden ausschliesslich freie
         // Grid-Stufen unter dem aktuellen Kurs. Pro Durchlauf werden so viele
         // LIMIT-Buys ergaenzt, bis insgesamt zwei Pending-Orders vorhanden sind.
-        double anchorPrice = Math.max(ath, tickerPrice);
-        long nextLevel = GridCalculator.firstLevelBelow(
-                anchorPrice, tickerPrice, gridSettings);
-        double previousFormattedLevel = Double.NaN;
-        int gridLevelsBelowMarket = 0;
-
-        for (int count = 0;
-                count < MAX_GRID_STEPS && pendingOrders < MAX_PENDING_BUY_ORDERS;
-                count++) {
-            double currentLevel = GridCalculator.level(
-                    anchorPrice, nextLevel++, gridSettings);
-            double gridPrice = TradingRulesFormatter.formatPrice(currency, currentLevel);
-
-            // Bei kleinen Preisen koennen mehrere rechnerische Grid-Stufen auf
-            // denselben Exchange-Tick gerundet werden.
-            if (Double.compare(gridPrice, previousFormattedLevel) == 0) {
-                continue;
-            }
-            previousFormattedLevel = gridPrice;
-
-            if (gridPrice <= 0.0) {
-                break;
-            }
-            if (gridPrice >= tickerPrice) {
-                continue;
-            }
-
-            // Die Cancel-Logik erlaubt nur die Grid-Indizes 0, 1 und 2 unter
-            // dem Markt. Sind diese Stufen bereits durch offene oder gefuellte
-            // Positionen belegt, darf nicht auf einer tieferen Stufe nachgelegt
-            // werden, da diese Order im naechsten Zyklus sofort storniert wuerde.
-            if (gridLevelsBelowMarket > CheckOrderStatus.MAX_GRID_LEVELS_BELOW_MARKET) {
-                break;
-            }
-            gridLevelsBelowMarket++;
-
-            if (positionDAO.positionExistsAtPrice(currency, gridPrice)) {
-                continue;
-            }
-
-            if (!placeLimitBuy(currency, client, tickerPrice, gridPrice, buyOrderPersistence)) {
+        int maximumNewOrders = "MARKET".equals(executionConfig.buyOrderType())
+                ? 1 : MAX_PENDING_BUY_ORDERS - pendingOrders;
+        List<Double> candidates = GridOrderPlanner.candidates(Math.max(ath, tickerPrice),
+                tickerPrice, gridSettings,
+                price -> TradingRulesFormatter.formatPrice(currency, price),
+                price -> positionDAO.positionExistsAtPrice(currency, price),
+                maximumNewOrders,
+                CheckOrderStatus.MAX_GRID_LEVELS_BELOW_MARKET);
+        for (double gridPrice : candidates) {
+            if (!placeLimitBuy(currency, client, tickerPrice, gridPrice,
+                    buyOrderPersistence, executionConfig)) {
                 // Bei einem unklaren oder abgelehnten Ausgang keine weiteren
                 // Orders senden. So vermeiden wir Doppelorders.
                 return;
             }
-            pendingOrders++;
         }
     }
 
     private static boolean placeLimitBuy(String currency, FusionApiClient client,
-            double tickerPrice, double limitLevel, BuyOrderPersistence buyOrderPersistence) {
+            double tickerPrice, double limitLevel, BuyOrderPersistence buyOrderPersistence,
+            BotBaseConfig executionConfig) {
 
         double buyAmount = BuyAmountFunktion.getsimplebuyamount(currency);
         if (buyAmount <= 0) {
             buyAmount = currencyDAO.getMinBuyAmount(currency);
+        }
+        int openPositions = positionDAO.countOpenPositions(currency);
+        if (openPositions > 0) {
+            if (!executionConfig.dcaEnabled() || openPositions > executionConfig.dcaMaxOrders()) {
+                return false;
+            }
+            double lowestEntry = positionDAO.getLowestOpenEntryPrice(currency);
+            if (lowestEntry <= 0 || tickerPrice > lowestEntry
+                    * (1.0 - executionConfig.dcaTriggerPercent() / 100.0)) {
+                return false;
+            }
+            buyAmount *= Math.pow(executionConfig.dcaSizeMultiplier(), openPositions);
         }
 
         double maxBuyAmount = currencyDAO.getMaxBuyAmount(currency);
@@ -130,7 +125,15 @@ public class BuyOrderPocess {
             return false;
         }
 
-        String limitPriceStr = TradingRulesFormatter.formatOrderPrice(currency, limitLevel);
+        BotRiskService.Decision botRisk = botRiskService.evaluateNextBuy(buyAmount);
+        if (!botRisk.allowed()) {
+            System.out.println("Kauf durch Bot-Risikolimit gesperrt: " + botRisk.reason());
+            return false;
+        }
+
+        double sizingPrice = "MARKET".equals(executionConfig.buyOrderType())
+                ? tickerPrice : limitLevel;
+        String limitPriceStr = TradingRulesFormatter.formatOrderPrice(currency, sizingPrice);
         String quantity = TradingRulesFormatter.calculateAndFormatQuantity(currency,
                 BigDecimal.valueOf(buyAmount), new BigDecimal(limitPriceStr));
 
@@ -146,13 +149,21 @@ public class BuyOrderPocess {
         System.out.println("  TickerPrice: " + tickerPrice);
         System.out.println("  limitPrice : " + limitPriceStr);
 
-        NewOrder limitBuy = new NewOrder(
-                currency,
-                OrderSide.BUY,
-                OrderType.LIMIT,
-                TimeInForce.GTC,
-                quantity,
-                limitPriceStr);
+        OrderType configuredType = OrderType.valueOf(executionConfig.buyOrderType());
+        NewOrder limitBuy;
+        if (configuredType == OrderType.MARKET) {
+            limitBuy = NewOrder.marketBuy(currency, quantity);
+        } else {
+            TimeInForce timeInForce = executionConfig.maxBuyOrderMinutes() > 0
+                    ? TimeInForce.GTD : TimeInForce.GTC;
+            limitBuy = new NewOrder(currency, OrderSide.BUY, configuredType,
+                    timeInForce, quantity, limitPriceStr);
+            if (configuredType == OrderType.STOP_LIMIT) limitBuy.triggerPrice(limitPriceStr);
+            if (timeInForce == TimeInForce.GTD) {
+                limitBuy.endTime(Instant.now().plus(executionConfig.maxBuyOrderMinutes(),
+                        ChronoUnit.MINUTES).toString());
+            }
+        }
 
         Attempt attempt;
         try {

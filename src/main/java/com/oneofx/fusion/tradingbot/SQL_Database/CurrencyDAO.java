@@ -10,6 +10,7 @@ import java.util.List;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
+import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 
 /**
  * DAO für die currency-Tabelle. Vereint ATHSQL + CurrencySQL
@@ -179,8 +180,9 @@ public class CurrencyDAO {
 
     public boolean getTSL(String currency) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT TSL FROM tradeSettings WHERE currency = ?")) {
-            ps.setString(1, currency);
+             PreparedStatement ps = con.prepareStatement("SELECT TSL FROM botPairSettings WHERE bot_id = ? AND currency = ?")) {
+            ps.setLong(1, BotRuntime.activeBotId());
+            ps.setString(2, currency);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 String val = rs.getString("TSL");
@@ -194,8 +196,9 @@ public class CurrencyDAO {
 
     public double getTSLActivate(String currency) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT TSL_activate FROM tradeSettings WHERE currency = ?")) {
-            ps.setString(1, currency);
+             PreparedStatement ps = con.prepareStatement("SELECT TSL_activate FROM botPairSettings WHERE bot_id = ? AND currency = ?")) {
+            ps.setLong(1, BotRuntime.activeBotId());
+            ps.setString(2, currency);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("TSL_activate");
         } catch (Exception e) {
@@ -206,8 +209,9 @@ public class CurrencyDAO {
 
     public double getTSLDecline(String currency) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT TSL_decline FROM tradeSettings WHERE currency = ?")) {
-            ps.setString(1, currency);
+             PreparedStatement ps = con.prepareStatement("SELECT TSL_decline FROM botPairSettings WHERE bot_id = ? AND currency = ?")) {
+            ps.setLong(1, BotRuntime.activeBotId());
+            ps.setString(2, currency);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("TSL_decline");
         } catch (Exception e) {
@@ -224,8 +228,9 @@ public class CurrencyDAO {
     public double getStopLossPercent(String currency) {
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(
-                     "SELECT SL FROM tradeSettings WHERE currency = ?")) {
-            ps.setString(1, currency);
+                     "SELECT SL FROM botPairSettings WHERE bot_id = ? AND currency = ?")) {
+            ps.setLong(1, BotRuntime.activeBotId());
+            ps.setString(2, currency);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 double value = Math.abs(rs.getDouble("SL"));
@@ -254,9 +259,11 @@ public class CurrencyDAO {
     // ---- minBuyAmount (pro Währung) ----
 
     public double getMinBuyAmount(String currency) {
+        if (!tableExists("botPairSettings")) return legacyDouble("buyAmount", currency, 5.5);
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT buyAmount FROM currency WHERE currency = ?")) {
-            ps.setString(1, currency);
+             PreparedStatement ps = con.prepareStatement("SELECT buyAmount FROM botPairSettings WHERE bot_id = ? AND currency = ?")) {
+            ps.setLong(1, BotRuntime.activeBotId());
+            ps.setString(2, currency);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return round.five(rs.getDouble("buyAmount"));
         } catch (SQLException e) {
@@ -267,9 +274,10 @@ public class CurrencyDAO {
 
     public void setMinBuyAmount(String currency, double amount) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("UPDATE currency SET buyAmount = ? WHERE currency = ?")) {
+             PreparedStatement ps = con.prepareStatement("UPDATE botPairSettings SET buyAmount = ? WHERE bot_id = ? AND currency = ?")) {
             ps.setDouble(1, round.six(amount));
-            ps.setString(2, currency);
+            ps.setLong(2, BotRuntime.activeBotId());
+            ps.setString(3, currency);
             ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Setzen von minBuyAmount für " + currency + ": " + e.getMessage());
@@ -279,9 +287,11 @@ public class CurrencyDAO {
     // ---- maxBuyAmount (pro Währung) ----
 
     public double getMaxBuyAmount(String currency) {
+        if (!tableExists("botPairSettings")) return legacyDouble("maxBuyAmount", currency, 500.0);
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT maxBuyAmount FROM currency WHERE currency = ?")) {
-            ps.setString(1, currency);
+             PreparedStatement ps = con.prepareStatement("SELECT maxBuyAmount FROM botPairSettings WHERE bot_id = ? AND currency = ?")) {
+            ps.setLong(1, BotRuntime.activeBotId());
+            ps.setString(2, currency);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return round.two(rs.getDouble("maxBuyAmount"));
         } catch (SQLException e) {
@@ -292,12 +302,38 @@ public class CurrencyDAO {
 
     public void setMaxBuyAmount(String currency, double amount) {
         try (Connection con = getConnection();
-             PreparedStatement ps = con.prepareStatement("UPDATE currency SET maxBuyAmount = ? WHERE currency = ?")) {
+             PreparedStatement ps = con.prepareStatement("UPDATE botPairSettings SET maxBuyAmount = ? WHERE bot_id = ? AND currency = ?")) {
             ps.setDouble(1, round.two(amount));
-            ps.setString(2, currency);
+            ps.setLong(2, BotRuntime.activeBotId());
+            ps.setString(3, currency);
             ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Fehler beim Setzen von maxBuyAmount für " + currency + ": " + e.getMessage());
+        }
+    }
+
+    private boolean tableExists(String table) {
+        try (Connection con = getConnection(); PreparedStatement ps = con.prepareStatement(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException ignored) {
+            return false;
+        }
+    }
+
+    private double legacyDouble(String column, String currency, double fallback) {
+        if (!column.equals("buyAmount") && !column.equals("maxBuyAmount")) return fallback;
+        try (Connection con = getConnection(); PreparedStatement ps = con.prepareStatement(
+                "SELECT " + column + " FROM currency WHERE currency = ?")) {
+            ps.setString(1, currency);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getDouble(1) : fallback;
+            }
+        } catch (SQLException ignored) {
+            return fallback;
         }
     }
 }

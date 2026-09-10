@@ -1,6 +1,7 @@
 package com.oneofx.fusion.tradingbot.Settings;
 
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
+import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +26,8 @@ public class CurrencyConfig {
     public static String[] getBuyCurrencies() {
         List<String> currencies = new ArrayList<>();
 
-        String sql = "SELECT currency FROM currency WHERE "
+        String sql = "SELECT currency FROM botPairSettings WHERE bot_id = "
+                + BotRuntime.activeBotId() + " AND "
                 + "(buystatus = 'true' OR buystatus = '1') "
                 + "AND COALESCE(archived, 0) = 0";
 
@@ -54,7 +56,8 @@ public class CurrencyConfig {
     }
 
     public static int getActiveCurrencyCount() {
-        String sql = "SELECT COUNT(*) FROM currency WHERE "
+        String sql = "SELECT COUNT(*) FROM botPairSettings WHERE bot_id = "
+                + BotRuntime.activeBotId() + " AND "
                 + "(buystatus = 'true' OR buystatus = '1') "
                 + "AND COALESCE(archived, 0) = 0";
 
@@ -81,7 +84,8 @@ public class CurrencyConfig {
     public static String[] getAllCurrencies() {
         List<String> currencies = new ArrayList<>();
 
-        String sql = "SELECT currency FROM currency WHERE COALESCE(archived, 0) = 0";
+        String sql = "SELECT currency FROM botPairSettings WHERE bot_id = "
+                + BotRuntime.activeBotId() + " AND COALESCE(archived, 0) = 0";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
@@ -108,11 +112,13 @@ public class CurrencyConfig {
      */
     public static String[] getMonitoredCurrencies() {
         Set<String> currencies = new LinkedHashSet<>();
-        String sql = "SELECT currency FROM currency "
-                + "WHERE (buyStatus = 'true' OR buyStatus = '1') "
+        String sql = "SELECT currency FROM botPairSettings "
+                + "WHERE bot_id = " + BotRuntime.activeBotId() + " "
+                + "AND (buyStatus = 'true' OR buyStatus = '1') "
                 + "AND COALESCE(archived, 0) = 0 "
                 + "UNION SELECT currency FROM positions "
-                + "WHERE Status IN (0, 1, 2, 5, 7, 8) "
+                + "WHERE bot_id = " + BotRuntime.activeBotId() + " "
+                + "AND Status IN (0, 1, 2, 5, 7, 8) "
                 + "ORDER BY currency";
 
         try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());

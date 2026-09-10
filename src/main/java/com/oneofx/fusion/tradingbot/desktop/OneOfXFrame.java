@@ -20,8 +20,10 @@ import java.awt.RenderingHints;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.sql.SQLException;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
@@ -40,30 +42,49 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
 
 import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.client.model.Account;
+import com.oneofx.fusion.client.model.AssetBalance;
+import com.oneofx.fusion.client.model.TickerPrice;
 import com.oneofx.fusion.client.model.TradingPair;
 import com.oneofx.fusion.tradingbot.Database.PortablePaths;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.desktop.TradingEngineController.State;
 import com.oneofx.fusion.tradingbot.grid.GridMode;
+import com.oneofx.fusion.tradingbot.grid.GridPreviewService;
 
 /** Lokale OneOfX-Bedienoberfläche im dunklen Trading-Design. */
 public final class OneOfXFrame extends JFrame {
 
     private static final String PAGE_DASHBOARD = "dashboard";
+    private static final String PAGE_BOTS = "bots";
     private static final String PAGE_SETTINGS = "settings";
+    private static final String PAGE_ORDERS = "orders";
+    private static final String PAGE_POSITIONS = "positions";
+    private static final String PAGE_BALANCES = "balances";
+    private static final String PAGE_ACTIVITY = "activity";
     private static final String PAGE_ACCESS = "access";
 
     private final CurrencySettingsRepository repository = new CurrencySettingsRepository();
+    private final BotRepository botRepository = new BotRepository();
+    private final PaperTradingRepository paperRepository = new PaperTradingRepository();
+    private final BaseConfigRepository baseConfigRepository = new BaseConfigRepository();
+    private final OperationsRepository operationsRepository = new OperationsRepository();
     private final TradingPairValidator pairValidator = new TradingPairValidator();
+    private final GridPreviewService gridPreviewService = new GridPreviewService();
     private final TradingEngineController engine = new TradingEngineController();
 
     private final JLabel pageTitle = new JLabel("Dashboard");
@@ -78,9 +99,47 @@ public final class OneOfXFrame extends JFrame {
     private final JLabel positionCount = metricValue();
     private final JLabel capitalAmount = metricValue();
     private final JLabel message = new JLabel("Bereit");
+    private final JLabel openOrdersCount = metricValue();
+    private final JLabel unresolvedCount = metricValue();
+    private final JLabel positionsViewCount = metricValue();
+    private final JLabel warningsCount = metricValue();
 
     private final JButton startButton = new JButton("Trading starten");
     private final JButton stopButton = new JButton("Stoppen");
+
+    private final JComboBox<BotProfile> botBox = new JComboBox<>();
+    private final JTextField botName = new JTextField(24);
+    private final JCheckBox botEnabled = new JCheckBox("Bot aktiviert");
+    private final JComboBox<BotProfile.Mode> botMode =
+            new JComboBox<>(BotProfile.Mode.values());
+    private final JTextField botStrategy = new JTextField("GRID", 18);
+    private final JSpinner botBudget = decimalSpinner(5_000, 0.01, 1_000_000_000.0, 100);
+    private final JSpinner botMaxExposure =
+            decimalSpinner(5_000, 0.01, 1_000_000_000.0, 100);
+    private final JSpinner botMaxPositions = new JSpinner(new SpinnerNumberModel(20, 1, 100_000, 1));
+    private final JSpinner botMaxOrders = new JSpinner(new SpinnerNumberModel(4, 1, 100_000, 1));
+    private final JSpinner botPaperFee = decimalSpinner(0.25, 0.0, 99.99, 0.01);
+    private final JSpinner botPaperSlippage = decimalSpinner(0.10, 0.0, 99.99, 0.01);
+    private final JLabel botExposure = metricValue();
+    private final JLabel botRemaining = metricValue();
+    private final JLabel botOpenLimits = metricValue();
+    private final JComboBox<Object> configEditorBox = new JComboBox<>();
+    private final JComboBox<String> baseBuyOrderType = new JComboBox<>(new String[] {"LIMIT", "MARKET", "STOP_LIMIT"});
+    private final JComboBox<String> baseSellOrderType = new JComboBox<>(new String[] {"MARKET", "LIMIT", "STOP_MARKET"});
+    private final JSpinner baseBuyOrderMinutes = new JSpinner(new SpinnerNumberModel(0, 0, 525_600, 1));
+    private final JSpinner baseSellOrderMinutes = new JSpinner(new SpinnerNumberModel(0, 0, 525_600, 1));
+    private final JSpinner baseCooldownMinutes = new JSpinner(new SpinnerNumberModel(60, 0, 525_600, 5));
+    private final JSpinner baseTakeProfit = decimalSpinner(3.0, 0.0, 99.99, 0.1);
+    private final JCheckBox baseTrailingBuy = new JCheckBox("Trailing Stop-Buy aktiv");
+    private final JSpinner baseTrailingBuyActivation = decimalSpinner(1.0, 0.0, 99.99, 0.1);
+    private final JSpinner baseTrailingBuyRebound = decimalSpinner(0.3, 0.0, 99.99, 0.1);
+    private final JCheckBox baseOnlyProfit = new JCheckBox("Nur mit Gewinn verkaufen");
+    private final JSpinner baseCloseAfter = new JSpinner(new SpinnerNumberModel(0, 0, 5_256_000, 60));
+    private final JCheckBox baseDcaEnabled = new JCheckBox("DCA aktiv");
+    private final JSpinner baseDcaMaxOrders = new JSpinner(new SpinnerNumberModel(3, 0, 1000, 1));
+    private final JSpinner baseDcaTrigger = decimalSpinner(2.0, 0.0, 99.99, 0.1);
+    private final JSpinner baseDcaMultiplier = decimalSpinner(1.0, 1.0, 100.0, 0.1);
+    private final JComboBox<Object> pairPoolBox = new JComboBox<>();
 
     private final JComboBox<String> currencyBox = new JComboBox<>();
     private final JCheckBox buyEnabled = new JCheckBox("Neue Käufe erlauben");
@@ -91,6 +150,12 @@ public final class OneOfXFrame extends JFrame {
     private final JSpinner gridSpacing =
             decimalSpinner(1.0 / 23.0, 0.00000001, 1_000_000.0, 0.1);
     private final JLabel gridSpacingUnit = new JLabel("%");
+    private final JSpinner previewPrice =
+            decimalSpinner(100.0, 0.00000001, 1_000_000_000.0, 1.0);
+    private final JLabel previewOrders = new JLabel("–");
+    private final JLabel previewCapital = new JLabel("–");
+    private final JLabel previewBand = new JLabel("–");
+    private final JLabel previewWarning = new JLabel("Vorschau wird berechnet …");
     private final JSpinner stopLoss = decimalSpinner(2.0, 0.0, 99.99, 0.1);
     private final JCheckBox trailingStop = new JCheckBox("Trailing Stop aktiv");
     private final JSpinner trailingActivation =
@@ -102,14 +167,45 @@ public final class OneOfXFrame extends JFrame {
     private final JTextField baseUrl =
             new JTextField(FusionApiClient.DEFAULT_BASE_URL, 28);
 
+    private final DefaultTableModel gridPreviewModel = readOnlyModel(
+            "#", "Preis", "Menge", "Orderwert", "Prüfung");
+    private final DefaultTableModel openOrdersModel = readOnlyModel(
+            "Seite", "Paar", "Order-ID", "Preis", "Menge", "Status");
+    private final DefaultTableModel unresolvedModel = readOnlyModel(
+            "Seite", "Paar", "Versuch-ID", "Exchange-ID", "Zustand", "Fehler", "Aktualisiert");
+    private final DefaultTableModel positionsModel = readOnlyModel(
+            "Paar", "Order-ID", "Kaufpreis", "Orderpreis", "Menge", "Kapital", "Gewinn", "PnL", "Status", "Eröffnet");
+    private final DefaultTableModel balancesModel = readOnlyModel(
+            "Asset", "Verfügbar", "Gesperrt", "Gesamt");
+    private final DefaultTableModel warningModel = readOnlyModel(
+            "Stufe", "Bereich", "Paar", "Hinweis");
+    private final DefaultTableModel activityModel = readOnlyModel(
+            "Zeit", "Stufe", "Bereich", "Paar", "Ereignis");
+
+    private final JTable gridPreviewTable = cockpitTable(gridPreviewModel);
+    private final JTable openOrdersTable = cockpitTable(openOrdersModel);
+    private final JTable unresolvedTable = cockpitTable(unresolvedModel);
+    private final JTable positionsTable = cockpitTable(positionsModel);
+    private final JTable balancesTable = cockpitTable(balancesModel);
+    private final JTable warningTable = cockpitTable(warningModel);
+    private final JTable activityTable = cockpitTable(activityModel);
+
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pages = new JPanel(pageLayout);
     private final Map<String, NavButton> navigation = new LinkedHashMap<>();
     private final Timer dashboardTimer;
     private final Timer autoSaveTimer;
+    private final Timer botSaveTimer;
     private boolean loadingSettings;
+    private boolean loadingBot;
+    private boolean loadingBaseConfig;
+    private boolean loadingPoolAssignment;
     private boolean autoSaveDirty;
+    private boolean botSaveDirty;
     private String loadedCurrency;
+    private BotProfile loadedBot;
+    private ConfigPool loadedConfigPool;
+    private CurrencySettingsRepository.GridPreviewContext gridPreviewContext;
 
     public OneOfXFrame() {
         super("OneOfX Trading Bot");
@@ -130,11 +226,18 @@ public final class OneOfXFrame extends JFrame {
 
         autoSaveTimer = new Timer(700, event -> savePendingSettings());
         autoSaveTimer.setRepeats(false);
+        botSaveTimer = new Timer(700, event -> savePendingBot());
+        botSaveTimer.setRepeats(false);
 
         startButton.addActionListener(event -> startTrading());
         stopButton.addActionListener(event -> engine.stop(this::showEngineState));
+        botBox.addActionListener(event -> switchSelectedBot());
         currencyBox.addActionListener(event -> switchSelectedCurrency());
+        configEditorBox.addActionListener(event -> switchConfigEditor());
+        pairPoolBox.addActionListener(event -> assignSelectedPool());
         installAutoSaveListeners();
+        installBotAutoSaveListeners();
+        previewPrice.addChangeListener(event -> refreshGridPreview());
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -143,12 +246,18 @@ public final class OneOfXFrame extends JFrame {
             }
         });
 
-        reloadCurrencies(null);
+        reloadBots(null);
         refreshDashboard();
+        refreshOperationalViews();
         showEngineState(State.STOPPED);
         showPage(PAGE_DASHBOARD, "Dashboard");
+        recordEvent("INFO", "SYSTEM", null, "OneOfX Desktop wurde gestartet.");
+        refreshOperationalViews();
 
-        dashboardTimer = new Timer(2_000, event -> refreshDashboard());
+        dashboardTimer = new Timer(2_000, event -> {
+            refreshDashboard();
+            refreshOperationalViews();
+        });
         dashboardTimer.start();
     }
 
@@ -200,6 +309,16 @@ public final class OneOfXFrame extends JFrame {
 
         sidebar.add(createNavButton(PAGE_DASHBOARD, "Dashboard", IconType.DASHBOARD));
         sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_BOTS, "Bots", IconType.PAIRS));
+        sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_ORDERS, "Orders", IconType.CLOCK));
+        sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_POSITIONS, "Positionen", IconType.CHART));
+        sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_BALANCES, "Kontostände", IconType.WALLET));
+        sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_ACTIVITY, "Aktivität", IconType.SHIELD));
+        sidebar.add(Box.createVerticalStrut(6));
         sidebar.add(createNavButton(PAGE_SETTINGS, "Einstellungen", IconType.SETTINGS));
         sidebar.add(Box.createVerticalStrut(6));
         sidebar.add(createNavButton(PAGE_ACCESS, "API-Zugang", IconType.KEY));
@@ -238,6 +357,11 @@ public final class OneOfXFrame extends JFrame {
 
         pages.setOpaque(false);
         pages.add(createDashboard(), PAGE_DASHBOARD);
+        pages.add(createBotsPage(), PAGE_BOTS);
+        pages.add(createOrdersPage(), PAGE_ORDERS);
+        pages.add(createPositionsPage(), PAGE_POSITIONS);
+        pages.add(createBalancesPage(), PAGE_BALANCES);
+        pages.add(createActivityPage(), PAGE_ACTIVITY);
         pages.add(createSettings(), PAGE_SETTINGS);
         pages.add(createAccessPanel(), PAGE_ACCESS);
 
@@ -261,6 +385,14 @@ public final class OneOfXFrame extends JFrame {
 
         JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         controls.setOpaque(false);
+
+        JLabel botLabel = new JLabel("Bot");
+        botLabel.setForeground(OneOfXTheme.TEXT_MUTED);
+        botLabel.setFont(OneOfXTheme.font(Font.BOLD, 10));
+        controls.add(botLabel);
+        botBox.setPreferredSize(new Dimension(170, 38));
+        OneOfXTheme.round(botBox);
+        controls.add(botBox);
 
         engineStatusChip.setFill(OneOfXTheme.ERROR_SOFT);
         engineStatusChip.setBorder(OneOfXTheme.padding(10, 13, 10, 13));
@@ -368,6 +500,238 @@ public final class OneOfXFrame extends JFrame {
         return card;
     }
 
+    private JScrollPane createBotsPage() {
+        JPanel content = pageContent();
+        content.add(pageHeading("Bots getrennt steuern",
+                "Eigene Paarlisten, Budgets, Status und harte Risikogrenzen je Bot."));
+        content.add(Box.createVerticalStrut(22));
+
+        RoundedPanel selection = cardPanel(new BorderLayout(16, 0));
+        selection.setMaximumSize(new Dimension(Integer.MAX_VALUE, 92));
+        selection.add(titleBlock("Bot-Verwaltung",
+                "Die Bot-Auswahl oben gilt für alle Ansichten und die Trading-Engine."),
+                BorderLayout.WEST);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setOpaque(false);
+        JButton create = new JButton("Neuen Bot anlegen");
+        styleSecondaryButton(create);
+        create.setForeground(OneOfXTheme.PRIMARY);
+        create.addActionListener(event -> createBot());
+        actions.add(create);
+        JButton archive = new JButton("Bot archivieren");
+        styleSecondaryButton(archive);
+        archive.setForeground(OneOfXTheme.ERROR);
+        archive.addActionListener(event -> archiveBot());
+        actions.add(archive);
+        selection.add(actions, BorderLayout.EAST);
+        content.add(selection);
+        content.add(Box.createVerticalStrut(16));
+
+        JPanel forms = new JPanel(new GridLayout(1, 2, 16, 0));
+        forms.setOpaque(false);
+        forms.setAlignmentX(Component.LEFT_ALIGNMENT);
+        forms.setMaximumSize(new Dimension(Integer.MAX_VALUE, 420));
+
+        RoundedPanel identity = cardPanel(new BorderLayout(0, 18));
+        identity.add(titleBlock("Grundkonfiguration",
+                "Name, Status, Betriebsart und Strategie"), BorderLayout.NORTH);
+        JPanel identityForm = modernForm();
+        addFormRow(identityForm, 0, "Bot-Name", botName, null);
+        addFormRow(identityForm, 1, "Status", botEnabled, null);
+        addFormRow(identityForm, 2, "Modus", botMode, null);
+        addFormRow(identityForm, 3, "Strategie", botStrategy, null);
+        identity.add(identityForm, BorderLayout.CENTER);
+        forms.add(identity);
+
+        RoundedPanel limits = cardPanel(new BorderLayout(0, 18));
+        limits.add(titleBlock("Bot-weite Limits",
+                "Käufe werden unmittelbar vor der Übermittlung erneut geprüft"),
+                BorderLayout.NORTH);
+        JPanel limitForm = modernForm();
+        addFormRow(limitForm, 0, "Gesamtbudget", botBudget, "EUR");
+        addFormRow(limitForm, 1, "Maximales Exposure", botMaxExposure, "EUR");
+        addFormRow(limitForm, 2, "Offene Positionen", botMaxPositions, null);
+        addFormRow(limitForm, 3, "Offene Orders", botMaxOrders, null);
+        addFormRow(limitForm, 4, "Paper-Gebühr", botPaperFee, "%");
+        addFormRow(limitForm, 5, "Paper-Slippage", botPaperSlippage, "%");
+        limits.add(limitForm, BorderLayout.CENTER);
+        forms.add(limits);
+        content.add(forms);
+        content.add(Box.createVerticalStrut(16));
+
+        content.add(createBaseConfigPanel());
+        content.add(Box.createVerticalStrut(16));
+
+        JPanel summary = new JPanel(new GridLayout(1, 3, 12, 0));
+        summary.setOpaque(false);
+        summary.setAlignmentX(Component.LEFT_ALIGNMENT);
+        summary.setMaximumSize(new Dimension(Integer.MAX_VALUE, 112));
+        summary.add(previewSummary("GEBUNDENES KAPITAL", botExposure));
+        summary.add(previewSummary("VERFÜGBAR", botRemaining));
+        summary.add(previewSummary("POSITIONEN / ORDERS", botOpenLimits));
+        content.add(summary);
+        content.add(Box.createVerticalStrut(12));
+        JPanel paperActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        paperActions.setOpaque(false);
+        paperActions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JButton resetPaper = new JButton("Paper-Konto zurücksetzen");
+        styleSecondaryButton(resetPaper);
+        resetPaper.addActionListener(event -> resetPaperAccount());
+        paperActions.add(resetPaper);
+        content.add(paperActions);
+        content.add(Box.createVerticalStrut(10));
+        JLabel hint = new JLabel("Änderungen werden automatisch gespeichert. Paper und Live sind strikt getrennt.");
+        hint.setForeground(OneOfXTheme.TEXT_MUTED);
+        hint.setFont(OneOfXTheme.font(Font.PLAIN, 11));
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(hint);
+        content.add(Box.createVerticalGlue());
+        return scroll(content);
+    }
+
+    private RoundedPanel createBaseConfigPanel() {
+        RoundedPanel panel = cardPanel(new BorderLayout(0, 16));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 570));
+        JPanel header = new JPanel(new BorderLayout(12, 0));
+        header.setOpaque(false);
+        header.add(titleBlock("Baseconfig und Config Pools",
+                "Pools überschreiben diese Ausführungsregeln für zugeordnete Paare"), BorderLayout.WEST);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
+        configEditorBox.setPreferredSize(new Dimension(190, 38));
+        actions.add(configEditorBox);
+        JButton create = new JButton("Pool anlegen");
+        styleSecondaryButton(create);
+        create.addActionListener(event -> createConfigPool());
+        actions.add(create);
+        JButton remove = new JButton("Pool löschen");
+        styleSecondaryButton(remove);
+        remove.setForeground(OneOfXTheme.ERROR);
+        remove.addActionListener(event -> archiveConfigPool());
+        actions.add(remove);
+        header.add(actions, BorderLayout.EAST);
+        panel.add(header, BorderLayout.NORTH);
+
+        JPanel columns = new JPanel(new GridLayout(1, 3, 14, 0));
+        columns.setOpaque(false);
+        JPanel orders = modernForm();
+        addFormRow(orders, 0, "Kauf-Ordertyp", baseBuyOrderType, null);
+        addFormRow(orders, 1, "Verkauf-Ordertyp", baseSellOrderType, null);
+        addFormRow(orders, 2, "Kauforder-Laufzeit", baseBuyOrderMinutes, "Min");
+        addFormRow(orders, 3, "Verkaufsorder-Laufzeit", baseSellOrderMinutes, "Min");
+        addFormRow(orders, 4, "Cooldown", baseCooldownMinutes, "Min");
+        addFormRow(orders, 5, "Take Profit", baseTakeProfit, "%");
+        columns.add(orders);
+
+        JPanel exits = modernForm();
+        addFormRow(exits, 0, "Trailing Stop-Buy", baseTrailingBuy, null);
+        addFormRow(exits, 1, "Drop-Aktivierung", baseTrailingBuyActivation, "%");
+        addFormRow(exits, 2, "Rebound", baseTrailingBuyRebound, "%");
+        addFormRow(exits, 3, "Gewinnbedingung", baseOnlyProfit, null);
+        addFormRow(exits, 4, "Position schließen", baseCloseAfter, "Min");
+        columns.add(exits);
+
+        JPanel dca = modernForm();
+        addFormRow(dca, 0, "DCA", baseDcaEnabled, null);
+        addFormRow(dca, 1, "Max. Nachkäufe", baseDcaMaxOrders, null);
+        addFormRow(dca, 2, "DCA-Trigger", baseDcaTrigger, "%");
+        addFormRow(dca, 3, "Order-Multiplikator", baseDcaMultiplier, "×");
+        columns.add(dca);
+        panel.add(columns, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JScrollPane createOrdersPage() {
+        JPanel content = pageContent();
+        content.add(pageHeading("Orders im Blick",
+                "Offene Kauf- und Verkaufsorders sowie ungeklärte Übermittlungen."));
+        content.add(Box.createVerticalStrut(18));
+
+        JPanel metrics = new JPanel(new GridLayout(1, 2, 14, 0));
+        metrics.setOpaque(false);
+        metrics.setAlignmentX(Component.LEFT_ALIGNMENT);
+        metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 118));
+        metrics.add(metricCard("OFFENE ORDERS", openOrdersCount, IconType.CLOCK,
+                OneOfXTheme.PRIMARY, "Lokal überwacht"));
+        metrics.add(metricCard("ABGLEICH NÖTIG", unresolvedCount, IconType.SHIELD,
+                OneOfXTheme.ERROR, "Nicht automatisch auflösen"));
+        content.add(metrics);
+        content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Offene Orders", "Kauf- und Verkaufsorders aus SQLite",
+                openOrdersTable, 270));
+        content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Ungeklärte Übermittlungen",
+                "SUBMITTING oder RECONCILIATION_REQUIRED", unresolvedTable, 250));
+        content.add(Box.createVerticalGlue());
+        return scroll(content);
+    }
+
+    private JScrollPane createPositionsPage() {
+        JPanel content = pageContent();
+        content.add(pageHeading("Positionen",
+                "Offene Bestände, Kapitalbindung und lokaler Ergebnisstatus."));
+        content.add(Box.createVerticalStrut(18));
+        JPanel metrics = new JPanel(new GridLayout(1, 1));
+        metrics.setOpaque(false);
+        metrics.setAlignmentX(Component.LEFT_ALIGNMENT);
+        metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 118));
+        metrics.add(metricCard("AKTIVE POSITIONEN", positionsViewCount, IconType.CHART,
+                OneOfXTheme.INFO, "Status 1, 5, 7 oder 8"));
+        content.add(metrics);
+        content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Positionsübersicht",
+                "Realisierte Werte werden erst nach bestätigter Ausführung gebucht",
+                positionsTable, 430));
+        content.add(Box.createVerticalGlue());
+        return scroll(content);
+    }
+
+    private JScrollPane createBalancesPage() {
+        JPanel content = pageContent();
+        content.add(pageHeading("Kontostände",
+                "Aktuelle verfügbare und durch Fusion gesperrte Asset-Bestände."));
+        content.add(Box.createVerticalStrut(18));
+
+        RoundedPanel controls = cardPanel(new BorderLayout(16, 0));
+        controls.setMaximumSize(new Dimension(Integer.MAX_VALUE, 88));
+        controls.add(titleBlock("Fusion-Konto",
+                "Wird nur auf Anforderung geladen und nicht lokal gespeichert"),
+                BorderLayout.WEST);
+        JButton refresh = new JButton("Kontostände laden");
+        stylePrimaryButton(refresh);
+        refresh.addActionListener(event -> refreshBalances(refresh));
+        controls.add(refresh, BorderLayout.EAST);
+        content.add(controls);
+        content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Asset-Bestände", "Nullbestände werden ausgeblendet",
+                balancesTable, 430));
+        content.add(Box.createVerticalGlue());
+        return scroll(content);
+    }
+
+    private JScrollPane createActivityPage() {
+        JPanel content = pageContent();
+        content.add(pageHeading("Aktivität und Warnungen",
+                "Lokale Ereignisse, API-Probleme und Zustände mit Prüfbedarf."));
+        content.add(Box.createVerticalStrut(18));
+        JPanel metrics = new JPanel(new GridLayout(1, 1));
+        metrics.setOpaque(false);
+        metrics.setAlignmentX(Component.LEFT_ALIGNMENT);
+        metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 118));
+        metrics.add(metricCard("AKTIVE WARNUNGEN", warningsCount, IconType.SHIELD,
+                OneOfXTheme.ERROR, "Kritische Zustände zuerst prüfen"));
+        content.add(metrics);
+        content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Warnzentrale",
+                "Orderabgleich, Handelsregeln und fehlende Marktdaten",
+                warningTable, 230));
+        content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Aktivitätsprotokoll", "Neueste Ereignisse zuerst",
+                activityTable, 300));
+        content.add(Box.createVerticalGlue());
+        return scroll(content);
+    }
+
     private JScrollPane createSettings() {
         JPanel content = pageContent();
         content.add(pageHeading(
@@ -386,6 +750,11 @@ public final class OneOfXFrame extends JFrame {
         currencyBox.setPreferredSize(new Dimension(190, 40));
         OneOfXTheme.round(currencyBox);
         actions.add(currencyBox);
+
+        pairPoolBox.setPreferredSize(new Dimension(180, 40));
+        pairPoolBox.setToolTipText("Config Pool für dieses Handelspaar");
+        OneOfXTheme.round(pairPoolBox);
+        actions.add(pairPoolBox);
 
         JButton addButton = new JButton("Paar hinzufügen");
         styleSecondaryButton(addButton);
@@ -410,6 +779,8 @@ public final class OneOfXFrame extends JFrame {
         forms.add(riskCard());
         content.add(forms);
         content.add(Box.createVerticalStrut(16));
+        content.add(createGridPreviewCard());
+        content.add(Box.createVerticalStrut(12));
 
         JPanel saveRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         saveRow.setOpaque(false);
@@ -423,6 +794,49 @@ public final class OneOfXFrame extends JFrame {
         content.add(saveRow);
         content.add(Box.createVerticalGlue());
         return scroll(content);
+    }
+
+    private RoundedPanel createGridPreviewCard() {
+        RoundedPanel card = cardPanel(new BorderLayout(0, 14));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 430));
+
+        JPanel header = new JPanel(new BorderLayout(18, 0));
+        header.setOpaque(false);
+        header.add(titleBlock("Grid-Vorschau",
+                "Reine Planung – diese Tabelle sendet keine Orders"), BorderLayout.WEST);
+        JPanel priceControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        priceControls.setOpaque(false);
+        JLabel priceLabel = new JLabel("Startpreis");
+        priceLabel.setForeground(OneOfXTheme.TEXT_MUTED);
+        priceControls.add(priceLabel);
+        previewPrice.setPreferredSize(new Dimension(145, 38));
+        priceControls.add(previewPrice);
+        JButton livePrice = new JButton("Livekurs laden");
+        styleSecondaryButton(livePrice);
+        livePrice.addActionListener(event -> refreshPreviewPrice(livePrice));
+        priceControls.add(livePrice);
+        header.add(priceControls, BorderLayout.EAST);
+        card.add(header, BorderLayout.NORTH);
+
+        JPanel summary = new JPanel(new GridLayout(1, 3, 12, 0));
+        summary.setOpaque(false);
+        summary.add(previewSummary("ORDERS", previewOrders));
+        summary.add(previewSummary("KAPITAL", previewCapital));
+        summary.add(previewSummary("PREISBAND", previewBand));
+
+        JPanel center = new JPanel(new BorderLayout(0, 12));
+        center.setOpaque(false);
+        center.add(summary, BorderLayout.NORTH);
+        JScrollPane tableScroll = new JScrollPane(gridPreviewTable);
+        tableScroll.setBorder(BorderFactory.createLineBorder(OneOfXTheme.BORDER));
+        tableScroll.setPreferredSize(new Dimension(0, 220));
+        center.add(tableScroll, BorderLayout.CENTER);
+        card.add(center, BorderLayout.CENTER);
+
+        previewWarning.setForeground(OneOfXTheme.TEXT_MUTED);
+        previewWarning.setFont(OneOfXTheme.font(Font.PLAIN, 11));
+        card.add(previewWarning, BorderLayout.SOUTH);
+        return card;
     }
 
     private RoundedPanel strategyCard() {
@@ -549,6 +963,336 @@ public final class OneOfXFrame extends JFrame {
         navigation.forEach((key, button) -> button.setActive(key.equals(page)));
     }
 
+    private void reloadBots(Long selectAfterReload) {
+        loadingBot = true;
+        try {
+            BotProfile selected = selectAfterReload == null
+                    ? botRepository.loadSelected() : botRepository.load(selectAfterReload);
+            botBox.removeAllItems();
+            for (BotProfile bot : botRepository.loadAll()) botBox.addItem(bot);
+            for (int i = 0; i < botBox.getItemCount(); i++) {
+                if (botBox.getItemAt(i).id() == selected.id()) {
+                    botBox.setSelectedIndex(i);
+                    break;
+                }
+            }
+            botRepository.select(selected.id());
+            loadedBot = selected;
+            populateBotForm(selected);
+            reloadBaseConfigs(selected.id(), null);
+        } catch (SQLException | RuntimeException ex) {
+            showError("Bots konnten nicht geladen werden", ex);
+        } finally {
+            loadingBot = false;
+        }
+        reloadCurrencies(null);
+        refreshBotRiskSummary();
+    }
+
+    private void switchSelectedBot() {
+        if (loadingBot) return;
+        BotProfile selected = selectedBot();
+        if (selected == null || loadedBot != null && selected.id() == loadedBot.id()) return;
+        if (engine.getState() != State.STOPPED) {
+            loadingBot = true;
+            botBox.setSelectedItem(loadedBot);
+            loadingBot = false;
+            setMessage("Der Bot kann nur bei gestoppter Engine gewechselt werden.", true);
+            return;
+        }
+        if (!flushAutoSave() || !flushBotAutoSave()) {
+            loadingBot = true;
+            botBox.setSelectedItem(loadedBot);
+            loadingBot = false;
+            return;
+        }
+        try {
+            botRepository.select(selected.id());
+            loadedBot = botRepository.load(selected.id());
+            loadingBot = true;
+            populateBotForm(loadedBot);
+            reloadBaseConfigs(loadedBot.id(), null);
+            loadingBot = false;
+            reloadCurrencies(null);
+            refreshDashboard();
+            refreshOperationalViews();
+            refreshBotRiskSummary();
+            setMessage("Bot „" + loadedBot.name() + "“ ausgewählt.", false);
+        } catch (SQLException | RuntimeException ex) {
+            showError("Bot konnte nicht gewechselt werden", ex);
+        } finally {
+            loadingBot = false;
+        }
+    }
+
+    private void populateBotForm(BotProfile bot) {
+        botName.setText(bot.name());
+        botEnabled.setSelected(bot.enabled());
+        botMode.setSelectedItem(bot.mode());
+        botStrategy.setText(bot.strategy());
+        botBudget.setValue(bot.budget());
+        botMaxExposure.setValue(bot.maxExposure());
+        botMaxPositions.setValue(bot.maxOpenPositions());
+        botMaxOrders.setValue(bot.maxOpenOrders());
+        botPaperFee.setValue(bot.paperFeePercent());
+        botPaperSlippage.setValue(bot.paperSlippagePercent());
+        botSaveDirty = false;
+    }
+
+    private void reloadBaseConfigs(long botId, Long selectPoolId) throws SQLException {
+        loadingBaseConfig = true;
+        try {
+            configEditorBox.removeAllItems();
+            configEditorBox.addItem("Bot-Baseconfig");
+            ConfigPool selected = null;
+            for (ConfigPool pool : baseConfigRepository.loadPools(botId)) {
+                configEditorBox.addItem(pool);
+                if (selectPoolId != null && pool.id() == selectPoolId) selected = pool;
+            }
+            if (selected == null) {
+                configEditorBox.setSelectedIndex(0);
+                loadedConfigPool = null;
+                populateBaseConfig(baseConfigRepository.loadBase(botId));
+            } else {
+                configEditorBox.setSelectedItem(selected);
+                loadedConfigPool = selected;
+                populateBaseConfig(selected.configuration());
+            }
+        } finally {
+            loadingBaseConfig = false;
+        }
+    }
+
+    private void switchConfigEditor() {
+        if (loadingBaseConfig || loadedBot == null) return;
+        if (!flushBotAutoSave()) return;
+        Object selected = configEditorBox.getSelectedItem();
+        try {
+            loadedConfigPool = selected instanceof ConfigPool pool
+                    ? baseConfigRepository.loadPools(loadedBot.id()).stream()
+                            .filter(item -> item.id() == pool.id()).findFirst().orElse(null)
+                    : null;
+            loadingBaseConfig = true;
+            populateBaseConfig(loadedConfigPool == null
+                    ? baseConfigRepository.loadBase(loadedBot.id())
+                    : loadedConfigPool.configuration());
+        } catch (SQLException ex) {
+            showError("Konfiguration konnte nicht geladen werden", ex);
+        } finally {
+            loadingBaseConfig = false;
+        }
+    }
+
+    private void populateBaseConfig(BotBaseConfig config) {
+        baseBuyOrderType.setSelectedItem(config.buyOrderType());
+        baseSellOrderType.setSelectedItem(config.sellOrderType());
+        baseBuyOrderMinutes.setValue(config.maxBuyOrderMinutes());
+        baseSellOrderMinutes.setValue(config.maxSellOrderMinutes());
+        baseCooldownMinutes.setValue(config.cooldownMinutes());
+        baseTakeProfit.setValue(config.takeProfitPercent());
+        baseTrailingBuy.setSelected(config.trailingStopBuyEnabled());
+        baseTrailingBuyActivation.setValue(config.trailingStopBuyActivationPercent());
+        baseTrailingBuyRebound.setValue(config.trailingStopBuyReboundPercent());
+        baseOnlyProfit.setSelected(config.onlySellWithProfit());
+        baseCloseAfter.setValue(config.closeAfterMinutes());
+        baseDcaEnabled.setSelected(config.dcaEnabled());
+        baseDcaMaxOrders.setValue(config.dcaMaxOrders());
+        baseDcaTrigger.setValue(config.dcaTriggerPercent());
+        baseDcaMultiplier.setValue(config.dcaSizeMultiplier());
+        updateBaseConfigFields();
+        botSaveDirty = false;
+    }
+
+    private BotBaseConfig readBaseConfig(long ownerId) {
+        for (JSpinner spinner : List.of(baseBuyOrderMinutes, baseSellOrderMinutes,
+                baseCooldownMinutes, baseTakeProfit, baseTrailingBuyActivation,
+                baseTrailingBuyRebound, baseCloseAfter, baseDcaMaxOrders,
+                baseDcaTrigger, baseDcaMultiplier)) commitSpinner(spinner);
+        return new BotBaseConfig(ownerId, (String) baseBuyOrderType.getSelectedItem(),
+                (String) baseSellOrderType.getSelectedItem(),
+                ((Number) baseBuyOrderMinutes.getValue()).intValue(),
+                ((Number) baseSellOrderMinutes.getValue()).intValue(),
+                ((Number) baseCooldownMinutes.getValue()).intValue(), number(baseTakeProfit),
+                baseTrailingBuy.isSelected(), number(baseTrailingBuyActivation),
+                number(baseTrailingBuyRebound), baseOnlyProfit.isSelected(),
+                ((Number) baseCloseAfter.getValue()).intValue(), baseDcaEnabled.isSelected(),
+                ((Number) baseDcaMaxOrders.getValue()).intValue(), number(baseDcaTrigger),
+                number(baseDcaMultiplier));
+    }
+
+    private void createConfigPool() {
+        if (loadedBot == null || !flushBotAutoSave()) return;
+        String name = JOptionPane.showInputDialog(this, "Name des neuen Config Pools:",
+                "Config Pool anlegen", JOptionPane.PLAIN_MESSAGE);
+        if (name == null || name.isBlank()) return;
+        try {
+            BotBaseConfig source = readBaseConfig(loadedBot.id());
+            ConfigPool pool = baseConfigRepository.createPool(loadedBot.id(), name, source);
+            reloadBaseConfigs(loadedBot.id(), pool.id());
+            reloadPairPoolAssignment();
+            setMessage("Config Pool „" + pool.name() + "“ wurde angelegt.", false);
+        } catch (SQLException | IllegalArgumentException ex) {
+            showError("Config Pool konnte nicht angelegt werden", ex);
+        }
+    }
+
+    private void archiveConfigPool() {
+        if (loadedBot == null || loadedConfigPool == null || !flushBotAutoSave()) {
+            if (loadedConfigPool == null) setMessage("Bitte zuerst einen Config Pool auswählen.", true);
+            return;
+        }
+        int answer = JOptionPane.showConfirmDialog(this,
+                "Config Pool „" + loadedConfigPool.name() + "“ löschen? Zugeordnete Paare fallen auf die Baseconfig zurück.",
+                "Config Pool löschen", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        try {
+            baseConfigRepository.archivePool(loadedBot.id(), loadedConfigPool.id());
+            reloadBaseConfigs(loadedBot.id(), null);
+            reloadPairPoolAssignment();
+            setMessage("Config Pool wurde gelöscht.", false);
+        } catch (SQLException ex) { showError("Config Pool konnte nicht gelöscht werden", ex); }
+    }
+
+    private void createBot() {
+        if (!flushAutoSave() || !flushBotAutoSave()) return;
+        String name = JOptionPane.showInputDialog(this, "Name des neuen Bots:",
+                "Bot anlegen", JOptionPane.PLAIN_MESSAGE);
+        if (name == null || name.isBlank()) return;
+        try {
+            BotProfile created = botRepository.create(name);
+            botRepository.select(created.id());
+            reloadBots(created.id());
+            recordEvent("INFO", "BOT", null, "Bot angelegt.");
+            setMessage("Bot „" + created.name() + "“ wurde deaktiviert angelegt.", false);
+        } catch (SQLException | IllegalArgumentException ex) {
+            showError("Bot konnte nicht angelegt werden", ex);
+        }
+    }
+
+    private void archiveBot() {
+        BotProfile bot = selectedBot();
+        if (bot == null || engine.getState() != State.STOPPED
+                || !flushAutoSave() || !flushBotAutoSave()) return;
+        int answer = JOptionPane.showConfirmDialog(this,
+                "Bot „" + bot.name() + "“ archivieren?\n"
+                        + "Orders, Positionen, Historie und Einstellungen bleiben erhalten.",
+                "Bot archivieren", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        try {
+            botRepository.archive(bot.id());
+            operationsRepository.recordEvent(bot.id(), "INFO", "BOT", null,
+                    "Bot sicher archiviert.");
+            reloadBots(null);
+            setMessage("Bot „" + bot.name() + "“ wurde archiviert.", false);
+        } catch (SQLException ex) {
+            showError("Bot konnte nicht archiviert werden", ex);
+        }
+    }
+
+    private void resetPaperAccount() {
+        BotProfile bot = selectedBot();
+        if (bot == null) return;
+        if (engine.getState() != State.STOPPED) {
+            setMessage("Das Paper-Konto kann nur bei gestoppter Engine zurückgesetzt werden.", true);
+            return;
+        }
+        if (bot.mode() != BotProfile.Mode.PAPER) {
+            setMessage("Das Zurücksetzen ist nur für Paper-Bots verfügbar.", true);
+            return;
+        }
+        int answer = JOptionPane.showConfirmDialog(this,
+                "Alle Paper-Orders, Paper-Positionen und virtuellen Kontostände von „"
+                        + bot.name() + "“ löschen und mit " + money(bot.budget()) + " neu starten?",
+                "Paper-Konto zurücksetzen", JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        try {
+            paperRepository.reset(bot.id(), bot.budget());
+            operationsRepository.recordEvent(bot.id(), "INFO", "PAPER", null,
+                    "Paper-Konto auf das Bot-Budget zurückgesetzt.");
+            refreshDashboard();
+            refreshOperationalViews();
+            setMessage("Paper-Konto wurde zurückgesetzt.", false);
+        } catch (SQLException ex) {
+            showError("Paper-Konto konnte nicht zurückgesetzt werden", ex);
+        }
+    }
+
+    private void scheduleBotAutoSave() {
+        if (loadingBot || loadingBaseConfig || loadedBot == null) return;
+        botSaveDirty = true;
+        setMessage("Bot-Einstellungen werden gespeichert …", false);
+        botSaveTimer.restart();
+    }
+
+    private boolean savePendingBot() {
+        if (!botSaveDirty || loadedBot == null) return true;
+        try {
+            commitSpinner(botBudget);
+            commitSpinner(botMaxExposure);
+            commitSpinner(botMaxPositions);
+            commitSpinner(botMaxOrders);
+            commitSpinner(botPaperFee);
+            commitSpinner(botPaperSlippage);
+            BotProfile updated = new BotProfile(loadedBot.id(), botName.getText(),
+                    botEnabled.isSelected(), false,
+                    (BotProfile.Mode) botMode.getSelectedItem(), botStrategy.getText(),
+                    number(botBudget), number(botMaxExposure),
+                    ((Number) botMaxPositions.getValue()).intValue(),
+                    ((Number) botMaxOrders.getValue()).intValue(),
+                    number(botPaperFee), number(botPaperSlippage));
+            BotBaseConfig executionConfig = readBaseConfig(
+                    loadedConfigPool == null ? updated.id() : loadedConfigPool.id());
+            botRepository.save(updated);
+            if (loadedConfigPool == null) {
+                baseConfigRepository.saveBase(updated.id(), executionConfig);
+            } else {
+                loadedConfigPool = new ConfigPool(loadedConfigPool.id(), updated.id(),
+                        loadedConfigPool.name(), executionConfig);
+                baseConfigRepository.savePool(loadedConfigPool);
+            }
+            loadedBot = updated;
+            botSaveDirty = false;
+            loadingBot = true;
+            int selectedIndex = botBox.getSelectedIndex();
+            if (selectedIndex >= 0) {
+                botBox.removeItemAt(selectedIndex);
+                botBox.insertItemAt(updated, selectedIndex);
+                botBox.setSelectedIndex(selectedIndex);
+            }
+            loadingBot = false;
+            recordEvent("INFO", "BOT", null, "Bot- und Risikowerte automatisch gespeichert.");
+            refreshBotRiskSummary();
+            setMessage("Bot-Einstellungen automatisch gespeichert.", false);
+            return true;
+        } catch (SQLException | IllegalArgumentException ex) {
+            setMessage("Bot-Einstellungen konnten nicht gespeichert werden: "
+                    + ex.getMessage(), true);
+            return false;
+        }
+    }
+
+    private boolean flushBotAutoSave() {
+        botSaveTimer.stop();
+        return savePendingBot();
+    }
+
+    private void refreshBotRiskSummary() {
+        BotProfile bot = selectedBot();
+        if (bot == null) return;
+        try {
+            BotRepository.RiskSnapshot risk = botRepository.loadRiskSnapshot(bot.id());
+            botExposure.setText(money(risk.exposure()));
+            botRemaining.setText(money(risk.remainingCapital()));
+            botOpenLimits.setText(risk.openPositions() + " / " + risk.openOrders()
+                    + " von " + risk.maxOpenPositions() + " / " + risk.maxOpenOrders());
+        } catch (SQLException ex) {
+            botExposure.setText("–");
+            botRemaining.setText("–");
+            botOpenLimits.setText("–");
+        }
+    }
+
     private void reloadCurrencies(String selectAfterReload) {
         loadingSettings = true;
         try {
@@ -575,6 +1319,8 @@ public final class OneOfXFrame extends JFrame {
             loadSelectedCurrency();
         } else {
             loadedCurrency = null;
+            gridPreviewContext = null;
+            gridPreviewModel.setRowCount(0);
             autoSaveDirty = false;
         }
     }
@@ -599,6 +1345,7 @@ public final class OneOfXFrame extends JFrame {
         }
         try {
             CurrencySettings settings = repository.load(currency);
+            gridPreviewContext = repository.loadGridPreviewContext(currency);
             loadingSettings = true;
             buyEnabled.setSelected(settings.buyEnabled());
             buyAmount.setValue(settings.buyAmount());
@@ -611,7 +1358,11 @@ public final class OneOfXFrame extends JFrame {
             trailingDecline.setValue(settings.trailingStopDecline());
             updateTrailingFields();
             updateGridUnit();
+            if (gridPreviewContext.allTimeHigh() > 0.000001) {
+                previewPrice.setValue(gridPreviewContext.allTimeHigh());
+            }
             loadedCurrency = currency;
+            reloadPairPoolAssignment();
             autoSaveDirty = false;
             setMessage("Einstellungen für " + currency + " geladen.", false);
         } catch (SQLException | RuntimeException ex) {
@@ -619,6 +1370,36 @@ public final class OneOfXFrame extends JFrame {
         } finally {
             loadingSettings = false;
         }
+        refreshGridPreview();
+    }
+
+    private void reloadPairPoolAssignment() throws SQLException {
+        if (loadedBot == null || loadedCurrency == null) return;
+        Long assignedId = baseConfigRepository.loadAssignedPoolId(loadedBot.id(), loadedCurrency);
+        loadingPoolAssignment = true;
+        try {
+            pairPoolBox.removeAllItems();
+            pairPoolBox.addItem("Keine Pool-Überschreibung");
+            Object selected = pairPoolBox.getItemAt(0);
+            for (ConfigPool pool : baseConfigRepository.loadPools(loadedBot.id())) {
+                pairPoolBox.addItem(pool);
+                if (assignedId != null && pool.id() == assignedId) selected = pool;
+            }
+            pairPoolBox.setSelectedItem(selected);
+        } finally { loadingPoolAssignment = false; }
+    }
+
+    private void assignSelectedPool() {
+        if (loadingPoolAssignment || loadedBot == null || loadedCurrency == null) return;
+        Object selected = pairPoolBox.getSelectedItem();
+        Long poolId = selected instanceof ConfigPool pool ? pool.id() : null;
+        try {
+            baseConfigRepository.assignPool(loadedBot.id(), loadedCurrency, poolId);
+            recordEvent("INFO", "CONFIG_POOL", loadedCurrency,
+                    poolId == null ? "Pool-Zuordnung entfernt." : "Config Pool „" + selected + "“ zugeordnet.");
+            setMessage(poolId == null ? "Das Paar verwendet die Bot-Baseconfig."
+                    : "Config Pool „" + selected + "“ ist für " + loadedCurrency + " aktiv.", false);
+        } catch (SQLException ex) { showError("Config Pool konnte nicht zugeordnet werden", ex); }
     }
 
     private boolean savePendingSettings() {
@@ -626,6 +1407,8 @@ public final class OneOfXFrame extends JFrame {
         try {
             repository.save(readForm(loadedCurrency));
             autoSaveDirty = false;
+            recordEvent("INFO", "KONFIGURATION", loadedCurrency,
+                    "Strategie- und Risikowerte automatisch gespeichert.");
             setMessage("Einstellungen für " + loadedCurrency
                     + " automatisch gespeichert.", false);
             refreshDashboard();
@@ -671,6 +1454,8 @@ public final class OneOfXFrame extends JFrame {
                     try {
                         TradingPair pair = get();
                         repository.addVerified(settings, pair);
+                        recordEvent("INFO", "HANDELSPAAR", settings.currency(),
+                                "Handelspaar geprüft und hinzugefügt.");
                         reloadCurrencies(settings.currency());
                         setMessage(settings.currency()
                                 + " wurde geprüft und deaktiviert hinzugefügt.", false);
@@ -699,6 +1484,9 @@ public final class OneOfXFrame extends JFrame {
         if (answer != JOptionPane.YES_OPTION) return;
         try {
             CurrencySettingsRepository.RemovalResult result = repository.remove(currency);
+            recordEvent("INFO", "HANDELSPAAR", currency,
+                    result.archived() ? "Handelspaar sicher archiviert."
+                            : "Unbenutztes Handelspaar gelöscht.");
             reloadCurrencies(null);
             refreshDashboard();
             if (result.archived()) {
@@ -734,35 +1522,44 @@ public final class OneOfXFrame extends JFrame {
 
     private void startTrading() {
         try {
-            if (!flushAutoSave()) return;
+            if (!flushAutoSave() || !flushBotAutoSave()) return;
             configureSessionFromFields();
             if (!FusionClientProvider.isConfigured()) {
                 throw new IllegalStateException(
                         "Bitte zuerst einen API-Key unter „API-Zugang“ eingeben.");
             }
-            if (repository.loadDashboardStats().enabledCurrencies() == 0) {
+            BotProfile bot = selectedBot();
+            if (bot == null || !bot.enabled()) {
+                throw new IllegalStateException("Bitte den ausgewählten Bot zuerst aktivieren.");
+            }
+            if (repository.loadDashboardStats(bot.id()).enabledCurrencies() == 0) {
                 throw new IllegalStateException(
                         "Bitte zuerst mindestens ein Handelspaar aktivieren.");
             }
-            int answer = JOptionPane.showConfirmDialog(this,
-                    "Die echte Trading-Engine wird gestartet und kann Orders ausführen.\n"
-                            + "Sind API-Key, Positionen und Risikowerte geprüft?",
-                    "Live-Trading starten", JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-            if (answer != JOptionPane.YES_OPTION) {
-                return;
+            if (bot.mode() == BotProfile.Mode.LIVE) {
+                int answer = JOptionPane.showConfirmDialog(this,
+                        "Der Bot „" + bot.name() + "“ wird live gestartet und kann Orders ausführen.\n"
+                                + "Budget: " + money(bot.budget()) + " · Exposure-Limit: "
+                                + money(bot.maxExposure()) + "\n"
+                                + "Sind API-Key, Positionen und Risikowerte geprüft?",
+                        "Live-Trading starten", JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
+                if (answer != JOptionPane.YES_OPTION) return;
+            } else {
+                paperRepository.ensureAccount(bot.id(), bot.budget());
             }
-            engine.start(this::showEngineState);
+            engine.start(bot, this::showEngineState);
         } catch (SQLException | RuntimeException ex) {
             showError("Trading konnte nicht gestartet werden", ex);
         }
     }
 
     private void showEngineState(State state) {
+        boolean paper = selectedBot() != null && selectedBot().mode() == BotProfile.Mode.PAPER;
         switch (state) {
             case STARTING -> setEngineStatus("Startet …", OneOfXTheme.PRIMARY,
                     OneOfXTheme.PRIMARY_SOFT);
-            case RUNNING -> setEngineStatus("Trading aktiv", OneOfXTheme.SUCCESS,
+            case RUNNING -> setEngineStatus(paper ? "Paper aktiv" : "Live aktiv", OneOfXTheme.SUCCESS,
                     OneOfXTheme.SUCCESS_SOFT);
             case STOPPING -> setEngineStatus("Stoppt …", OneOfXTheme.ERROR,
                     OneOfXTheme.ERROR_SOFT);
@@ -773,6 +1570,10 @@ public final class OneOfXFrame extends JFrame {
         }
         startButton.setEnabled(state == State.STOPPED && engine.canStart());
         stopButton.setEnabled(state == State.RUNNING || state == State.STARTING);
+        botBox.setEnabled(state == State.STOPPED);
+        botMode.setEnabled(state == State.STOPPED);
+        recordEvent(state == State.FAILED ? "ERROR" : "INFO", "ENGINE", null,
+                "Trading-Engine: " + engineStatus.getText());
     }
 
     private void setEngineStatus(String text, Color color, Color background) {
@@ -791,8 +1592,190 @@ public final class OneOfXFrame extends JFrame {
             pendingCount.setText(Integer.toString(stats.pendingBuyOrders()));
             positionCount.setText(Integer.toString(stats.openPositions()));
             capitalAmount.setText(String.format("%.2f €", stats.committedCapital()));
+            refreshBotRiskSummary();
         } catch (SQLException ex) {
             setMessage("Dashboard konnte nicht aktualisiert werden: " + ex.getMessage(), true);
+        }
+    }
+
+    private void refreshOperationalViews() {
+        try {
+            List<OperationsRepository.OpenOrderRow> orders =
+                    operationsRepository.loadOpenOrders();
+            replaceRows(openOrdersModel, orders.stream().map(row -> new Object[] {
+                    row.side(), row.currency(), row.orderId(), decimal(row.price()),
+                    decimal(row.quantity()), row.statusText()
+            }).toList());
+            openOrdersCount.setText(Integer.toString(orders.size()));
+
+            List<OperationsRepository.AttemptRow> attempts =
+                    operationsRepository.loadUnresolvedAttempts();
+            replaceRows(unresolvedModel, attempts.stream().map(row -> new Object[] {
+                    row.side(), row.currency(), row.attemptId(), value(row.exchangeOrderId()),
+                    row.state(), value(row.error()), row.updatedAt()
+            }).toList());
+            unresolvedCount.setText(Integer.toString(attempts.size()));
+
+            List<OperationsRepository.PositionRow> positions =
+                    operationsRepository.loadPositions();
+            replaceRows(positionsModel, positions.stream().map(row -> new Object[] {
+                    row.currency(), row.orderId(), decimal(row.buyPrice()),
+                    decimal(row.orderPrice()), decimal(row.quantity()),
+                    money(row.buyAmount()), money(row.profit()), money(row.unrealizedPnl()),
+                    row.statusText(), row.openedAt()
+            }).toList());
+            positionsViewCount.setText(Integer.toString(positions.size()));
+
+            List<OperationsRepository.WarningRow> warnings =
+                    operationsRepository.loadWarnings();
+            if (!FusionClientProvider.isConfigured()) {
+                warnings = new java.util.ArrayList<>(warnings);
+                warnings.add(new OperationsRepository.WarningRow("HINWEIS", "API", null,
+                        "Kein Fusion API-Key für diese Sitzung hinterlegt."));
+            }
+            replaceRows(warningModel, warnings.stream().map(row -> new Object[] {
+                    row.severity(), row.category(), value(row.currency()), row.message()
+            }).toList());
+            warningsCount.setText(Integer.toString(warnings.size()));
+
+            List<OperationsRepository.ActivityRow> activity =
+                    operationsRepository.loadActivity(500);
+            replaceRows(activityModel, activity.stream().map(row -> new Object[] {
+                    row.createdAt(), row.severity(), row.category(), value(row.currency()),
+                    row.message()
+            }).toList());
+        } catch (SQLException ex) {
+            setMessage("Cockpit konnte nicht aktualisiert werden: " + ex.getMessage(), true);
+        }
+    }
+
+    private void refreshGridPreview() {
+        if (loadingSettings || loadedCurrency == null || gridPreviewContext == null) return;
+        try {
+            CurrencySettings settings = readPreviewForm(loadedCurrency);
+            GridPreviewService.Preview preview = gridPreviewService.calculate(
+                    settings, number(previewPrice), gridPreviewContext.rules());
+            replaceRows(gridPreviewModel, preview.levels().stream().map(level -> new Object[] {
+                    level.number(), level.price().stripTrailingZeros().toPlainString(),
+                    level.quantity().stripTrailingZeros().toPlainString(),
+                    level.notional().setScale(2, java.math.RoundingMode.HALF_UP)
+                            .toPlainString(), level.status()
+            }).toList());
+            previewOrders.setText(preview.levels().size() + " / "
+                    + preview.fundedOrderCount());
+            previewCapital.setText(money(preview.requiredCapital()) + " von "
+                    + money(settings.maxBuyAmount()));
+            previewBand.setText(decimal(preview.bottomPrice()) + " · −"
+                    + String.format(Locale.GERMANY, "%.2f %%", preview.coveragePercent()));
+            if (preview.warnings().isEmpty()) {
+                previewWarning.setText("✓ Tick-Größe und Mindestorder sind erfüllt.");
+                previewWarning.setForeground(OneOfXTheme.SUCCESS);
+            } else {
+                previewWarning.setText("⚠ " + String.join("  ·  ", preview.warnings()));
+                previewWarning.setForeground(OneOfXTheme.ERROR);
+            }
+        } catch (RuntimeException ex) {
+            gridPreviewModel.setRowCount(0);
+            previewWarning.setText("⚠ " + ex.getMessage());
+            previewWarning.setForeground(OneOfXTheme.ERROR);
+        }
+    }
+
+    private void refreshPreviewPrice(JButton button) {
+        if (!flushAutoSave()) return;
+        try {
+            configureSessionFromFields();
+            if (!FusionClientProvider.isConfigured()) {
+                showPage(PAGE_ACCESS, "API-Zugang");
+                throw new IllegalStateException(
+                        "Für den Livekurs zuerst einen Fusion API-Key eingeben.");
+            }
+            String currency = loadedCurrency;
+            if (currency == null) return;
+            button.setEnabled(false);
+            new SwingWorker<TickerPrice, Void>() {
+                @Override
+                protected TickerPrice doInBackground() {
+                    return FusionClientProvider.getClient().getPrice(currency);
+                }
+
+                @Override
+                protected void done() {
+                    button.setEnabled(true);
+                    try {
+                        if (!currency.equals(loadedCurrency)) return;
+                        double price = Double.parseDouble(get().getPrice());
+                        previewPrice.setValue(price);
+                        setMessage("Livekurs für die Grid-Vorschau geladen.", false);
+                    } catch (Exception ex) {
+                        showBackgroundError("Livekurs konnte nicht geladen werden", ex);
+                    }
+                }
+            }.execute();
+        } catch (RuntimeException ex) {
+            showError("Livekurs konnte nicht geladen werden", ex);
+        }
+    }
+
+    private CurrencySettings readPreviewForm(String currency) {
+        return new CurrencySettings(currency, buyEnabled.isSelected(), number(buyAmount),
+                number(maxBuyAmount), (GridMode) gridMode.getSelectedItem(),
+                number(gridSpacing), number(stopLoss), trailingStop.isSelected(),
+                number(trailingActivation), number(trailingDecline));
+    }
+
+    private void refreshBalances(JButton button) {
+        try {
+            BotProfile bot = selectedBot();
+            if (bot != null && bot.mode() == BotProfile.Mode.PAPER) {
+                paperRepository.ensureAccount(bot.id(), bot.budget());
+                List<Object[]> rows = new java.util.ArrayList<>();
+                for (PaperTradingRepository.Balance balance : paperRepository.loadBalances(bot.id())) {
+                    rows.add(new Object[] {balance.asset(), plain(BigDecimal.valueOf(balance.available())),
+                            plain(BigDecimal.valueOf(balance.reserved())),
+                            plain(BigDecimal.valueOf(balance.total()))});
+                }
+                replaceRows(balancesModel, rows);
+                setMessage(rows.size() + " virtuelle Paper-Kontostände geladen.", false);
+                return;
+            }
+            configureSessionFromFields();
+            if (!FusionClientProvider.isConfigured()) {
+                showPage(PAGE_ACCESS, "API-Zugang");
+                throw new IllegalStateException(
+                        "Für Kontostände zuerst einen Fusion API-Key eingeben.");
+            }
+            button.setEnabled(false);
+            setMessage("Kontostände werden von Fusion geladen …", false);
+            new SwingWorker<Account, Void>() {
+                @Override
+                protected Account doInBackground() {
+                    return FusionClientProvider.getClient().getAccount();
+                }
+
+                @Override
+                protected void done() {
+                    button.setEnabled(true);
+                    try {
+                        List<Object[]> rows = new java.util.ArrayList<>();
+                        for (AssetBalance balance : get().getBalances()) {
+                            BigDecimal free = new BigDecimal(balance.getFree());
+                            BigDecimal locked = new BigDecimal(balance.getLocked());
+                            if (free.signum() == 0 && locked.signum() == 0) continue;
+                            rows.add(new Object[] {balance.getAsset(), plain(free),
+                                    plain(locked), plain(free.add(locked))});
+                        }
+                        replaceRows(balancesModel, rows);
+                        setMessage(rows.size() + " Kontostände von Fusion geladen.", false);
+                        recordEvent("INFO", "KONTO", null,
+                                "Kontostände erfolgreich aktualisiert.");
+                    } catch (Exception ex) {
+                        showBackgroundError("Kontostände konnten nicht geladen werden", ex);
+                    }
+                }
+            }.execute();
+        } catch (SQLException | RuntimeException ex) {
+            showError("Kontostände konnten nicht geladen werden", ex);
         }
     }
 
@@ -826,9 +1809,48 @@ public final class OneOfXFrame extends JFrame {
         }
     }
 
+    private void installBotAutoSaveListeners() {
+        botEnabled.addActionListener(event -> scheduleBotAutoSave());
+        botMode.addActionListener(event -> scheduleBotAutoSave());
+        baseBuyOrderType.addActionListener(event -> scheduleBotAutoSave());
+        baseSellOrderType.addActionListener(event -> scheduleBotAutoSave());
+        baseTrailingBuy.addActionListener(event -> {
+            updateBaseConfigFields();
+            scheduleBotAutoSave();
+        });
+        baseOnlyProfit.addActionListener(event -> scheduleBotAutoSave());
+        baseDcaEnabled.addActionListener(event -> {
+            updateBaseConfigFields();
+            scheduleBotAutoSave();
+        });
+        for (JSpinner spinner : List.of(botBudget, botMaxExposure,
+                botMaxPositions, botMaxOrders, botPaperFee, botPaperSlippage,
+                baseBuyOrderMinutes, baseSellOrderMinutes, baseCooldownMinutes,
+                baseTakeProfit, baseTrailingBuyActivation, baseTrailingBuyRebound,
+                baseCloseAfter, baseDcaMaxOrders, baseDcaTrigger, baseDcaMultiplier)) {
+            spinner.addChangeListener(event -> scheduleBotAutoSave());
+        }
+        DocumentListener listener = new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent event) { scheduleBotAutoSave(); }
+            @Override public void removeUpdate(DocumentEvent event) { scheduleBotAutoSave(); }
+            @Override public void changedUpdate(DocumentEvent event) { scheduleBotAutoSave(); }
+        };
+        botName.getDocument().addDocumentListener(listener);
+        botStrategy.getDocument().addDocumentListener(listener);
+    }
+
+    private void updateBaseConfigFields() {
+        baseTrailingBuyActivation.setEnabled(baseTrailingBuy.isSelected());
+        baseTrailingBuyRebound.setEnabled(baseTrailingBuy.isSelected());
+        baseDcaMaxOrders.setEnabled(baseDcaEnabled.isSelected());
+        baseDcaTrigger.setEnabled(baseDcaEnabled.isSelected());
+        baseDcaMultiplier.setEnabled(baseDcaEnabled.isSelected());
+    }
+
     private void scheduleAutoSave() {
         if (loadingSettings || loadedCurrency == null) return;
         autoSaveDirty = true;
+        refreshGridPreview();
         setMessage("Änderungen an " + loadedCurrency + " werden gespeichert …", false);
         autoSaveTimer.restart();
     }
@@ -854,10 +1876,11 @@ public final class OneOfXFrame extends JFrame {
         trailingStop.setEnabled(enabled);
         trailingActivation.setEnabled(enabled && trailingStop.isSelected());
         trailingDecline.setEnabled(enabled && trailingStop.isSelected());
+        pairPoolBox.setEnabled(enabled);
     }
 
     private void closeApplication() {
-        if (!flushAutoSave()) {
+        if (!flushAutoSave() || !flushBotAutoSave()) {
             JOptionPane.showMessageDialog(this,
                     "Die aktuellen Einstellungen sind ungültig und konnten nicht "
                             + "gespeichert werden. Bitte korrigiere die markierten Werte.",
@@ -875,6 +1898,7 @@ public final class OneOfXFrame extends JFrame {
             engine.stop(this::showEngineState);
         }
         autoSaveTimer.stop();
+        botSaveTimer.stop();
         dashboardTimer.stop();
         dispose();
     }
@@ -884,10 +1908,33 @@ public final class OneOfXFrame extends JFrame {
         return selected == null ? null : selected.toString();
     }
 
+    private BotProfile selectedBot() {
+        Object selected = botBox.getSelectedItem();
+        return selected instanceof BotProfile bot ? bot : loadedBot;
+    }
+
     private void showError(String title, Exception ex) {
         setMessage(title + ": " + ex.getMessage(), true);
+        recordEvent("ERROR", "OBERFLÄCHE", loadedCurrency,
+                title + ": " + ex.getMessage());
         JOptionPane.showMessageDialog(this, ex.getMessage(), title,
                 JOptionPane.ERROR_MESSAGE);
+    }
+
+    private void showBackgroundError(String title, Exception ex) {
+        Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+        setMessage(title + ": " + cause.getMessage(), true);
+        recordEvent("ERROR", "API", loadedCurrency,
+                title + ": " + cause.getMessage());
+    }
+
+    private void recordEvent(String severity, String category, String currency,
+            String eventMessage) {
+        try {
+            operationsRepository.recordEvent(severity, category, currency, eventMessage);
+        } catch (SQLException ignored) {
+            // Die eigentliche Aktion darf nicht an der Protokollierung scheitern.
+        }
     }
 
     private void setMessage(String text, boolean error) {
@@ -985,6 +2032,98 @@ public final class OneOfXFrame extends JFrame {
         card.setBorder(OneOfXTheme.padding(20, 20, 20, 20));
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         return card;
+    }
+
+    private static RoundedPanel tableCard(String title, String subtitle, JTable table,
+            int height) {
+        RoundedPanel card = cardPanel(new BorderLayout(0, 14));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+        card.setPreferredSize(new Dimension(0, height));
+        card.add(titleBlock(title, subtitle), BorderLayout.NORTH);
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createLineBorder(OneOfXTheme.BORDER));
+        scroll.getViewport().setBackground(OneOfXTheme.SURFACE_RAISED);
+        card.add(scroll, BorderLayout.CENTER);
+        return card;
+    }
+
+    private static RoundedPanel previewSummary(String labelText, JLabel value) {
+        RoundedPanel panel = new RoundedPanel(new BorderLayout(0, 4), 12);
+        panel.setFill(OneOfXTheme.SURFACE);
+        panel.setBorder(OneOfXTheme.padding(10, 12, 10, 12));
+        JLabel label = new JLabel(labelText);
+        label.setForeground(OneOfXTheme.TEXT_MUTED);
+        label.setFont(OneOfXTheme.font(Font.BOLD, 9));
+        value.setForeground(OneOfXTheme.TEXT);
+        value.setFont(OneOfXTheme.font(Font.BOLD, 13));
+        panel.add(label, BorderLayout.NORTH);
+        panel.add(value, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private static DefaultTableModel readOnlyModel(String... columns) {
+        return new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+    }
+
+    private static JTable cockpitTable(DefaultTableModel model) {
+        JTable table = new JTable(model);
+        table.setFillsViewportHeight(true);
+        table.setRowHeight(30);
+        table.setShowVerticalLines(false);
+        table.setGridColor(OneOfXTheme.BORDER);
+        table.setBackground(OneOfXTheme.SURFACE_RAISED);
+        table.setForeground(OneOfXTheme.TEXT_SECONDARY);
+        table.setSelectionBackground(OneOfXTheme.PRIMARY_SOFT);
+        table.setSelectionForeground(OneOfXTheme.TEXT);
+        table.getTableHeader().setBackground(OneOfXTheme.SURFACE);
+        table.getTableHeader().setForeground(OneOfXTheme.TEXT_MUTED);
+        table.getTableHeader().setFont(OneOfXTheme.font(Font.BOLD, 10));
+        table.setFont(OneOfXTheme.font(Font.PLAIN, 11));
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer();
+        renderer.setBorder(OneOfXTheme.padding(0, 8, 0, 8));
+        table.setDefaultRenderer(Object.class, renderer);
+        table.setAutoCreateRowSorter(true);
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            String name = table.getColumnName(i);
+            int width = switch (name) {
+                case "#" -> 55;
+                case "Order-ID", "Versuch-ID", "Exchange-ID" -> 210;
+                case "Fehler", "Hinweis", "Ereignis" -> 360;
+                case "Aktualisiert", "Eröffnet", "Zeit" -> 150;
+                case "Status", "Zustand", "Prüfung" -> 150;
+                default -> 115;
+            };
+            table.getColumnModel().getColumn(i).setPreferredWidth(width);
+        }
+        return table;
+    }
+
+    private static void replaceRows(DefaultTableModel model, List<Object[]> rows) {
+        model.setRowCount(0);
+        for (Object[] row : rows) model.addRow(row);
+    }
+
+    private static String decimal(double value) {
+        if (!Double.isFinite(value)) return "–";
+        return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+
+    private static String money(double value) {
+        return String.format(Locale.GERMANY, "%.2f €", value);
+    }
+
+    private static String plain(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    private static String value(String value) {
+        return value == null || value.isBlank() ? "–" : value;
     }
 
     private static RoundedPanel iconTile(IconType type, Color foreground,
