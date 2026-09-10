@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.desktop;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -14,6 +13,7 @@ import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 
 /** Persistiert Baseconfig, Config Pools und deren Paarzuordnung. */
 public final class BaseConfigRepository {
+    private final OrderTypeAvailability orderTypes = new OrderTypeAvailability();
     private static final String COLUMNS = "buy_order_type, sell_order_type, max_buy_order_minutes, "
             + "max_sell_order_minutes, cooldown_minutes, take_profit_percent, "
             + "trailing_stop_buy_enabled, trailing_stop_buy_activation, trailing_stop_buy_rebound, "
@@ -50,6 +50,7 @@ public final class BaseConfigRepository {
     }
 
     public void saveBase(long botId, BotBaseConfig config) throws SQLException {
+        orderTypes.validateConfiguration(botId, null, config);
         ensureBase(botId);
         update("botBaseConfig", "bot_id", botId, config);
     }
@@ -83,6 +84,7 @@ public final class BaseConfigRepository {
     }
 
     public void savePool(ConfigPool pool) throws SQLException {
+        orderTypes.validateConfiguration(pool.botId(), pool.id(), pool.configuration());
         update("configPools", "id", pool.id(), pool.configuration());
         try (Connection con = open(); PreparedStatement ps = con.prepareStatement(
                 "UPDATE configPools SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND bot_id=? AND archived=0")) {
@@ -92,6 +94,10 @@ public final class BaseConfigRepository {
     }
 
     public void archivePool(long botId, long poolId) throws SQLException {
+        BotBaseConfig fallback = loadBase(botId);
+        for (String currency : loadAssignedCurrencies(botId, poolId)) {
+            orderTypes.validatePair(currency, fallback);
+        }
         try (Connection con = open()) {
             con.setAutoCommit(false);
             try {
@@ -121,6 +127,15 @@ public final class BaseConfigRepository {
     }
 
     public void assignPool(long botId, String currency, Long poolId) throws SQLException {
+        BotBaseConfig selected;
+        if (poolId == null) {
+            selected = loadBase(botId);
+        } else {
+            selected = loadPools(botId).stream().filter(pool -> pool.id() == poolId)
+                    .map(ConfigPool::configuration).findFirst()
+                    .orElseThrow(() -> new SQLException("Config Pool nicht gefunden."));
+        }
+        orderTypes.validatePair(currency, selected);
         String sql = "UPDATE botPairSettings SET config_pool_id=? WHERE bot_id=? AND currency=? AND archived=0 "
                 + "AND (? IS NULL OR EXISTS(SELECT 1 FROM configPools WHERE id=? AND bot_id=? AND archived=0))";
         try (Connection con=open(); PreparedStatement ps=con.prepareStatement(sql)) {
@@ -131,6 +146,20 @@ public final class BaseConfigRepository {
             ps.setLong(6,botId);
             if(ps.executeUpdate()!=1) throw new SQLException("Pool konnte dem Paar nicht zugeordnet werden.");
         }
+    }
+
+    private List<String> loadAssignedCurrencies(long botId, long poolId) throws SQLException {
+        List<String> result = new ArrayList<>();
+        try (Connection con = open(); PreparedStatement ps = con.prepareStatement(
+                "SELECT currency FROM botPairSettings WHERE bot_id=? AND config_pool_id=? "
+                        + "AND archived=0 ORDER BY currency")) {
+            ps.setLong(1, botId);
+            ps.setLong(2, poolId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(rs.getString(1));
+            }
+        }
+        return result;
     }
 
     /** Persistente Drop-und-Rebound-Entscheidung fuer Trailing Stop-Buy. */
@@ -201,5 +230,5 @@ public final class BaseConfigRepository {
     private static String prefix(String c,String p){String[] a=c.split(", ");StringBuilder b=new StringBuilder();for(int i=0;i<a.length;i++){if(i>0)b.append(", ");b.append(p).append('.').append(a[i]);}return b.toString();}
     private static String placeholders(int n){return String.join(",",java.util.Collections.nCopies(n,"?"));}
     private static String normalizeName(String n){if(n==null||n.isBlank())throw new IllegalArgumentException("Pool-Name fehlt.");String x=n.trim();if(x.length()>80)throw new IllegalArgumentException("Pool-Name ist zu lang.");return x;}
-    private static Connection open()throws SQLException{Connection c=DriverManager.getConnection(dbUrl.getoneOfX());try(Statement s=c.createStatement()){s.execute("PRAGMA busy_timeout=5000");s.execute("PRAGMA foreign_keys=ON");}return c;}
+    private static Connection open()throws SQLException{return com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX());}
 }

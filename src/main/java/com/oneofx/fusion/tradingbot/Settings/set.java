@@ -1,10 +1,10 @@
 package com.oneofx.fusion.tradingbot.Settings;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 import com.oneofx.fusion.tradingbot.grid.GridMode;
@@ -17,7 +17,7 @@ public class set {
         String sql = "SELECT CASE WHEN gridMode = 'GEOMETRIC' AND gridSpacing > 0 "
                 + "THEN CAST(ROUND(1.0 / gridSpacing) AS INTEGER) ELSE 1 END AS grid "
                 + "FROM botPairSettings WHERE bot_id = ? AND currency = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setLong(1, BotRuntime.activeBotId());
             ps.setString(2, currency);
@@ -33,7 +33,7 @@ public class set {
     public static GridSettings getGridSettings(String currency) {
         String sql = "SELECT gridMode, gridSpacing FROM botPairSettings "
                 + "WHERE bot_id = ? AND currency = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setLong(1, BotRuntime.activeBotId());
             ps.setString(2, currency);
@@ -52,7 +52,7 @@ public class set {
     }
 
     private static int legacyGrid(String currency) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(
                      "SELECT grid FROM currency WHERE currency = ?")) {
             ps.setString(1, currency);
@@ -65,7 +65,7 @@ public class set {
     }
 
     private static GridSettings legacyGridSettings(String currency) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(
                      "SELECT gridMode, gridSpacing, grid FROM currency WHERE currency = ?")) {
             ps.setString(1, currency);

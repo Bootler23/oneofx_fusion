@@ -1,12 +1,12 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
@@ -19,23 +19,29 @@ import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 public class CurrencyDAO {
 
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(dbUrl.getoneOfX());
+        return SQLiteConnectionFactory.open(dbUrl.getoneOfX());
     }
 
     // ===================== ATH (aus ATHSQL) =====================
 
     public double getAllTimeHigh(String currency) {
+        double value = 0.0;
+        boolean found = false;
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement("SELECT alltimehigh FROM currency WHERE currency = ?")) {
             ps.setString(1, currency);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                return TradingRulesFormatter.formatPrice(currency, rs.getDouble("alltimehigh"));
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    value = rs.getDouble("alltimehigh");
+                    found = true;
+                }
             }
         } catch (SQLException e) {
             System.err.println("Fehler beim Holen des ATH: " + e.getMessage());
         }
-        return 0.0;
+        // Formatierung kann selbst Trading-Regeln laden. Das geschieht bewusst
+        // erst nach dem Schließen des vorigen ResultSets und der Verbindung.
+        return found ? TradingRulesFormatter.formatPrice(currency, value) : 0.0;
     }
 
     public void checkForNewAllTimeHigh(String currency, List<Double> livePrice) {

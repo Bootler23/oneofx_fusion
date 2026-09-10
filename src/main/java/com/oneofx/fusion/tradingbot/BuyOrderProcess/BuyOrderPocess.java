@@ -131,6 +131,13 @@ public class BuyOrderPocess {
             return false;
         }
 
+        OrderType configuredType = OrderType.valueOf(executionConfig.buyOrderType());
+        if (!TradingRulesFormatter.supportsOrderType(currency, configuredType)) {
+            System.err.println("Kauf gesperrt: Fusion erlaubt " + configuredType
+                    + " für " + currency + " laut gespeichertem Paarkatalog nicht.");
+            return false;
+        }
+
         double sizingPrice = "MARKET".equals(executionConfig.buyOrderType())
                 ? tickerPrice : limitLevel;
         String limitPriceStr = TradingRulesFormatter.formatOrderPrice(currency, sizingPrice);
@@ -149,7 +156,6 @@ public class BuyOrderPocess {
         System.out.println("  TickerPrice: " + tickerPrice);
         System.out.println("  limitPrice : " + limitPriceStr);
 
-        OrderType configuredType = OrderType.valueOf(executionConfig.buyOrderType());
         NewOrder limitBuy;
         if (configuredType == OrderType.MARKET) {
             limitBuy = NewOrder.marketBuy(currency, quantity);

@@ -1,11 +1,12 @@
 package com.oneofx.fusion.tradingbot.TradeInformation;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 
 public class getTradeInformation {
 
@@ -17,7 +18,7 @@ public class getTradeInformation {
                 + "AND bot_id = (SELECT selected_bot_id FROM runtimeState WHERE id = 1)",
                 columnList, tableName, status);
 
-        try (Connection con = DriverManager.getConnection(dbUrl);
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl);
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery(sql)) {
 

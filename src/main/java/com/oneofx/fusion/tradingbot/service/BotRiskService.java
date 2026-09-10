@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -70,11 +69,7 @@ public final class BotRiskService {
     }
 
     private static Connection open() throws SQLException {
-        Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-        try (Statement statement = con.createStatement()) {
-            statement.execute("PRAGMA busy_timeout = 5000");
-        }
-        return con;
+        return com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX());
     }
 
     private static boolean tableExists(Connection con, String table) throws SQLException {

@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.desktop;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -102,6 +101,89 @@ public final class PaperTradingRepository {
         }
     }
 
+    /** Executes a manual market buy immediately against the supplied ticker price. */
+    public boolean executeMarketBuy(long botId, String currency, double marketPrice,
+            double quantity, double slippagePercent, double feePercent) throws SQLException {
+        requireEurPair(currency);
+        double fillPrice = marketPrice * (1.0 + slippagePercent / 100.0);
+        double notional = fillPrice * quantity;
+        double fee = notional * feePercent / 100.0;
+        if (!positive(fillPrice) || !positive(quantity) || !Double.isFinite(fee)) return false;
+        try (Connection con = open()) {
+            con.setAutoCommit(false);
+            try {
+                if (balance(con, botId, "EUR", "available") + 0.00000001 < notional + fee) {
+                    con.rollback();
+                    return false;
+                }
+                String orderId = id("paper-buy");
+                changeBalance(con, botId, "EUR", -(notional + fee), 0);
+                changeBalance(con, botId, baseAsset(currency), quantity, 0);
+                try (PreparedStatement ps = con.prepareStatement(
+                        "INSERT INTO paperOrders (order_id, bot_id, currency, side, type, status, "
+                                + "quantity, amount, filled_price, fee, reason) "
+                                + "VALUES (?, ?, ?, 'BUY', 'MARKET', 'FILLED', ?, ?, ?, ?, 'MANUAL')")) {
+                    ps.setString(1, orderId); ps.setLong(2, botId); ps.setString(3, currency);
+                    ps.setDouble(4, quantity); ps.setDouble(5, notional);
+                    ps.setDouble(6, fillPrice); ps.setDouble(7, fee); ps.executeUpdate();
+                }
+                try (PreparedStatement ps = con.prepareStatement(
+                        "INSERT INTO paperPositions (position_id, bot_id, currency, entry_price, "
+                                + "quantity, buy_amount, peak_price, fees) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                    ps.setString(1, orderId); ps.setLong(2, botId); ps.setString(3, currency);
+                    ps.setDouble(4, fillPrice); ps.setDouble(5, quantity);
+                    ps.setDouble(6, notional); ps.setDouble(7, fillPrice);
+                    ps.setDouble(8, fee); ps.executeUpdate();
+                }
+                con.commit();
+                return true;
+            } catch (SQLException | RuntimeException ex) {
+                rollback(con, ex);
+                throw ex;
+            }
+        }
+    }
+
+    /** Reserves a complete paper position for a manual limit sell. */
+    public boolean placeLimitSell(long botId, PaperPosition position, double limitPrice)
+            throws SQLException {
+        if (position == null || !positive(limitPrice)) return false;
+        requireEurPair(position.currency());
+        try (Connection con = open()) {
+            con.setAutoCommit(false);
+            try {
+                try (PreparedStatement update = con.prepareStatement(
+                        "UPDATE paperPositions SET status='SELL_PENDING', updated_at=CURRENT_TIMESTAMP "
+                                + "WHERE position_id=? AND bot_id=? AND status='OPEN'")) {
+                    update.setString(1, position.positionId()); update.setLong(2, botId);
+                    if (update.executeUpdate() != 1) { con.rollback(); return false; }
+                }
+                if (balance(con, botId, baseAsset(position.currency()), "available")
+                        + 0.00000001 < position.quantity()) {
+                    con.rollback();
+                    return false;
+                }
+                changeBalance(con, botId, baseAsset(position.currency()),
+                        -position.quantity(), position.quantity());
+                try (PreparedStatement ps = con.prepareStatement(
+                        "INSERT INTO paperOrders (order_id, bot_id, currency, side, type, status, "
+                                + "limit_price, quantity, amount, fee, reason, position_id) "
+                                + "VALUES (?, ?, ?, 'SELL', 'LIMIT', 'OPEN', ?, ?, ?, 0, 'MANUAL', ?)")) {
+                    ps.setString(1, id("paper-sell")); ps.setLong(2, botId);
+                    ps.setString(3, position.currency()); ps.setDouble(4, limitPrice);
+                    ps.setDouble(5, position.quantity());
+                    ps.setDouble(6, limitPrice * position.quantity());
+                    ps.setString(7, position.positionId()); ps.executeUpdate();
+                }
+                con.commit();
+                return true;
+            } catch (SQLException | RuntimeException ex) {
+                rollback(con, ex);
+                throw ex;
+            }
+        }
+    }
+
     public int fillTriggeredBuys(long botId, String currency, double currentPrice)
             throws SQLException {
         requireEurPair(currency);
@@ -153,6 +235,118 @@ public final class PaperTradingRepository {
             }
         }
         return filled;
+    }
+
+    /** Fills manual paper limit sells once the market trades at or above the limit. */
+    public int fillTriggeredSells(long botId, String currency, double currentPrice,
+            double feePercent) throws SQLException {
+        requireEurPair(currency);
+        int filled = 0;
+        try (Connection con = open()) {
+            con.setAutoCommit(false);
+            try (PreparedStatement ps = con.prepareStatement(
+                    "SELECT order_id, position_id, limit_price, quantity FROM paperOrders "
+                            + "WHERE bot_id=? AND currency=? AND side='SELL' AND status='OPEN' "
+                            + "AND limit_price<=? ORDER BY created_at")) {
+                ps.setLong(1, botId); ps.setString(2, currency); ps.setDouble(3, currentPrice);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String orderId = rs.getString("order_id");
+                        String positionId = rs.getString("position_id");
+                        double price = rs.getDouble("limit_price");
+                        double quantity = rs.getDouble("quantity");
+                        double proceeds = price * quantity;
+                        double fee = proceeds * feePercent / 100.0;
+                        double buyAmount;
+                        double buyFees;
+                        try (PreparedStatement position = con.prepareStatement(
+                                "SELECT buy_amount,fees FROM paperPositions WHERE position_id=? "
+                                        + "AND bot_id=? AND status='SELL_PENDING'")) {
+                            position.setString(1, positionId); position.setLong(2, botId);
+                            try (ResultSet found = position.executeQuery()) {
+                                if (!found.next()) throw new SQLException(
+                                        "Reservierte Paper-Position fehlt: " + positionId);
+                                buyAmount = found.getDouble("buy_amount");
+                                buyFees = found.getDouble("fees");
+                            }
+                        }
+                        changeBalance(con, botId, baseAsset(currency), 0, -quantity);
+                        changeBalance(con, botId, "EUR", proceeds - fee, 0);
+                        try (PreparedStatement update = con.prepareStatement(
+                                "UPDATE paperOrders SET status='FILLED',filled_price=?,amount=?,fee=?,"
+                                        + "updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status='OPEN'")) {
+                            update.setDouble(1, price); update.setDouble(2, proceeds);
+                            update.setDouble(3, fee); update.setString(4, orderId);
+                            if (update.executeUpdate() != 1) throw new SQLException(
+                                    "Paper-Sell konnte nicht abgeschlossen werden: " + orderId);
+                        }
+                        try (PreparedStatement update = con.prepareStatement(
+                                "UPDATE paperPositions SET status='CLOSED',exit_price=?,realized_pnl=?,"
+                                        + "fees=fees+?,exit_reason='MANUAL_LIMIT',closed_at=CURRENT_TIMESTAMP,"
+                                        + "updated_at=CURRENT_TIMESTAMP WHERE position_id=? AND bot_id=? "
+                                        + "AND status='SELL_PENDING'")) {
+                            update.setDouble(1, price);
+                            update.setDouble(2, proceeds - fee - buyAmount - buyFees);
+                            update.setDouble(3, fee); update.setString(4, positionId);
+                            update.setLong(5, botId);
+                            if (update.executeUpdate() != 1) throw new SQLException(
+                                    "Paper-Position konnte nicht geschlossen werden: " + positionId);
+                        }
+                        filled++;
+                    }
+                }
+                con.commit();
+            } catch (SQLException | RuntimeException ex) {
+                rollback(con, ex);
+                throw ex;
+            }
+        }
+        return filled;
+    }
+
+    /** Cancels one open paper order and releases its reserved cash or asset. */
+    public boolean cancelOpenOrder(long botId, String orderId, String reason) throws SQLException {
+        try (Connection con = open()) {
+            con.setAutoCommit(false);
+            try {
+                String side; String currency; String positionId; double quantity;
+                double amount; double fee;
+                try (PreparedStatement ps = con.prepareStatement(
+                        "SELECT side,currency,position_id,quantity,amount,fee FROM paperOrders "
+                                + "WHERE bot_id=? AND order_id=? AND status='OPEN'")) {
+                    ps.setLong(1, botId); ps.setString(2, orderId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) { con.rollback(); return false; }
+                        side=rs.getString("side"); currency=rs.getString("currency");
+                        positionId=rs.getString("position_id"); quantity=rs.getDouble("quantity");
+                        amount=rs.getDouble("amount"); fee=rs.getDouble("fee");
+                    }
+                }
+                if ("BUY".equals(side)) {
+                    changeBalance(con, botId, "EUR", amount + fee, -(amount + fee));
+                } else if ("SELL".equals(side)) {
+                    changeBalance(con, botId, baseAsset(currency), quantity, -quantity);
+                    try (PreparedStatement ps = con.prepareStatement(
+                            "UPDATE paperPositions SET status='OPEN',updated_at=CURRENT_TIMESTAMP "
+                                    + "WHERE position_id=? AND bot_id=? AND status='SELL_PENDING'")) {
+                        ps.setString(1, positionId); ps.setLong(2, botId);
+                        if (ps.executeUpdate()!=1) throw new SQLException(
+                                "Reservierte Paper-Position konnte nicht freigegeben werden.");
+                    }
+                } else throw new SQLException("Unbekannte Paper-Orderseite: " + side);
+                try (PreparedStatement ps = con.prepareStatement(
+                        "UPDATE paperOrders SET status='CANCELLED',reason=?,updated_at=CURRENT_TIMESTAMP "
+                                + "WHERE bot_id=? AND order_id=? AND status='OPEN'")) {
+                    ps.setString(1, reason); ps.setLong(2, botId); ps.setString(3, orderId);
+                    if (ps.executeUpdate()!=1) throw new SQLException("Paper-Order wurde parallel geändert.");
+                }
+                con.commit();
+                return true;
+            } catch (SQLException | RuntimeException ex) {
+                rollback(con, ex);
+                throw ex;
+            }
+        }
     }
 
     public int cancelOpenBuys(long botId, String currency, String reason) throws SQLException {
@@ -411,12 +605,7 @@ public final class PaperTradingRepository {
     private static boolean positive(double value) { return Double.isFinite(value) && value > 0; }
 
     private static Connection open() throws SQLException {
-        Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-        try (Statement statement = con.createStatement()) {
-            statement.execute("PRAGMA busy_timeout = 5000");
-            statement.execute("PRAGMA foreign_keys = ON");
-        }
-        return con;
+        return com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX());
     }
 
     private static void rollback(Connection con, Exception original) {

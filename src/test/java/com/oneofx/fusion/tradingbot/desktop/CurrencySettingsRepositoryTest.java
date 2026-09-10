@@ -15,6 +15,8 @@ import org.junit.Test;
 
 import com.oneofx.fusion.tradingbot.Database.DatabaseSchema;
 import com.oneofx.fusion.tradingbot.grid.GridMode;
+import com.oneofx.fusion.client.model.OrderType;
+import com.oneofx.fusion.client.model.TradingPair;
 
 public class CurrencySettingsRepositoryTest {
 
@@ -102,5 +104,20 @@ public class CurrencySettingsRepositoryTest {
         assertTrue(result.archived());
         assertEquals(1, result.positions());
         assertTrue(repository.loadAll().isEmpty());
+    }
+
+    @Test
+    public void speichertDieVonFusionGemeldetenOrdertypen() throws Exception {
+        TradingPair pair = new TradingPair();
+        pair.setPair("BTC-EUR");
+        pair.setTickSize("0.01");
+        pair.setSizeIncrement("0.00001");
+        pair.setMinOrderAmount("10");
+        pair.setSupportedOrderTypes(java.util.List.of(OrderType.LIMIT, OrderType.MARKET));
+
+        repository.addVerified(CurrencySettings.defaults("BTCEUR"), pair);
+
+        assertEquals(java.util.Set.of(OrderType.LIMIT, OrderType.MARKET),
+                new OrderTypeAvailability().forPair("BTCEUR").supported());
     }
 }

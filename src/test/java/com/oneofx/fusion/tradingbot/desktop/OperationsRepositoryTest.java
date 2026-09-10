@@ -55,11 +55,23 @@ public class OperationsRepositoryTest {
                 + "limit_price, state, error_message) VALUES "
                 + "('attempt-1', 'BTCEUR', '0.25', '99', '99', "
                 + "'RECONCILIATION_REQUIRED', 'Netzwerkfehler')");
+        execute("INSERT INTO historyPosition (currency, BuyOrderId, BuyPrice, SellPrice, "
+                + "buyunixtime, SellDate, SellTime, Status, bot_id) VALUES "
+                + "('BTCEUR', 'closed-live', 95, 105, 1700000000, "
+                + "'2023-11-15', '00:13:20', 2, 1)");
+        execute("INSERT INTO paperPositions (position_id, bot_id, currency, entry_price, "
+                + "quantity, buy_amount, peak_price, status, opened_at, closed_at, exit_price) "
+                + "VALUES ('closed-paper', 1, 'BTCEUR', 96, 0.2, 19.2, 106, 'CLOSED', "
+                + "'2023-11-14 22:13:20', '2023-11-15 01:13:20', 106)");
         repository.recordEvent("INFO", "TEST", "BTCEUR", "Cockpit-Ereignis");
 
         assertEquals(1, repository.loadOpenOrders().size());
+        assertEquals(OperationsRepository.OrderOrigin.LIVE,
+                repository.loadOpenOrders().get(0).origin());
+        assertEquals("pending",repository.loadOpenOrders().get(0).referenceId());
         assertEquals(1, repository.loadPositions().size());
         assertEquals(1, repository.loadUnresolvedAttempts().size());
+        assertEquals(4,repository.loadTradeMarkers(1,"BTC-EUR",20).size());
         assertFalse(repository.loadWarnings().isEmpty());
         assertEquals("Cockpit-Ereignis", repository.loadActivity(20).stream()
                 .filter(row -> "TEST".equals(row.category())).findFirst().orElseThrow().message());

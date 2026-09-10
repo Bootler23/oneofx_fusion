@@ -34,14 +34,21 @@ Risikoregeln müssen zur Bitpanda-Fusion-API und zur lokalen Architektur passen.
 - **Umgesetzt:** API-Key wird nur für die aktuelle Sitzung übernommen.
 - **Umgesetzt:** der portable Build sichert und erhält die vorhandene lokale
   SQLite-Datenbank beim Austausch der Anwendung.
+- **Umgesetzt:** zentral konfigurierte SQLite-Verbindungen verwenden WAL,
+  Foreign Keys, `synchronous=NORMAL`, einen einheitlichen Busy-Timeout und
+  `IMMEDIATE`-Schreibtransaktionen. Schreibblöcke können über einen gemeinsamen
+  Commit-/Rollback-Helfer ausgeführt werden; Schemaanpassungen in häufigen
+  Lesepfaden wurden entfernt beziehungsweise auf einmalige Migration begrenzt.
 
 ### Paare und Grids
 
 - **Umgesetzt:** neue Handelspaare werden vor dem Speichern live gegen den
   Bitpanda-Fusion-Paarkatalog geprüft.
 - **Umgesetzt:** Tick-Größe, Mengenpräzision und Mindestorder werden lokal
-  gespeichert. Die vom Handelsplatz unterstützten Ordertypen werden noch nicht
-  als eigene Regel gespeichert.
+  gespeichert. Die vom Handelsplatz gemeldeten Ordertypen werden je Paar
+  gespeichert, angezeigt und vor jeder Konfigurations- oder Orderausführung
+  geprüft. Alte Daten behalten bis zur erneuten Paarprüfung sichere
+  Kompatibilitätswerte.
 - **Umgesetzt:** unbenutzte Paare können gelöscht werden. Paare mit
   Positions- oder ungeklärten Orderdaten werden deaktiviert und archiviert,
   damit Überwachung und Historie erhalten bleiben.
@@ -88,7 +95,12 @@ Risikoregeln müssen zur Bitpanda-Fusion-API und zur lokalen Architektur passen.
   sichtbar getrennt. Vorerst werden EUR-Paare und Vollausführungen simuliert.
 - **Umgesetzt:** vollständige, zunächst beobachtende Ansichten für offene Orders, Positionen,
   Kontostände und das Aktivitätsprotokoll.
-- **Offen:** Speicherung und Anzeige aller für ein Paar erlaubten Ordertypen.
+- **Umgesetzt:** erlaubte Ordertypen werden je Handelspaar aus dem
+  Fusion-Paarkatalog gespeichert und in den Paareinstellungen angezeigt.
+  Manuelle Orders, Baseconfig und Config Pools bieten nur die für ihre Paare
+  zulässige Schnittmenge an; Speichern, Pool-Zuordnung und Botstart besitzen
+  zusätzlich eine unabhängige Sicherheitsprüfung. Bereits gespeicherte Paare
+  können ihre Regeln ohne Löschen erneut von Fusion laden.
 - **Umgesetzt:** Fehler-/Warnzentrale für API-Probleme, fehlende Marktdaten,
   ungeklärte Orders und verletzte Handelsregeln.
 
@@ -130,40 +142,62 @@ In Anlehnung an Baseconfig und
 In Anlehnung an den
 [Strategy Builder](https://docs.cryptohopper.com/docs/my-library/set-up-strategy-with-strategy-builder):
 
-- **Teilweise:** MACD, RSI, StochRSI, EMA/SMA, Bollinger Bands, ATR, CCI und
-  Volumenberechnungen sind teilweise bereits als Code vorhanden.
-- **Offen:** visueller Regelbaukasten ohne Programmierung.
-- **Offen:** Candlestick-Muster und einheitliche, frei wählbare Timeframes.
-- **Offen:** verschachtelte UND-/ODER-Verknüpfungen.
-- **Offen:** Kauf-, Verkauf-, Sperr- und Bestätigungsbedingungen.
-- **Offen:** Mindestanzahl bestätigender Signale.
-- **Offen:** Strategien lokal speichern und duplizieren.
-- **Offen:** Strategiezuteilung nach Bot, Paargruppe oder Marktphase.
-- **Offen:** nachvollziehbare Erklärung, warum ein Signal ausgelöst oder
-  verworfen wurde.
+- **Umgesetzt:** visueller Regelbaukasten ohne Programmierung in der nativen
+  Desktop-Oberfläche.
+- **Umgesetzt:** Preis, SMA, EMA, RSI, MACD, MACD-Signallinie, StochRSI,
+  Bollinger-Bänder, ATR, CCI und Volumen mit einheitlichen Timeframes von 1m
+  bis 1d.
+- **Umgesetzt:** Bullish/Bearish Engulfing, Hammer und Shooting Star als
+  Candlestick-Bedingungen.
+- **Umgesetzt:** beliebig verschachtelte UND-/ODER-Gruppen für Kauf-, Verkauf-,
+  Sperr- und Bestätigungssignale.
+- **Umgesetzt:** konfigurierbare Mindestanzahl bestätigender Signalzweige.
+- **Umgesetzt:** Strategien lokal speichern, automatisch aktualisieren,
+  duplizieren und sicher löschen.
+- **Umgesetzt:** Strategiezuteilung mit der Priorität Handelspaar, Config Pool,
+  Marktphase und Bot-Standard.
+- **Umgesetzt:** dieselbe Auswertungsengine für Live und Paper sowie ein
+  manueller Marktdatentest mit nachvollziehbarer Erklärung jeder Teilregel.
 - **Zurückgestellt:** Strategie-Import und -Export als Paket; dies gehört zur
   vorerst ausgeschlossenen lokalen Copy-Trading-/Vorlagenfunktion.
 
 ### Phase 4 – Backtesting und Optimierung
 
-- **Offen:** historische Simulation mit derselben Entscheidungslogik wie Live
-  und Paper Trading.
-- **Offen:** Gebühren, Spread, Slippage, Mindestorder, Tick-Größe,
-  Teilfüllungen und konservative Intrakerzen-Ausführung.
-- **Offen:** Vergleich mehrerer Parameter- und Strategievarianten.
-- **Offen:** Equity-Kurve, maximaler Drawdown, Trefferquote, Profit Factor,
-  Erholungsdauer und Kapitalbindung.
+- **Umgesetzt:** historische Long-Simulation mit derselben Strategieauswertung
+  wie Live und Paper sowie Grid-Orders, DCA und mehreren gleichzeitigen
+  Positionen.
+- **Umgesetzt:** Gebühren, Slippage, Spread, Mindestorder, Tick- und
+  Mengenschritte, konservative Stop-/Take-Profit-Reihenfolge sowie
+  volumenbegrenzte Teilfüllungen. Limitorders werden anhand von Open, High, Low
+  und Close mit konservativer Intrakerzenlogik ausgeführt.
+- **Umgesetzt:** Vergleich mehrerer Strategien sowie kombinierter Grid-,
+  Stop-Loss- und Take-Profit-Varianten. Der Rang basiert transparent auf
+  In-Sample-Rendite abzüglich maximalem Drawdown; das Out-of-Sample-Ergebnis
+  fließt nicht in die Auswahl ein.
+- **Teilweise:** Equity-Kurve, maximaler Drawdown, Trefferquote und Profit
+  Factor sind sichtbar und dauerhaft gespeichert; Erholungsdauer und
+  Kapitalbindung fehlen.
+- **Umgesetzt:** Backtest-Verlauf und einzelne simulierte Trades einschließlich
+  Ausführungsgrund und Signalerklärung werden in SQLite gespeichert.
 - **Offen:** Darstellung einzelner Käufe und Verkäufe im Chart.
-- **Offen:** Walk-forward- und getrennte In-/Out-of-Sample-Tests.
+- **Umgesetzt:** getrennte In-/Out-of-Sample-Tests und Walk-forward-Auswertung
+  mit wachsendem Trainingsfenster. Jedes Fenster wählt seine Variante nur aus
+  den zu diesem Zeitpunkt bekannten historischen Daten.
 - **Offen:** Übernahme eines geprüften Ergebnisses in eine lokale
   Bot-Konfiguration und anschließender Paper-Test.
 
 ### Phase 5 – Trading-Terminal und Portfolio
 
-- **Offen:** interaktive Charts mit Grid-Stufen, Orders, Positionen und
-  Kauf-/Verkaufsmarkierungen.
-- **Offen:** manuelle Kauf- und Verkaufsorders.
-- **Offen:** Orderänderung und kontrollierte Stornierung.
+- **Umgesetzt:** natives interaktives Kerzenchart mit Volumen, Maus-Zoom,
+  Verschieben, OHLCV-Fadenkreuz, Grid-Stufen, offenen Live-/Paper-Orders,
+  Positionen und historischen Kauf-/Verkaufsmarkierungen.
+- **Umgesetzt:** manuelle Kauf- und Verkaufsorders im Paper- und Live-Modus
+  mit Pflichtvorschau, Handelsregel- und Risikoprüfung. Verkäufe sind bis zur
+  Positionsaufteilung bewusst nur für eine vollständige Position möglich.
+- **Umgesetzt:** kontrollierte Stornierung und Orderänderung als
+  „bestätigt stornieren, dann neu anlegen“. Live-Daten werden nur nach einem
+  eindeutigen terminalen Fusion-Status ohne Ausführung geändert; Teilfüllungen
+  und unklare Antworten bleiben im regulären Abgleich.
 - **Offen:** Positionen teilen, zusammenführen und für andere Strategien
   reservieren.
 - **Offen:** vollständiger Handelsverlauf mit Suche, Filtern und CSV-Export.
@@ -181,8 +215,8 @@ In Anlehnung an den
 - **Offen:** lokale Wenn-dann-Trigger.
 - **Offen:** Zeitpläne, Handelszeiten und Pausenfenster.
 - **Offen:** lokale Desktop-Benachrichtigungen.
-- **Teilweise:** Marktphasen werden intern erkannt; Konfiguration, Anzeige und
-  automatischer Strategiewechsel fehlen.
+- **Teilweise:** Marktphasen werden intern erkannt und können automatisch eine
+  zugewiesene Strategie aktivieren; eine eigene Marktphasen-Ansicht fehlt.
 - **Offen:** Portfolio-Rebalancing.
 - **Offen:** Market-Making-Modus mit Inventar-, Spread- und Verlustgrenzen.
 - **Offen:** Dreiecksarbitrage innerhalb einer Börse.
@@ -204,9 +238,8 @@ nicht zum aktiven Backlog der Phasen oben:
 
 ## Empfohlene nächste Reihenfolge
 
-1. Strategie-Designer mit erklärbaren Signalen.
-2. Backtest-Engine und Performanceanalyse.
-3. Trading-Terminal, Portfoliofunktionen und erst danach Market Making oder
+1. Positionen teilen, zusammenführen und für Strategien reservieren.
+2. Portfolioanalyse, Handelsverlauf und Export; erst danach Market Making oder
    Arbitrage.
 
 Market Making und Arbitrage sollten erst nach Paper Trading, Backtesting,

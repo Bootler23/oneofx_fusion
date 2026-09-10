@@ -1,14 +1,17 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
+import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 import com.oneofx.fusion.tradingbot.domain.Position;
 
 /**
@@ -16,25 +19,36 @@ import com.oneofx.fusion.tradingbot.domain.Position;
  * mit modularem insert/update (nur non-null Felder) und PreparedStatements überall.
  */
 public class PositionDAO {
+    private static final Object MIGRATION_LOCK = new Object();
+    private static final Set<String> MIGRATED_DATABASES = ConcurrentHashMap.newKeySet();
 
     private static final String BOT_SCOPE =
             " AND bot_id = (SELECT selected_bot_id FROM runtimeState WHERE id = 1) ";
 
     private Connection getConnection() throws SQLException {
-        Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-        ensureBotScope(con);
-        return con;
+        String url = dbUrl.getoneOfX();
+        Connection con = SQLiteConnectionFactory.open(url);
+        try {
+            ensureBotScopeOnce(con, url);
+            return con;
+        } catch (SQLException ex) {
+            try { con.close(); } catch (SQLException close) { ex.addSuppressed(close); }
+            throw ex;
+        }
+    }
+
+    private static void ensureBotScopeOnce(Connection con, String url) throws SQLException {
+        if (MIGRATED_DATABASES.contains(url)) return;
+        synchronized (MIGRATION_LOCK) {
+            if (MIGRATED_DATABASES.contains(url)) return;
+            ensureBotScope(con);
+            MIGRATED_DATABASES.add(url);
+        }
     }
 
     /** Hält auch gezielt erzeugte Legacy-/Testdatenbanken lesbar. */
     private static void ensureBotScope(Connection con) throws SQLException {
-        boolean botColumn = false;
-        try (PreparedStatement ps = con.prepareStatement("PRAGMA table_info(positions)");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                if ("bot_id".equalsIgnoreCase(rs.getString("name"))) botColumn = true;
-            }
-        }
+        boolean botColumn = hasColumn(con, "positions", "bot_id");
         try (java.sql.Statement statement = con.createStatement()) {
             if (!botColumn) statement.executeUpdate("ALTER TABLE positions ADD COLUMN bot_id INTEGER");
             statement.executeUpdate("UPDATE positions SET bot_id = 1 WHERE bot_id IS NULL");
@@ -56,6 +70,11 @@ public class PositionDAO {
         List<String> columns = new ArrayList<>();
         List<Object> values = new ArrayList<>();
 
+        if (hasColumn(con, "positions", "bot_id")) {
+            columns.add("bot_id");
+            values.add(BotRuntime.activeBotId());
+        }
+
         columns.add("currency");  values.add(pos.getCurrency());
         columns.add("BuyOrderId"); values.add(pos.getBuyOrderId());
 
@@ -71,6 +90,7 @@ public class PositionDAO {
         if (pos.getPeakPrice() != null)   { columns.add("peakPrice");   values.add(pos.getPeakPrice()); }
         if (pos.getTsl() != null)         { columns.add("TSL");         values.add(pos.getTsl()); }
         if (pos.getProfit() != null)      { columns.add("Profit");      values.add(pos.getProfit()); }
+        if (pos.getOrderOrigin() != null) { columns.add("orderOrigin"); values.add(pos.getOrderOrigin()); }
 
         String cols = String.join(", ", columns);
         String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
@@ -84,6 +104,15 @@ public class PositionDAO {
             if (rows != 1) {
                 throw new SQLException("Insert in positions hat " + rows + " Zeilen geaendert; erwartet wurde 1");
             }
+        }
+    }
+
+    private static boolean hasColumn(Connection con, String table, String column)
+            throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("PRAGMA table_info(" + table + ")");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) if (column.equalsIgnoreCase(rs.getString("name"))) return true;
+            return false;
         }
     }
 
@@ -105,6 +134,7 @@ public class PositionDAO {
         if (pos.getPeakPrice() != null)   { setClauses.add("peakPrice = ?");   values.add(pos.getPeakPrice()); }
         if (pos.getTsl() != null)         { setClauses.add("TSL = ?");         values.add(pos.getTsl()); }
         if (pos.getProfit() != null)      { setClauses.add("Profit = ?");      values.add(pos.getProfit()); }
+        if (pos.getOrderOrigin() != null) { setClauses.add("orderOrigin = ?"); values.add(pos.getOrderOrigin()); }
         if (pos.getCurrency() != null)    { setClauses.add("currency = ?");   values.add(pos.getCurrency()); }
 
         if (setClauses.isEmpty()) return;
@@ -231,6 +261,20 @@ public class PositionDAO {
         return ids;
     }
 
+    /** Manual orders are reconciled normally but must not be managed by grid/regime rules. */
+    public boolean isManualOrder(String buyOrderId) {
+        try (Connection con = getConnection(); PreparedStatement ps = con.prepareStatement(
+                "SELECT orderOrigin FROM positions WHERE BuyOrderId = ?" + BOT_SCOPE)) {
+            ps.setString(1, buyOrderId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && "MANUAL".equalsIgnoreCase(rs.getString(1));
+            }
+        } catch (SQLException ex) {
+            System.err.println("Order-Herkunft konnte nicht gelesen werden: " + ex.getMessage());
+            return false;
+        }
+    }
+
     public List<String> getBuyTradeRecordsWhereStatusFive() {
         List<String> records = new ArrayList<>();
         try (Connection con = getConnection();
@@ -283,7 +327,7 @@ public class PositionDAO {
 
     public double getSumColumn(String url, String columnName, String tableName) {
         String sql = "SELECT SUM(" + sanitizeIdentifier(columnName) + ") AS val FROM " + sanitizeIdentifier(tableName);
-        try (Connection con = DriverManager.getConnection(url);
+        try (Connection con = SQLiteConnectionFactory.open(url);
              PreparedStatement ps = con.prepareStatement(sql)) {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble("val");

@@ -41,7 +41,7 @@ public class dbUrl {
             throw new IllegalStateException("Datenbankverzeichnis kann nicht erstellt werden: "
                     + normalized.getParent(), e);
         }
-        return "jdbc:sqlite:" + normalized;
+        return SQLiteConnectionFactory.configuredUrl("jdbc:sqlite:" + normalized);
     }
 
     private static String getSetting(String name) {

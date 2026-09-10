@@ -3,7 +3,6 @@ package com.oneofx.fusion.tradingbot.SQL_Database;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -31,6 +30,7 @@ public final class SellOrderPersistence {
     static final String ATTEMPT_REJECTED = "REJECTED";
     static final String ATTEMPT_RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED";
     static final String ATTEMPT_COMPLETED = "COMPLETED";
+    static final String ATTEMPT_CANCELED = "CANCELED";
 
     private final String jdbcUrl;
 
@@ -220,6 +220,59 @@ public final class SellOrderPersistence {
         }
     }
 
+    /** Restores a position after Fusion confirmed that its sell was cancelled unfilled. */
+    public void recordCancelled(String sellOrderId) throws SQLException {
+        requireText(sellOrderId, "sellOrderId");
+        try (Connection con = openConnection()) {
+            con.setAutoCommit(false);
+            try {
+                ensureSchema(con);
+                String buyOrderId;
+                int previousStatus;
+                try (PreparedStatement ps = con.prepareStatement(
+                        "SELECT buy_order_id,previous_position_status FROM sell_attempts "
+                                + "WHERE exchange_order_id=? AND state=? "
+                                + "AND bot_id=(SELECT selected_bot_id FROM runtimeState WHERE id=1)")) {
+                    ps.setString(1, sellOrderId); ps.setString(2, ATTEMPT_SUBMITTED);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) throw new SQLException(
+                                "No submitted sell attempt found for " + sellOrderId);
+                        buyOrderId = rs.getString(1); previousStatus = rs.getInt(2);
+                        if (rs.next()) throw new SQLException(
+                                "More than one sell attempt found for " + sellOrderId);
+                    }
+                }
+                try (PreparedStatement ps = con.prepareStatement(
+                        "UPDATE positions SET Status=? WHERE BuyOrderId=? AND Status=? "
+                                + "AND bot_id=(SELECT selected_bot_id FROM runtimeState WHERE id=1)")) {
+                    ps.setInt(1, previousStatus); ps.setString(2, buyOrderId);
+                    ps.setInt(3, TradingConstants.POSITION_STATUS_SELL_PENDING);
+                    requireExactlyOne(ps.executeUpdate(), "positions sell cancellation", buyOrderId);
+                }
+                try (PreparedStatement ps = con.prepareStatement(
+                        "UPDATE historyPosition SET SellOrderId=NULL,SellDate=NULL,SellTime=NULL,"
+                                + "SellPrice=NULL,Status=NULL,statusCode=NULL WHERE BuyOrderId=? "
+                                + "AND SellOrderId=? AND Status=0 "
+                                + "AND bot_id=(SELECT selected_bot_id FROM runtimeState WHERE id=1)")) {
+                    ps.setString(1, buyOrderId); ps.setString(2, sellOrderId);
+                    requireExactlyOne(ps.executeUpdate(), "historyPosition sell cancellation", buyOrderId);
+                }
+                try (PreparedStatement ps = con.prepareStatement(
+                        "UPDATE sell_attempts SET state=?,error_message=NULL,updated_at=CURRENT_TIMESTAMP "
+                                + "WHERE exchange_order_id=? AND state=? "
+                                + "AND bot_id=(SELECT selected_bot_id FROM runtimeState WHERE id=1)")) {
+                    ps.setString(1, ATTEMPT_CANCELED); ps.setString(2, sellOrderId);
+                    ps.setString(3, ATTEMPT_SUBMITTED);
+                    requireExactlyOne(ps.executeUpdate(), "sell attempt cancellation", buyOrderId);
+                }
+                con.commit();
+            } catch (SQLException | RuntimeException ex) {
+                rollback(con, ex);
+                throw ex;
+            }
+        }
+    }
+
     /**
      * Atomically finalizes historyPosition, appends the performance row and removes the
      * sold position. A failure rolls back all three business changes.
@@ -294,20 +347,7 @@ public final class SellOrderPersistence {
     }
 
     private Connection openConnection() throws SQLException {
-        Connection con = DriverManager.getConnection(jdbcUrl);
-        try {
-            try (Statement statement = con.createStatement()) {
-                statement.execute("PRAGMA busy_timeout = 5000");
-            }
-            return con;
-        } catch (SQLException e) {
-            try {
-                con.close();
-            } catch (SQLException closeError) {
-                e.addSuppressed(closeError);
-            }
-            throw e;
-        }
+        return com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(jdbcUrl);
     }
 
     private static Integer findSellableStatus(Connection con, String buyOrderId) throws SQLException {

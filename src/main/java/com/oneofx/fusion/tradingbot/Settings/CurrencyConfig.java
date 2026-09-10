@@ -1,12 +1,12 @@
 package com.oneofx.fusion.tradingbot.Settings;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.bot.BotRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ public class CurrencyConfig {
                 + "(buystatus = 'true' OR buystatus = '1') "
                 + "AND COALESCE(archived, 0) = 0";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
@@ -61,7 +61,7 @@ public class CurrencyConfig {
                 + "(buystatus = 'true' OR buystatus = '1') "
                 + "AND COALESCE(archived, 0) = 0";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
@@ -87,7 +87,7 @@ public class CurrencyConfig {
         String sql = "SELECT currency FROM botPairSettings WHERE bot_id = "
                 + BotRuntime.activeBotId() + " AND COALESCE(archived, 0) = 0";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
@@ -121,7 +121,7 @@ public class CurrencyConfig {
                 + "AND Status IN (0, 1, 2, 5, 7, 8) "
                 + "ORDER BY currency";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              Statement stmt = con.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {

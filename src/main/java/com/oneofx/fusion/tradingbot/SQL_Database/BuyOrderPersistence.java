@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -22,6 +21,7 @@ public final class BuyOrderPersistence {
     static final String ATTEMPT_SUBMITTED = "SUBMITTED";
     static final String ATTEMPT_REJECTED = "REJECTED";
     static final String ATTEMPT_RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED";
+    static final String ATTEMPT_CANCELED = "CANCELED";
 
     private final String jdbcUrl;
     private final PositionDAO positionDAO;
@@ -92,6 +92,36 @@ public final class BuyOrderPersistence {
         changeState(attempt, exchangeOrderId, ATTEMPT_RECONCILIATION_REQUIRED, reason);
     }
 
+    /** Removes an unfilled local buy only after Fusion confirmed a terminal cancel. */
+    public void recordCancelled(String exchangeOrderId) throws SQLException {
+        requireText(exchangeOrderId, "exchangeOrderId");
+        try (Connection con = openConnection()) {
+            con.setAutoCommit(false);
+            try {
+                ensureSchema(con);
+                try (PreparedStatement ps = con.prepareStatement(
+                        "DELETE FROM positions WHERE BuyOrderId=? AND Status=0 "
+                                + "AND bot_id=(SELECT selected_bot_id FROM runtimeState WHERE id=1)")) {
+                    ps.setString(1, exchangeOrderId);
+                    requireExactlyOne(ps.executeUpdate(), "cancelled buy removal", exchangeOrderId);
+                }
+                try (PreparedStatement ps = con.prepareStatement(
+                        "UPDATE buy_attempts SET state=?,error_message=NULL,updated_at=CURRENT_TIMESTAMP "
+                                + "WHERE exchange_order_id=? AND state=? "
+                                + "AND bot_id=(SELECT selected_bot_id FROM runtimeState WHERE id=1)")) {
+                    ps.setString(1, ATTEMPT_CANCELED); ps.setString(2, exchangeOrderId);
+                    ps.setString(3, ATTEMPT_SUBMITTED);
+                    if (ps.executeUpdate() > 1) throw new SQLException(
+                            "More than one buy attempt matched " + exchangeOrderId);
+                }
+                con.commit();
+            } catch (SQLException | RuntimeException ex) {
+                rollback(con, ex);
+                throw ex;
+            }
+        }
+    }
+
     private void changeState(Attempt attempt, String exchangeOrderId, String state, String reason)
             throws SQLException {
         Objects.requireNonNull(attempt, "attempt");
@@ -104,20 +134,7 @@ public final class BuyOrderPersistence {
     }
 
     private Connection openConnection() throws SQLException {
-        Connection con = DriverManager.getConnection(jdbcUrl);
-        try {
-            try (Statement statement = con.createStatement()) {
-                statement.execute("PRAGMA busy_timeout = 5000");
-            }
-            return con;
-        } catch (SQLException ex) {
-            try {
-                con.close();
-            } catch (SQLException closeError) {
-                ex.addSuppressed(closeError);
-            }
-            throw ex;
-        }
+        return com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(jdbcUrl);
     }
 
     private static int updateAttempt(Connection con, String attemptId, String exchangeOrderId,

@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -10,6 +9,7 @@ import java.util.List;
 
 import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.tradingbot.BuyOrderProcess.Ticker;
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
@@ -20,7 +20,7 @@ public class POSSQL {
         double PriceMin = Double.MAX_VALUE;
         boolean foundPriceInDB = false;
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement(
                         "SELECT OrderPrice FROM positions WHERE Status IN (0, 1, 5) AND currency = ?")) {
 
@@ -45,7 +45,7 @@ public class POSSQL {
     }   
 
     public static boolean positionExistsAtPrice(String currencyPair, double price) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement(
                         "SELECT COUNT(*) as count FROM positions WHERE Status IN (0, 1, 5) AND currency = ? AND ABS(OrderPrice - ?) < 0.0001")) {
 
@@ -68,7 +68,7 @@ public class POSSQL {
     public static void get_BuyOrderId_WhereStatusZero(List<Long> orderIdList, String currencyPair) {
         try {
             orderIdList.clear();
-            try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+            try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                     Statement query = con.createStatement()) {
 
                 String SQL = "SELECT BuyOrderId FROM positions WHERE Status = 0 AND currency = '" + currencyPair + "'";
@@ -85,7 +85,7 @@ public class POSSQL {
     }
 
     public static void get_BuyTrade_Records_WhereStatusFive(List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT BuyOrderId, currency FROM positions WHERE Status = 5")) {
 
@@ -103,7 +103,7 @@ public class POSSQL {
     }
 
     public static double getSumBuyAmount() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement statement = con.createStatement()) {
 
             String SQL = "SELECT SUM(BuyAmount) AS SumBuyAmount FROM positions";
@@ -120,7 +120,7 @@ public class POSSQL {
     }
 
     public static double getSumQuantity() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement statement = con.createStatement()) {
 
             String SQL = "SELECT SUM(quantity) AS SumQuantity FROM positions";
@@ -137,7 +137,7 @@ public class POSSQL {
     }
     
     public static double getSumQuantityForCurrency(String currencyPair) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement(
                         "SELECT SUM(quantity) AS SumQuantity FROM positions WHERE Status IN (0, 1, 5) AND currency = ?")) {
 
@@ -155,7 +155,7 @@ public class POSSQL {
     }
 
     public static double getSumColumnWith(final String Url, String columnName, String tableName) {
-        try (Connection con = DriverManager.getConnection(Url);
+        try (Connection con = SQLiteConnectionFactory.open(Url);
                 Statement statement = con.createStatement()) {
 
             // String SQL = "SELECT SUM(BuyAmount) AS SumBuyAmount FROM POS WHERE Status IN
@@ -174,7 +174,7 @@ public class POSSQL {
     }
 
     public static int getCountPOS(String currencyPair) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement statement = con.createStatement()) {
 
             String SQL = "SELECT COUNT(*) AS RecordCount FROM positions WHERE Status IN (0, 1) AND currency = '" + currencyPair
@@ -195,7 +195,7 @@ public class POSSQL {
     public static Double getAverageBuyAmount() {
         Double averageBuyAmount = null;
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement()) {
 
             String SQL = "SELECT AVG(BuyAmount) AS AverageBuyAmount FROM positions";
@@ -214,7 +214,7 @@ public class POSSQL {
     public static void getDataRecords_WhereStatusOneOrSeven(String CurrencyPair, List<String> dataRecords) {
         try {
             dataRecords.clear();
-            try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+            try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                     PreparedStatement pstmt = con.prepareStatement(
                             "SELECT BuyOrderId, OrderPrice, OrigPrice, quantity, BuyAmount, BuyPrice, BuyDate, BuyTime " +
                                     "FROM positions WHERE Status IN (1, 7) AND currency = ? AND BuyAmount > 0")) {
@@ -253,7 +253,7 @@ public class POSSQL {
 
         double LivePrice = Ticker.getAssetPrice(currency, FusionClientProvider.getClient());
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement()) {
 
             dataRecords.clear();
@@ -319,7 +319,7 @@ public class POSSQL {
 
     public static double getPeakPrice(String buyOrderId) {
         String sql = "SELECT peakPrice FROM positions WHERE BuyOrderId = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, buyOrderId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -335,7 +335,7 @@ public class POSSQL {
 
     public static void updatePeakPrice(String buyOrderId, double peakPrice) {
         String sql = "UPDATE positions SET peakPrice = ? WHERE BuyOrderId = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setDouble(1, peakPrice);
             ps.setString(2, buyOrderId);
@@ -351,7 +351,7 @@ public class POSSQL {
         double LivePrice = Ticker.getAssetPrice(currencyPair, client);
         try {
             dataRecords.clear();
-            Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+            Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
             Statement query = con.createStatement();
 
             String SQL = "SELECT BuyOrderId, quantity, currency, BuyPrice, BuyAmount FROM positions "
@@ -381,7 +381,7 @@ public class POSSQL {
     }
 
     public static void getTwoPositions(String currency, List<String> dataRecords) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement()) {
 
             dataRecords.clear();
@@ -412,7 +412,7 @@ public class POSSQL {
     public static void getPositionSmallerThen10AndMinus7Percent(String currency, List<String> dataRecords) {
         double LivePrice = Ticker.getAssetPrice(currency, FusionClientProvider.getClient());
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement()) {
 
             dataRecords.clear();

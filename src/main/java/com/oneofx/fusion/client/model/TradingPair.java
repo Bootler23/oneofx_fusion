@@ -1,6 +1,8 @@
 package com.oneofx.fusion.client.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TradingPair {
@@ -13,6 +15,7 @@ public class TradingPair {
     private String maxOrderSize;
     private String minOrderAmount;
     private String maxOrderAmount;
+    private List<OrderType> supportedOrderTypes;
 
     public String getPair() { return pair; }
     public void setPair(String pair) { this.pair = pair; }
@@ -32,4 +35,8 @@ public class TradingPair {
     public void setMinOrderAmount(String minOrderAmount) { this.minOrderAmount = minOrderAmount; }
     public String getMaxOrderAmount() { return maxOrderAmount; }
     public void setMaxOrderAmount(String maxOrderAmount) { this.maxOrderAmount = maxOrderAmount; }
+    public List<OrderType> getSupportedOrderTypes() { return supportedOrderTypes; }
+    public void setSupportedOrderTypes(List<OrderType> value) { supportedOrderTypes = value; }
+    @JsonProperty("orderTypes")
+    public void setOrderTypes(List<OrderType> value) { supportedOrderTypes = value; }
 }

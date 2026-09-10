@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
@@ -23,7 +22,7 @@ public class PerformanceSQL {
 
             double totalBuffer = 0.0;
 
-            try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+            try (Connection con = com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                     PreparedStatement ps = con.prepareStatement(sql)) {
 
                 ps.setString(1, currency);

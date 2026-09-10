@@ -65,6 +65,9 @@ public class CheckOrderStatus {
     public static void cancelOpenBuyOrdersForRegime(String currency, FusionApiClient client,
             List<String> buyOrderIds, List<Double> livePrice) {
         for (String buyOrderId : buyOrderIds) {
+            if (positionDAO.isManualOrder(buyOrderId)) {
+                continue;
+            }
             try {
                 Order cancelResult = client.cancelOrder(buyOrderId);
                 System.out.println("1D-MARKTFILTER KAUFPAUSE: Cancel angefordert fuer "
@@ -100,6 +103,12 @@ public class CheckOrderStatus {
 
                 if (!BuyOrderIdList.contains(orderId)) {
                     continue; // Nicht unsere Buy-Order (z.B. Sell-Order oder andere)
+                }
+
+                // Manuelle Orders werden hier nur auf ihren Abschluss abgeglichen.
+                // Grid-Abstand und Marktregime dürfen sie nicht eigenständig stornieren.
+                if (positionDAO.isManualOrder(orderId)) {
+                    continue;
                 }
 
                 double orderPrice = getConfiguredBuyPrice(currency, order);

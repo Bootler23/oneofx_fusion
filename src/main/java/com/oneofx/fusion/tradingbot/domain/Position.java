@@ -20,6 +20,7 @@ public class Position {
     private Double peakPrice;
     private String tsl;
     private Double profit;
+    private String orderOrigin;
 
     private Position(Builder builder) {
         this.currency = builder.currency;
@@ -36,6 +37,7 @@ public class Position {
         this.peakPrice = builder.peakPrice;
         this.tsl = builder.tsl;
         this.profit = builder.profit;
+        this.orderOrigin = builder.orderOrigin;
     }
 
     public String getCurrency() { return currency; }
@@ -52,6 +54,7 @@ public class Position {
     public Double getPeakPrice() { return peakPrice; }
     public String getTsl() { return tsl; }
     public Double getProfit() { return profit; }
+    public String getOrderOrigin() { return orderOrigin; }
 
     public static class Builder {
         private final String currency;
@@ -68,6 +71,7 @@ public class Position {
         private Double peakPrice;
         private String tsl;
         private Double profit;
+        private String orderOrigin;
 
         public Builder(String currency, String buyOrderId) {
             this.currency = currency;
@@ -86,6 +90,7 @@ public class Position {
         public Builder peakPrice(Double peakPrice) { this.peakPrice = peakPrice; return this; }
         public Builder tsl(String tsl) { this.tsl = tsl; return this; }
         public Builder profit(Double profit) { this.profit = profit; return this; }
+        public Builder orderOrigin(String orderOrigin) { this.orderOrigin = orderOrigin; return this; }
 
         public Position build() {
             return new Position(this);

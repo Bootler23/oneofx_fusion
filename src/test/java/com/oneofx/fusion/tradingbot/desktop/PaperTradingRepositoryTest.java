@@ -68,8 +68,57 @@ public class PaperTradingRepositoryTest {
         assertEquals(0.0, balance("EUR").reserved(), 0.000001);
     }
 
+    @Test
+    public void manualMarketBuyAppliesSlippageAndCreatesPositionImmediately() throws Exception {
+        assertTrue(repository.executeMarketBuy(1,"BTCEUR",100,1,1.0,0.25));
+        PaperTradingRepository.PaperPosition position=
+                repository.loadOpenPositions(1,"BTCEUR").get(0);
+        assertEquals(101.0,position.entryPrice(),0.000001);
+        assertEquals(898.7475,balance("EUR").available(),0.000001);
+        assertEquals(1.0,balance("BTC").available(),0.000001);
+    }
+
+    @Test
+    public void manualLimitSellCanBeCancelledAndReleasesPosition() throws Exception {
+        assertTrue(repository.executeMarketBuy(1,"ETHEUR",100,2,0,0));
+        PaperTradingRepository.PaperPosition position=
+                repository.loadOpenPositions(1,"ETHEUR").get(0);
+        assertTrue(repository.placeLimitSell(1,position,120));
+        assertEquals(0,repository.loadOpenPositions(1,"ETHEUR").size());
+        assertEquals(0.0,balance("ETH").available(),0.000001);
+        assertEquals(2.0,balance("ETH").reserved(),0.000001);
+        String orderId=openOrderId("SELL");
+        assertTrue(repository.cancelOpenOrder(1,orderId,"TEST"));
+        assertEquals(1,repository.loadOpenPositions(1,"ETHEUR").size());
+        assertEquals(2.0,balance("ETH").available(),0.000001);
+        assertEquals(0.0,balance("ETH").reserved(),0.000001);
+    }
+
+    @Test
+    public void manualLimitSellFillsWhenMarketReachesLimit() throws Exception {
+        assertTrue(repository.executeMarketBuy(1,"LTCEUR",100,1,0,0));
+        PaperTradingRepository.PaperPosition position=
+                repository.loadOpenPositions(1,"LTCEUR").get(0);
+        assertTrue(repository.placeLimitSell(1,position,110));
+        assertEquals(0,repository.fillTriggeredSells(1,"LTCEUR",109,0.25));
+        assertEquals(1,repository.fillTriggeredSells(1,"LTCEUR",110,0.25));
+        assertEquals(0,repository.loadOpenPositions(1,"LTCEUR").size());
+        assertEquals(1009.725,balance("EUR").available(),0.000001);
+        assertEquals(0.0,balance("LTC").total(),0.000001);
+    }
+
     private PaperTradingRepository.Balance balance(String asset) throws Exception {
         return repository.loadBalances(1).stream()
                 .filter(value -> asset.equals(value.asset())).findFirst().orElseThrow();
+    }
+
+    private String openOrderId(String side) throws Exception {
+        try (java.sql.Connection con=java.sql.DriverManager.getConnection(
+                "jdbc:sqlite:"+database.getAbsolutePath());
+             java.sql.PreparedStatement ps=con.prepareStatement(
+                     "SELECT order_id FROM paperOrders WHERE side=? AND status='OPEN'")) {
+            ps.setString(1,side);
+            try (java.sql.ResultSet rs=ps.executeQuery()) { rs.next(); return rs.getString(1); }
+        }
     }
 }

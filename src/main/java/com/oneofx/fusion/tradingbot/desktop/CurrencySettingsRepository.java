@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.desktop;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -9,6 +8,7 @@ import java.sql.Statement;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.oneofx.fusion.client.model.FusionSymbol;
 import com.oneofx.fusion.client.model.TradingPair;
@@ -371,13 +371,14 @@ public final class CurrencySettingsRepository {
             throws SQLException {
         String sql = "INSERT INTO tradingRules "
                 + "(currency, tickSize, stepSize, minQty, amountIncrement, maxOrderSize, "
-                + "minOrderAmount, maxOrderAmount) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                + "minOrderAmount, maxOrderAmount, supportedOrderTypes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 + "ON CONFLICT(currency) DO UPDATE SET tickSize = excluded.tickSize, "
                 + "stepSize = excluded.stepSize, minQty = excluded.minQty, "
                 + "amountIncrement = excluded.amountIncrement, "
                 + "maxOrderSize = excluded.maxOrderSize, "
                 + "minOrderAmount = excluded.minOrderAmount, "
-                + "maxOrderAmount = excluded.maxOrderAmount";
+                + "maxOrderAmount = excluded.maxOrderAmount, "
+                + "supportedOrderTypes = excluded.supportedOrderTypes";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, FusionSymbol.compactPair(pair.getPair()));
             ps.setString(2, pair.getTickSize());
@@ -387,6 +388,11 @@ public final class CurrencySettingsRepository {
             ps.setString(6, pair.getMaxOrderSize());
             ps.setString(7, pair.getMinOrderAmount());
             ps.setString(8, pair.getMaxOrderAmount());
+            String orderTypes=pair.getSupportedOrderTypes()==null||pair.getSupportedOrderTypes().isEmpty()
+                    ?"LIMIT,MARKET,STOP_LIMIT,STOP_MARKET"
+                    :pair.getSupportedOrderTypes().stream().map(Enum::name).sorted()
+                            .collect(Collectors.joining(","));
+            ps.setString(9,orderTypes);
             ps.executeUpdate();
         }
     }
@@ -444,11 +450,7 @@ public final class CurrencySettingsRepository {
     }
 
     private static Connection open() throws SQLException {
-        Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
-        try (Statement statement = con.createStatement()) {
-            statement.execute("PRAGMA busy_timeout = 5000");
-        }
-        return con;
+        return com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX());
     }
 
     private static boolean toBoolean(String value) {

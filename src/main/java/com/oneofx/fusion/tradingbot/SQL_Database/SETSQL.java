@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -11,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.oneofx.fusion.client.FusionApiClient;
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Asset;
 import com.oneofx.fusion.tradingbot.HelperFunctions.empty;
@@ -32,7 +32,7 @@ public class SETSQL {
     }
 
     public static double getBalance_SQL() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT Balance FROM SETTING")) {
             return round.two(rs.getDouble("Balance"));
@@ -44,7 +44,7 @@ public class SETSQL {
 
     // ------- minBuyAmount -------
     public static double getminBuyAmount() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT minBuyAmount FROM SETTING")) {
@@ -57,7 +57,7 @@ public class SETSQL {
 
     public static void setminBuyAmount(double BuyAmount) {
         String sql = "UPDATE SETTING SET minBuyAmount = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.six(BuyAmount));
@@ -71,7 +71,7 @@ public class SETSQL {
     // ------- get percent_toAdd -------
 
     public static double getPercentToAdd() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT percent_toAdd FROM SETTING")) {
             return round.three(rs.getDouble("percent_toAdd"));
@@ -83,7 +83,7 @@ public class SETSQL {
 
     // ------- maxBuyAmount -------
     public static double getmaxBuyAmount() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT maxBuyAmount FROM SETTING")) {
@@ -96,7 +96,7 @@ public class SETSQL {
 
     public static void setmaxBuyAmount(double BuyAmount) {
         String sql = "UPDATE SETTING SET maxBuyAmount = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.two(BuyAmount));
@@ -108,7 +108,7 @@ public class SETSQL {
     }
 
     public static double getROIpercent() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT ROI_percent FROM SETTING")) {
             return round.three(rs.getDouble("ROI_percent"));
@@ -119,7 +119,7 @@ public class SETSQL {
     }
 
     public static double getPercentToSell() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT PercentToSell FROM SETTING")) {
             return round.three(rs.getDouble("PercentToSell"));
@@ -130,7 +130,7 @@ public class SETSQL {
     }
 
     public static double getBaseStopLossPercent() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT BaseStopLoss FROM SETTING")) {
             return round.three(rs.getDouble("BaseStopLoss"));
@@ -142,7 +142,7 @@ public class SETSQL {
 
     public static void setBaseStopLossPercent(double stopLossPercent) {
         String sql = "UPDATE SETTING SET BaseStopLoss = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.three(stopLossPercent));
@@ -157,7 +157,7 @@ public class SETSQL {
     public static boolean getStatus(String tableString, String statusColumn, String currency) {
         String sql = "SELECT " + statusColumn + " FROM " + tableString + " WHERE currency = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setString(1, currency); // ✅ WHERE-Filter
@@ -183,7 +183,7 @@ public class SETSQL {
 
         String sql = "UPDATE " + tableString + " SET " + statusColumn + " = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setString(1, value ? "1" : "0");
@@ -214,7 +214,7 @@ public class SETSQL {
     }
 
     public static int getcountPart() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT countPart FROM SETTING")) {
             return rs.getInt("countPart");
@@ -225,7 +225,7 @@ public class SETSQL {
     }
 
     public static int setcountPart(int newValue) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement()) {
             String SQL = "UPDATE SETTING SET countPart = " + newValue;
             query.executeUpdate(SQL);
@@ -239,7 +239,7 @@ public class SETSQL {
     public static boolean setBalanceExchangeInfo(double exchangeBalance, double databaseBalance, double difference) {
         String sql = "UPDATE SETTING SET Börse = ?, Datenbank = ?, Differenz = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.eight(exchangeBalance));
@@ -256,7 +256,7 @@ public class SETSQL {
     }
 
     public static double setBalance(double newValue) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement()) {
             String SQL = "UPDATE SETTING SET Balance = " + newValue;
             query.executeUpdate(SQL);
@@ -268,7 +268,7 @@ public class SETSQL {
     }
 
     public static double getBuyAmount() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT BuyAmount FROM SETTING")) {
             return round.two(rs.getDouble("BuyAmount"));
@@ -279,7 +279,7 @@ public class SETSQL {
     }
 
     public static double setBuyAmount(double newValue) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement()) {
             String SQL = "UPDATE SETTING SET BuyAmount = " + round.two(newValue);
             query.executeUpdate(SQL);
@@ -291,7 +291,7 @@ public class SETSQL {
     }
 
     public static int getCount() {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT Count FROM SETTING")) {
             return rs.getInt("Count");
@@ -303,7 +303,7 @@ public class SETSQL {
 
     public static void setPercentToAdd(double newValue) {
         String sql = "UPDATE SETTING SET percent_toAdd = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.eight(newValue));
@@ -316,7 +316,7 @@ public class SETSQL {
 
     public static void getAVG_BalanceToAsset_atBuy() {
         String sql = "SELECT AVG(BalanceToAsset_atBuy) AS avg_balance_to_asset FROM historyPosition";
-        try (Connection conHist = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection conHist = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = conHist.createStatement();
                 ResultSet rs = query.executeQuery(sql)) {
 
@@ -324,7 +324,7 @@ public class SETSQL {
                 double avgBalanceToAsset = round.five(rs.getDouble("avg_balance_to_asset"));
 
                 String updateSql = "UPDATE SETTING SET y_Factor = ?";
-                try (Connection conSet = DriverManager.getConnection(dbUrl.getSET());
+                try (Connection conSet = SQLiteConnectionFactory.open(dbUrl.getSET());
                         PreparedStatement ps = conSet.prepareStatement(updateSql)) {
                     ps.setDouble(1, avgBalanceToAsset);
                     ps.executeUpdate();
@@ -338,7 +338,7 @@ public class SETSQL {
     }
 
     public static void updateCount(int newCountValue) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 Statement statement = con.createStatement()) {
 
             String updateSQL = "UPDATE SETTING SET Count = " + newCountValue;
@@ -351,7 +351,7 @@ public class SETSQL {
     }   
 
     public static double get_DataBase_Table_Value(final String dbUrl, String tableName, String value) {
-        try (Connection con = DriverManager.getConnection(dbUrl);
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl);
                 Statement query = con.createStatement();
                 ResultSet rs = query.executeQuery("SELECT " + value + " FROM " + tableName)) {
             return round.two(rs.getDouble(value));
@@ -363,7 +363,7 @@ public class SETSQL {
 
     public static void setBuyPriceTest(double buyPrice) {
         String sql = "UPDATE SETTING SET TP = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
                 PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.two(buyPrice));

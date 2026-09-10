@@ -1,5 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 
@@ -7,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -43,7 +43,7 @@ public class CurrencySQL {
                 "updateTime = datetime('now', 'localtime') " +
                 "WHERE currency = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1,  k4h);
@@ -79,7 +79,7 @@ public class CurrencySQL {
     public static boolean isStale(String currency) {
         String sql = "SELECT CASE WHEN updateTime IS NULL OR (strftime('%s', datetime('now', 'localtime')) - strftime('%s', updateTime)) > ? THEN 1 ELSE 0 END AS stale FROM currency WHERE currency = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setInt(1, STALE_THRESHOLD_SECONDS);
@@ -119,7 +119,7 @@ public class CurrencySQL {
         String sql = "SELECT k4h, d4h, k2h, d2h, k12h, d12h, k1d, d1d, k3d, d3d, k1w, d1w, k1m, d1m, k5m, d5m, CCI, ATR5m, RSI4h, emafast, emaslow " +
                      "FROM currency WHERE currency = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setString(1, currency);
@@ -161,7 +161,7 @@ public class CurrencySQL {
 
     public static boolean getTSL(String currency) {
         String sql = "SELECT TSL FROM tradeSettings WHERE currency = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, currency);
             try (ResultSet rs = ps.executeQuery()) {
@@ -178,7 +178,7 @@ public class CurrencySQL {
 
     public static double getTSLActivate(String currency) {
         String sql = "SELECT TSL_activate FROM tradeSettings WHERE currency = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, currency);
             try (ResultSet rs = ps.executeQuery()) {
@@ -194,7 +194,7 @@ public class CurrencySQL {
 
     public static double getTSLDecline(String currency) {
         String sql = "SELECT TSL_decline FROM tradeSettings WHERE currency = ?";
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, currency);
             try (ResultSet rs = ps.executeQuery()) {
@@ -211,7 +211,7 @@ public class CurrencySQL {
     public static boolean updateBalanceInfo(String currency, double exchange, double database, double differenz) {
         String sql = "UPDATE currency SET exchange = ?, database = ?, differenz = ? WHERE currency = ?";
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
              PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setDouble(1, round.eight(exchange));

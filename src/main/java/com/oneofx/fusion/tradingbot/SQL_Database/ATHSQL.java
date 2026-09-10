@@ -1,13 +1,13 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
@@ -16,7 +16,7 @@ public class ATHSQL {
 
     public static double getAllTimeHigh(String Currency) {
         // ensureCurrencyPairExists(dbUrl.getCurrency(), Currency);
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT alltimehigh FROM currency WHERE `currency` = '" + Currency + "'")) {
@@ -33,7 +33,7 @@ public class ATHSQL {
 
     public static double getAllTimeHighoneOfX(String Currency) {
         ensureCurrencyPairExists(dbUrl.getoneOfX(), Currency);
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT alltimehigh FROM currency WHERE `currency` = '" + Currency + "'")) {
@@ -56,7 +56,7 @@ public class ATHSQL {
     }
 
     private static void setAllTimeHigh(String CurrencyPair, final String ATH, double newValue) {
-        try (Connection con = DriverManager.getConnection(ATH);
+        try (Connection con = SQLiteConnectionFactory.open(ATH);
                 Statement stmt = con.createStatement()) {
             String SQL = "UPDATE currency SET alltimehigh = " + newValue + " WHERE `currency` = '" + CurrencyPair + "'";
 
@@ -67,7 +67,7 @@ public class ATHSQL {
     }
 
     public static void ensureCurrencyPairExists(final String SQL, String currencyPair) {
-        try (Connection con = DriverManager.getConnection(SQL);
+        try (Connection con = SQLiteConnectionFactory.open(SQL);
                 Statement stmt = con.createStatement()) {
 
             String checkQuery = "SELECT COUNT(*) AS count FROM currency WHERE `currency` = '" + currencyPair + "'";

@@ -5,6 +5,7 @@ import com.oneofx.fusion.tradingbot.domain.TradingRules;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import com.oneofx.fusion.client.model.OrderType;
 
 /**
  * Formatter-Klasse für die korrekte Formatierung von Preisen und Quantities
@@ -223,6 +224,11 @@ public class TradingRulesFormatter {
     /** Formatiert den Fallback-Wert mit einer festen Anzahl Dezimalstellen. */
     private static BigDecimal formatPrice(BigDecimal value, int decimals) {
         return value.setScale(decimals, RoundingMode.HALF_UP);
+    }
+
+    public static boolean supportsOrderType(String symbol, OrderType type) {
+        TradingRules rules=getTradingRules(symbol);
+        return rules!=null && type!=null && rules.supports(type);
     }
 
     private static BigDecimal quantize(BigDecimal value, BigDecimal increment, RoundingMode mode) {

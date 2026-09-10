@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.Indicator;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -9,6 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.SQL_Database.HistDAO;
 import com.oneofx.fusion.tradingbot.domain.HistoryPosition;
 
@@ -19,7 +19,7 @@ public class ExtractDateTime {
     public static void getDataRecordsIDBuyTime(final String SQL, List<String> dataRecords) {
         try {
             dataRecords.clear();
-            Connection con = DriverManager.getConnection(SQL);
+            Connection con = SQLiteConnectionFactory.open(SQL);
             Statement query = con.createStatement();
             String SQL1 = "SELECT BuyOrderId, BuyTime, SellTime FROM historyPosition";
             ResultSet rs = query.executeQuery(SQL1);

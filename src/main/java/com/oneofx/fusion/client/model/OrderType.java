@@ -19,9 +19,16 @@ public enum OrderType {
 
     @JsonCreator
     public static OrderType fromApiValue(String value) {
+        String normalized = normalize(value);
         for (OrderType type : values()) {
-            if (type.apiValue.equalsIgnoreCase(value)) return type;
+            if (normalize(type.apiValue).equals(normalized)
+                    || normalize(type.name()).equals(normalized)) return type;
         }
         throw new IllegalArgumentException("Unknown Fusion order type: " + value);
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.replace("_", "").replace("-", "")
+                .replace(" ", "").trim().toUpperCase(java.util.Locale.ROOT);
     }
 }

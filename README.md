@@ -30,11 +30,16 @@ $env:ONEOFX_TRADING_DB = "C:\Daten\oneofx_fusion.db"
 $env:ONEOFX_WPD_DB = "C:\Daten\WPD.db"
 $env:BITPANDA_FUSION_BASE_URL = "https://api.fusion.bitpanda.com"
 $env:ONEOFX_PROFIT_TAX_RATE_PERCENT = "42"
+$env:ONEOFX_SQLITE_BUSY_TIMEOUT_MS = "15000"
 ```
 
 Der Steuersatz muss zwischen 0 und 100 liegen und beträgt ohne Konfiguration
 weiterhin 42 Prozent. Verluste werden als negative Steuer verbucht und senken
 damit die kumulierte Steuerreserve für spätere Gewinne.
+
+Der SQLite-Busy-Timeout beträgt standardmäßig 15 Sekunden. Optional sind Werte
+zwischen 1.000 und 120.000 Millisekunden möglich; ungültige Werte fallen sicher
+auf den Standard zurück.
 
 API-Keys gehören nie in Java-Dateien, `.env`-Dateien oder Commits.
 
@@ -67,12 +72,33 @@ Die Desktop-Oberfläche enthält:
   Take Profit, Trailing Stop-Buy, Gewinnbedingung, Zeitausstieg und DCA
 - benannte Config Pools, die mehreren Handelspaaren als gemeinsame
   Ausführungsüberschreibung zugeordnet werden können
+- nativer Strategie-Designer mit verschachtelten UND-/ODER-Regelbäumen,
+  technischen Indikatoren, Candlestick-Mustern und erklärbaren Signalen
+- Strategiezuteilung je Bot, Config Pool, Handelspaar oder Marktphase sowie
+  gemeinsame Auswertung in Live- und Paper-Trading
+- lokales Backtesting mit historischen Fusion-Kerzen, Grid und DCA, mehreren
+  Positionen, Next-open- und Limit-Ausführung, Spread, volumenbegrenzten
+  Teilfüllungen, Gebühren, Slippage, Schutzlimits, Equity-Kurve sowie
+  gespeichertem Order-, Fill- und Trade-Verlauf
+- Variantenvergleich für mehrere Strategien, Grid-, Stop-Loss- und
+  Take-Profit-Werte mit getrennten In-/Out-of-Sample-Ergebnissen und
+  Walk-forward-Fenstern ohne Auswahl anhand zukünftiger Daten
+- natives Trading-Terminal mit interaktivem Kerzen- und Volumenchart,
+  Grid-Linien, offenen Live-/Paper-Orders, Positionen und historischen
+  Kauf-/Verkaufsmarkierungen
+- manuelle LIMIT-/MARKET-Orders für Paper und Live mit Pflichtbestätigung,
+  vollständigem Positionsverkauf sowie sicherem Stornieren und Ersetzen
 - Hinzufügen von Handelspaaren erst nach Live-Prüfung gegen den Fusion-Paarkatalog
+- Anzeige der je Handelspaar erlaubten Ordertypen sowie automatisch begrenzte
+  Auswahl in Baseconfig, Config Pools und manuellem Trading-Terminal; vorhandene
+  Paarregeln lassen sich direkt erneut von Fusion laden
 - sicheres Entfernen: unbenutzte Paare werden gelöscht, Paare mit Positionen archiviert
 - getrennte Einstellungsbereiche für Kaufstrategie und Risikomanagement
 - arithmetische Grids mit festem Preisabstand und geometrische Grids mit Prozentabstand
 - reaktive Grid-Vorschau mit Preisstufen, Kapitalbedarf und Handelsregelprüfung
 - automatische, transaktionale Speicherung ohne Speichern-Schaltfläche
+- zentral konfigurierte SQLite-Verbindungen mit WAL-Modus, Foreign Keys,
+  15-Sekunden-Busy-Timeout und garantiertem Commit/Rollback für Schreibblöcke
 - Ansichten für offene Orders, Positionen, ungeklärte Übermittlungen und Kontostände
 - lokale Warnzentrale und dauerhaftes Aktivitätsprotokoll
 - geschützter API-Zugang nur für die aktuelle Sitzung

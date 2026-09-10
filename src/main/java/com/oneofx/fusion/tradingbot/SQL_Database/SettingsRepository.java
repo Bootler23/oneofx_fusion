@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -10,6 +9,7 @@ import java.sql.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.round;
 
@@ -20,7 +20,7 @@ public class SettingsRepository {
     public static double getDouble(String columnName) {
         String sql = "SELECT " + columnName + " FROM SETTING";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              Statement query = con.createStatement();
              ResultSet rs = query.executeQuery(sql)) {
             
@@ -39,7 +39,7 @@ public class SettingsRepository {
     public static void setDouble(String columnName, double value, int roundDigits) {
         String sql = "UPDATE SETTING SET " + columnName + " = ?";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              PreparedStatement ps = con.prepareStatement(sql)) {
             
             // Wert runden falls roundDigits angegeben
@@ -62,7 +62,7 @@ public class SettingsRepository {
     public static int getInt(String columnName, int defaultValue) {
         String sql = "SELECT " + columnName + " FROM SETTING";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              Statement query = con.createStatement();
              ResultSet rs = query.executeQuery(sql)) {
             
@@ -81,7 +81,7 @@ public class SettingsRepository {
     public static boolean setInt(String columnName, int value) {
         String sql = "UPDATE SETTING SET " + columnName + " = ?";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              PreparedStatement ps = con.prepareStatement(sql)) {
             
             ps.setInt(1, value);
@@ -102,7 +102,7 @@ public class SettingsRepository {
     public static boolean getBoolean(String columnName, boolean defaultValue) {
         String sql = "SELECT " + columnName + " FROM SETTING";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              Statement query = con.createStatement();
              ResultSet rs = query.executeQuery(sql)) {
             
@@ -124,7 +124,7 @@ public class SettingsRepository {
     public static boolean setBoolean(String columnName, boolean value) {
         String sql = "UPDATE SETTING SET " + columnName + " = ?";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              PreparedStatement ps = con.prepareStatement(sql)) {
             
             ps.setString(1, value ? "1" : "0");
@@ -145,7 +145,7 @@ public class SettingsRepository {
     public static String getString(String columnName, String defaultValue) {
         String sql = "SELECT " + columnName + " FROM SETTING";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              Statement query = con.createStatement();
              ResultSet rs = query.executeQuery(sql)) {
             
@@ -164,7 +164,7 @@ public class SettingsRepository {
     public static boolean setString(String columnName, String value) {
         String sql = "UPDATE SETTING SET " + columnName + " = ?";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              PreparedStatement ps = con.prepareStatement(sql)) {
             
             ps.setString(1, value);
@@ -203,7 +203,7 @@ public class SettingsRepository {
     public static boolean columnExists(String columnName) {
         String sql = "PRAGMA table_info(SETTING)";
         
-        try (Connection con = DriverManager.getConnection(dbUrl.getSET());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getSET());
              Statement query = con.createStatement();
              ResultSet rs = query.executeQuery(sql)) {
             

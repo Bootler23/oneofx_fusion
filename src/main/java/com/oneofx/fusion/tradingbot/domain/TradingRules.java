@@ -1,6 +1,9 @@
 package com.oneofx.fusion.tradingbot.domain;
 
 import java.math.BigDecimal;
+import java.util.EnumSet;
+import java.util.Set;
+import com.oneofx.fusion.client.model.OrderType;
 
 /**
  * Domain-Klasse für Trading-Regeln eines Währungspaares.
@@ -17,6 +20,7 @@ public class TradingRules {
     private BigDecimal maxOrderSize;
     private BigDecimal minOrderAmount;
     private BigDecimal maxOrderAmount;
+    private Set<OrderType> supportedOrderTypes = EnumSet.allOf(OrderType.class);
 
     // Berechnete Werte (nicht in DB gespeichert)
     private int priceDecimals;
@@ -101,6 +105,12 @@ public class TradingRules {
     public void setMinOrderAmount(BigDecimal minOrderAmount) { this.minOrderAmount = minOrderAmount; }
     public BigDecimal getMaxOrderAmount() { return maxOrderAmount; }
     public void setMaxOrderAmount(BigDecimal maxOrderAmount) { this.maxOrderAmount = maxOrderAmount; }
+    public Set<OrderType> getSupportedOrderTypes() { return Set.copyOf(supportedOrderTypes); }
+    public void setSupportedOrderTypes(Set<OrderType> value) {
+        supportedOrderTypes = value == null || value.isEmpty()
+                ? EnumSet.allOf(OrderType.class) : EnumSet.copyOf(value);
+    }
+    public boolean supports(OrderType type) { return supportedOrderTypes.contains(type); }
 
     public int getPriceDecimals() { return priceDecimals; }
     public int getQuantityDecimals() { return quantityDecimals; }

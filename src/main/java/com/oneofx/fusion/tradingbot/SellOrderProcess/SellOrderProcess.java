@@ -299,6 +299,10 @@ public class SellOrderProcess {
         try { config = baseConfigRepository.loadEffective(currency); }
         catch (SQLException ex) { config = BotBaseConfig.defaults(0); }
         OrderType type = OrderType.valueOf(config.sellOrderType());
+        if (!TradingRulesFormatter.supportsOrderType(currency, type)) {
+            throw new IllegalStateException("Fusion erlaubt " + type + " für " + currency
+                    + " laut gespeichertem Paarkatalog nicht.");
+        }
         if (type == OrderType.MARKET || !Double.isFinite(currentPrice) || currentPrice <= 0) {
             return marketSell(currency, quantity);
         }

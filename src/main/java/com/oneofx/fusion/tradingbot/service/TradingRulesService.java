@@ -10,6 +10,7 @@ import com.oneofx.fusion.tradingbot.domain.TradingRules;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.EnumSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -93,6 +94,8 @@ public final class TradingRulesService {
         rules.setMaxOrderSize(decimal(pair.getMaxOrderSize()));
         rules.setMinOrderAmount(decimal(pair.getMinOrderAmount()));
         rules.setMaxOrderAmount(decimal(pair.getMaxOrderAmount()));
+        if (pair.getSupportedOrderTypes() != null && !pair.getSupportedOrderTypes().isEmpty())
+            rules.setSupportedOrderTypes(EnumSet.copyOf(pair.getSupportedOrderTypes()));
         return rules;
     }
 

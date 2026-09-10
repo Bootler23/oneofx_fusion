@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -25,7 +24,7 @@ public final class StrategyStateDAO {
     }
 
     void blockBuysUntil(String currency, long until, String reason, long now) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
+        try (Connection con = com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX())) {
             boolean botAware = tableExists(con, "botStrategyState");
             String sql = botAware
                     ? "INSERT INTO botStrategyState (bot_id, currency, buyBlockedUntil, reason, updatedAt) "
@@ -56,7 +55,7 @@ public final class StrategyStateDAO {
     }
 
     public long getBuyBlockedUntil(String currency) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX())) {
+        try (Connection con = com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX())) {
             boolean botAware = tableExists(con, "botStrategyState");
             String sql = botAware
                     ? "SELECT buyBlockedUntil FROM botStrategyState WHERE bot_id = ? AND currency = ?"

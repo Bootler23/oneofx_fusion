@@ -21,10 +21,18 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.sql.SQLException;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -34,9 +42,12 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.DefaultListModel;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
@@ -44,6 +55,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.JTextArea;
+import javax.swing.ListSelectionModel;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
@@ -57,6 +70,8 @@ import javax.swing.table.DefaultTableModel;
 import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.client.model.Account;
 import com.oneofx.fusion.client.model.AssetBalance;
+import com.oneofx.fusion.client.model.OrderSide;
+import com.oneofx.fusion.client.model.OrderType;
 import com.oneofx.fusion.client.model.TickerPrice;
 import com.oneofx.fusion.client.model.TradingPair;
 import com.oneofx.fusion.tradingbot.Database.PortablePaths;
@@ -65,12 +80,36 @@ import com.oneofx.fusion.tradingbot.Settings.FusionClientProvider;
 import com.oneofx.fusion.tradingbot.desktop.TradingEngineController.State;
 import com.oneofx.fusion.tradingbot.grid.GridMode;
 import com.oneofx.fusion.tradingbot.grid.GridPreviewService;
+import com.oneofx.fusion.tradingbot.backtest.BacktestRepository;
+import com.oneofx.fusion.tradingbot.backtest.BacktestRepository.BacktestRunSummary;
+import com.oneofx.fusion.tradingbot.backtest.BacktestEquityPoint;
+import com.oneofx.fusion.tradingbot.backtest.BacktestExecutionConfig;
+import com.oneofx.fusion.tradingbot.backtest.BacktestOptimizationRequest;
+import com.oneofx.fusion.tradingbot.backtest.BacktestOptimizationResult;
+import com.oneofx.fusion.tradingbot.backtest.BacktestOptimizationService;
+import com.oneofx.fusion.tradingbot.backtest.BacktestOrderEvent;
+import com.oneofx.fusion.tradingbot.backtest.BacktestRequest;
+import com.oneofx.fusion.tradingbot.backtest.BacktestResult;
+import com.oneofx.fusion.tradingbot.backtest.BacktestService;
+import com.oneofx.fusion.tradingbot.strategy.StrategyDefinition;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluation;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluationService;
+import com.oneofx.fusion.tradingbot.strategy.StrategyNode;
+import com.oneofx.fusion.tradingbot.strategy.StrategyRepository;
+import com.oneofx.fusion.tradingbot.strategy.StrategyNode.Action;
+import com.oneofx.fusion.tradingbot.strategy.StrategyNode.Comparator;
+import com.oneofx.fusion.tradingbot.strategy.StrategyNode.Indicator;
+import com.oneofx.fusion.tradingbot.strategy.StrategyNode.Logic;
+import com.oneofx.fusion.tradingbot.strategy.StrategyNode.NodeType;
 
 /** Lokale OneOfX-Bedienoberfläche im dunklen Trading-Design. */
 public final class OneOfXFrame extends JFrame {
 
     private static final String PAGE_DASHBOARD = "dashboard";
     private static final String PAGE_BOTS = "bots";
+    private static final String PAGE_STRATEGIES = "strategies";
+    private static final String PAGE_BACKTEST = "backtest";
+    private static final String PAGE_TERMINAL = "terminal";
     private static final String PAGE_SETTINGS = "settings";
     private static final String PAGE_ORDERS = "orders";
     private static final String PAGE_POSITIONS = "positions";
@@ -82,10 +121,20 @@ public final class OneOfXFrame extends JFrame {
     private final BotRepository botRepository = new BotRepository();
     private final PaperTradingRepository paperRepository = new PaperTradingRepository();
     private final BaseConfigRepository baseConfigRepository = new BaseConfigRepository();
+    private final OrderTypeAvailability orderTypeAvailability = new OrderTypeAvailability();
     private final OperationsRepository operationsRepository = new OperationsRepository();
     private final TradingPairValidator pairValidator = new TradingPairValidator();
     private final GridPreviewService gridPreviewService = new GridPreviewService();
     private final TradingEngineController engine = new TradingEngineController();
+    private final StrategyRepository strategyRepository = new StrategyRepository();
+    private final StrategyEvaluationService strategyEvaluationService =
+            new StrategyEvaluationService();
+    private final BacktestRepository backtestRepository = new BacktestRepository();
+    private final BacktestService backtestService = new BacktestService();
+    private final BacktestOptimizationService backtestOptimizationService =
+            new BacktestOptimizationService();
+    private final TradingTerminalService tradingTerminalService=new TradingTerminalService();
+    private final PortfolioPanel portfolioPanel;
 
     private final JLabel pageTitle = new JLabel("Dashboard");
     private final JLabel engineStatus = new JLabel("Gestoppt");
@@ -126,6 +175,7 @@ public final class OneOfXFrame extends JFrame {
     private final JComboBox<Object> configEditorBox = new JComboBox<>();
     private final JComboBox<String> baseBuyOrderType = new JComboBox<>(new String[] {"LIMIT", "MARKET", "STOP_LIMIT"});
     private final JComboBox<String> baseSellOrderType = new JComboBox<>(new String[] {"MARKET", "LIMIT", "STOP_MARKET"});
+    private final JLabel baseOrderTypeInfo = new JLabel("Ordertypen werden aus dem Paarkatalog geladen");
     private final JSpinner baseBuyOrderMinutes = new JSpinner(new SpinnerNumberModel(0, 0, 525_600, 1));
     private final JSpinner baseSellOrderMinutes = new JSpinner(new SpinnerNumberModel(0, 0, 525_600, 1));
     private final JSpinner baseCooldownMinutes = new JSpinner(new SpinnerNumberModel(60, 0, 525_600, 5));
@@ -141,7 +191,98 @@ public final class OneOfXFrame extends JFrame {
     private final JSpinner baseDcaMultiplier = decimalSpinner(1.0, 1.0, 100.0, 0.1);
     private final JComboBox<Object> pairPoolBox = new JComboBox<>();
 
+    private final JComboBox<StrategyDefinition> strategyBox = new JComboBox<>();
+    private final JTextField strategyName = new JTextField(24);
+    private final JSpinner strategyConfirmations =
+            new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+    private final JCheckBox strategyEnabled = new JCheckBox("Strategie aktiv");
+    private final JComboBox<AssignmentTarget> strategyAssignment = new JComboBox<>();
+    private final JLabel strategyAssignmentInfo = new JLabel("–");
+    private final DefaultTableModel strategyRulesModel = readOnlyModel(
+            "Baum", "Aktion", "Regel", "Vergleich", "Ziel", "Timeframe", "Perioden");
+    private final JTable strategyRulesTable = cockpitTable(strategyRulesModel);
+    private List<StrategyNode> visibleStrategyNodes = List.of();
+
+    private final JComboBox<StrategyDefinition> backtestStrategyBox = new JComboBox<>();
+    private final JComboBox<String> backtestCurrencyBox = new JComboBox<>();
+    private final JComboBox<String> backtestTimeframe = new JComboBox<>(
+            new String[] {"1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"});
+    private final JTextField backtestStart = new JTextField(
+            LocalDate.now().minusDays(90).toString(), 12);
+    private final JTextField backtestEnd = new JTextField(LocalDate.now().toString(), 12);
+    private final JSpinner backtestCapital = decimalSpinner(5_000, 1, 1_000_000_000, 100);
+    private final JSpinner backtestSpread = decimalSpinner(0.05, 0, 10, 0.01);
+    private final JSpinner backtestPartialFill = decimalSpinner(50, 0.01, 100, 5);
+    private final JSpinner backtestVolumeParticipation = decimalSpinner(1, 0.01, 100, 0.1);
+    private final DefaultListModel<StrategyDefinition> backtestOptimizationStrategyModel =
+            new DefaultListModel<>();
+    private final JList<StrategyDefinition> backtestOptimizationStrategies =
+            new JList<>(backtestOptimizationStrategyModel);
+    private final JTextField backtestOptimizationGrid = new JTextField(18);
+    private final JTextField backtestOptimizationStop = new JTextField(18);
+    private final JTextField backtestOptimizationTakeProfit = new JTextField(18);
+    private final JSpinner backtestInSample = decimalSpinner(70, 50, 90, 5);
+    private final JSpinner backtestWalkForwardFolds =
+            new JSpinner(new SpinnerNumberModel(3, 1, 6, 1));
+    private final JComboBox<BacktestRunSummary> backtestHistory = new JComboBox<>();
+    private final JLabel backtestFinalCapital = metricValue();
+    private final JLabel backtestProfit = metricValue();
+    private final JLabel backtestReturn = metricValue();
+    private final JLabel backtestDrawdown = metricValue();
+    private final JLabel backtestTradeCount = metricValue();
+    private final JLabel backtestWinRate = metricValue();
+    private final JLabel backtestProfitFactor = metricValue();
+    private final DefaultTableModel backtestTradesModel = readOnlyModel(
+            "#", "Einstieg", "Ausstieg", "Kaufpreis", "Verkaufspreis", "Menge",
+            "Gebühren", "PnL", "Grund", "Signalerklärung");
+    private final JTable backtestTradesTable = cockpitTable(backtestTradesModel);
+    private final DefaultTableModel backtestOrdersModel = readOnlyModel(
+            "#", "Order", "Grid", "Zeit", "Ereignis", "Limit", "Fillpreis",
+            "Fillmenge", "Restbetrag", "Grund");
+    private final JTable backtestOrdersTable = cockpitTable(backtestOrdersModel);
+    private final DefaultTableModel backtestOptimizationModel = readOnlyModel(
+            "Rang", "Strategie", "Grid", "SL", "TP", "IS Rendite", "IS DD",
+            "IS Trades", "OOS Rendite", "OOS DD", "OOS Trades", "IS Score");
+    private final JTable backtestOptimizationTable = cockpitTable(backtestOptimizationModel);
+    private final DefaultTableModel backtestWalkForwardModel = readOnlyModel(
+            "Fenster", "Training bis", "Testzeitraum", "Gewählte Variante",
+            "OOS Rendite", "OOS DD", "OOS Trades");
+    private final JTable backtestWalkForwardTable = cockpitTable(backtestWalkForwardModel);
+    private final EquityCurvePanel backtestEquityCurve = new EquityCurvePanel();
+
+    private final JComboBox<String> terminalCurrencyBox=new JComboBox<>();
+    private final JComboBox<String> terminalTimeframe=new JComboBox<>(
+            new String[]{"1m","5m","10m","15m","30m","1h","4h","1d"});
+    private final JSpinner terminalCandleCount=
+            new JSpinner(new SpinnerNumberModel(300,30,1_440,30));
+    private final JButton terminalRefreshButton=new JButton("Marktdaten laden");
+    private final TradingChartPanel tradingChart=new TradingChartPanel();
+    private final JLabel terminalLastPrice=metricValue();
+    private final JLabel terminalCandles=metricValue();
+    private final JLabel terminalOverlays=metricValue();
+    private final JLabel terminalUpdated=metricValue();
+    private final JComboBox<OrderSide> terminalOrderSide=new JComboBox<>(OrderSide.values());
+    private final JComboBox<OrderType> terminalOrderType=
+            new JComboBox<>(new OrderType[]{OrderType.LIMIT,OrderType.MARKET});
+    private final JSpinner terminalOrderQuantity=
+            decimalSpinner(0.001,0.00000001,1_000_000_000.0,0.001);
+    private final JSpinner terminalOrderPrice=
+            decimalSpinner(100,0.00000001,1_000_000_000.0,1);
+    private final JComboBox<PositionChoice> terminalPositionBox=new JComboBox<>();
+    private final JButton terminalSubmitOrder=new JButton("Order prüfen");
+    private final JButton terminalReplaceOrder=new JButton("Ausgewählte ersetzen");
+    private final JButton terminalCancelOrder=new JButton("Ausgewählte stornieren");
+    private final DefaultTableModel terminalOrdersModel=readOnlyModel(
+            "Modus","Seite","Paar","Order-ID","Typ","Preis","Menge","Status");
+    private final JTable terminalOrdersTable=cockpitTable(terminalOrdersModel);
+    private final ManualOrderService manualOrderService=new ManualOrderService();
+    private List<OperationsRepository.OpenOrderRow> terminalOrderRows=List.of();
+    private TradingTerminalSnapshot terminalSnapshot;
+    private boolean terminalOrderRefreshing;
+    private boolean terminalLoading;
+
     private final JComboBox<String> currencyBox = new JComboBox<>();
+    private final JLabel pairSupportedOrderTypes = new JLabel("Unterstützte Ordertypen: –");
     private final JCheckBox buyEnabled = new JCheckBox("Neue Käufe erlauben");
     private final JSpinner buyAmount = decimalSpinner(10.0, 0.01, 1_000_000.0, 1.0);
     private final JSpinner maxBuyAmount =
@@ -196,19 +337,25 @@ public final class OneOfXFrame extends JFrame {
     private final Timer dashboardTimer;
     private final Timer autoSaveTimer;
     private final Timer botSaveTimer;
+    private final Timer strategySaveTimer;
     private boolean loadingSettings;
     private boolean loadingBot;
     private boolean loadingBaseConfig;
     private boolean loadingPoolAssignment;
     private boolean autoSaveDirty;
     private boolean botSaveDirty;
+    private boolean loadingStrategy;
+    private boolean loadingBacktest;
+    private boolean strategySaveDirty;
     private String loadedCurrency;
     private BotProfile loadedBot;
     private ConfigPool loadedConfigPool;
+    private StrategyDefinition loadedStrategy;
     private CurrencySettingsRepository.GridPreviewContext gridPreviewContext;
 
     public OneOfXFrame() {
         super("OneOfX Trading Bot");
+        portfolioPanel=new PortfolioPanel(this::selectedBot,text->setMessage(text,false));
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setMinimumSize(new Dimension(1040, 700));
         setSize(1240, 780);
@@ -228,6 +375,8 @@ public final class OneOfXFrame extends JFrame {
         autoSaveTimer.setRepeats(false);
         botSaveTimer = new Timer(700, event -> savePendingBot());
         botSaveTimer.setRepeats(false);
+        strategySaveTimer = new Timer(700, event -> savePendingStrategy());
+        strategySaveTimer.setRepeats(false);
 
         startButton.addActionListener(event -> startTrading());
         stopButton.addActionListener(event -> engine.stop(this::showEngineState));
@@ -235,8 +384,27 @@ public final class OneOfXFrame extends JFrame {
         currencyBox.addActionListener(event -> switchSelectedCurrency());
         configEditorBox.addActionListener(event -> switchConfigEditor());
         pairPoolBox.addActionListener(event -> assignSelectedPool());
+        strategyBox.addActionListener(event -> switchStrategy());
+        strategyAssignment.addActionListener(event -> refreshStrategyAssignmentInfo());
+        backtestHistory.addActionListener(event -> loadSelectedBacktest());
+        backtestTimeframe.setSelectedItem("1h");
+        terminalTimeframe.setSelectedItem("15m");
+        terminalRefreshButton.addActionListener(event->refreshTradingTerminal(true));
+        terminalCurrencyBox.addActionListener(event->{
+            refreshTerminalOrderTypes();
+            refreshTerminalOrderControls();
+        });
+        terminalOrderSide.addActionListener(event->refreshTerminalOrderControls());
+        terminalOrderType.addActionListener(event->refreshTerminalOrderControls());
+        terminalSubmitOrder.addActionListener(event->submitManualOrder(false));
+        terminalReplaceOrder.addActionListener(event->submitManualOrder(true));
+        terminalCancelOrder.addActionListener(event->cancelSelectedOrder());
+        terminalOrdersTable.getSelectionModel().addListSelectionListener(event->{
+            if(!terminalOrderRefreshing&&!event.getValueIsAdjusting())loadSelectedTerminalOrder();
+        });
         installAutoSaveListeners();
         installBotAutoSaveListeners();
+        installStrategyAutoSaveListeners();
         previewPrice.addChangeListener(event -> refreshGridPreview());
 
         addWindowListener(new WindowAdapter() {
@@ -311,6 +479,12 @@ public final class OneOfXFrame extends JFrame {
         sidebar.add(Box.createVerticalStrut(6));
         sidebar.add(createNavButton(PAGE_BOTS, "Bots", IconType.PAIRS));
         sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_STRATEGIES, "Strategien", IconType.CHART));
+        sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_BACKTEST, "Backtesting", IconType.CLOCK));
+        sidebar.add(Box.createVerticalStrut(6));
+        sidebar.add(createNavButton(PAGE_TERMINAL, "Trading-Terminal", IconType.CHART));
+        sidebar.add(Box.createVerticalStrut(6));
         sidebar.add(createNavButton(PAGE_ORDERS, "Orders", IconType.CLOCK));
         sidebar.add(Box.createVerticalStrut(6));
         sidebar.add(createNavButton(PAGE_POSITIONS, "Positionen", IconType.CHART));
@@ -358,6 +532,9 @@ public final class OneOfXFrame extends JFrame {
         pages.setOpaque(false);
         pages.add(createDashboard(), PAGE_DASHBOARD);
         pages.add(createBotsPage(), PAGE_BOTS);
+        pages.add(createStrategiesPage(), PAGE_STRATEGIES);
+        pages.add(createBacktestPage(), PAGE_BACKTEST);
+        pages.add(createTradingTerminalPage(),PAGE_TERMINAL);
         pages.add(createOrdersPage(), PAGE_ORDERS);
         pages.add(createPositionsPage(), PAGE_POSITIONS);
         pages.add(createBalancesPage(), PAGE_BALANCES);
@@ -589,6 +766,513 @@ public final class OneOfXFrame extends JFrame {
         return scroll(content);
     }
 
+    private JScrollPane createStrategiesPage() {
+        JPanel content = pageContent();
+        content.add(pageHeading("Strategie-Designer",
+                "Indikatoren visuell verknüpfen, Signale erklären und gezielt zuweisen."));
+        content.add(Box.createVerticalStrut(22));
+
+        RoundedPanel selection = cardPanel(new BorderLayout(16, 0));
+        selection.setMaximumSize(new Dimension(Integer.MAX_VALUE, 92));
+        selection.add(titleBlock("Strategiebibliothek",
+                "Jede Strategie gehört zum ausgewählten Bot und bleibt lokal in SQLite."),
+                BorderLayout.WEST);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
+        strategyBox.setPreferredSize(new Dimension(210, 38));
+        OneOfXTheme.round(strategyBox);
+        actions.add(strategyBox);
+        JButton create = new JButton("Neu");
+        styleSecondaryButton(create);
+        create.addActionListener(event -> createStrategy());
+        actions.add(create);
+        JButton duplicate = new JButton("Duplizieren");
+        styleSecondaryButton(duplicate);
+        duplicate.addActionListener(event -> duplicateStrategy());
+        actions.add(duplicate);
+        JButton archive = new JButton("Löschen");
+        styleSecondaryButton(archive);
+        archive.setForeground(OneOfXTheme.ERROR);
+        archive.addActionListener(event -> archiveStrategy());
+        actions.add(archive);
+        selection.add(actions, BorderLayout.EAST);
+        content.add(selection);
+        content.add(Box.createVerticalStrut(16));
+
+        JPanel top = new JPanel(new GridLayout(1, 2, 16, 0));
+        top.setOpaque(false);
+        top.setAlignmentX(Component.LEFT_ALIGNMENT);
+        top.setMaximumSize(new Dimension(Integer.MAX_VALUE, 235));
+        RoundedPanel definition = cardPanel(new BorderLayout(0, 12));
+        definition.add(titleBlock("Definition", "Gültige Änderungen speichern automatisch"),
+                BorderLayout.NORTH);
+        JPanel definitionForm = modernForm();
+        addFormRow(definitionForm, 0, "Name", strategyName, null);
+        addFormRow(definitionForm, 1, "Mindest-Bestätigungen", strategyConfirmations, null);
+        addFormRow(definitionForm, 2, "Status", strategyEnabled, null);
+        definition.add(definitionForm, BorderLayout.CENTER);
+        top.add(definition);
+
+        RoundedPanel assignment = cardPanel(new BorderLayout(0, 12));
+        assignment.add(titleBlock("Zuweisung",
+                "Priorität: Paar → Config Pool → Marktphase → Bot"), BorderLayout.NORTH);
+        JPanel assignmentCenter = new JPanel();
+        assignmentCenter.setOpaque(false);
+        assignmentCenter.setLayout(new BoxLayout(assignmentCenter, BoxLayout.Y_AXIS));
+        strategyAssignment.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        strategyAssignment.setAlignmentX(Component.LEFT_ALIGNMENT);
+        assignmentCenter.add(strategyAssignment);
+        assignmentCenter.add(Box.createVerticalStrut(10));
+        JPanel assignmentButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        assignmentButtons.setOpaque(false);
+        JButton assign = new JButton("Strategie zuweisen");
+        stylePrimaryButton(assign);
+        assign.addActionListener(event -> assignStrategy(false));
+        assignmentButtons.add(assign);
+        JButton clear = new JButton("Zuweisung lösen");
+        styleSecondaryButton(clear);
+        clear.addActionListener(event -> assignStrategy(true));
+        assignmentButtons.add(clear);
+        assignmentCenter.add(assignmentButtons);
+        strategyAssignmentInfo.setForeground(OneOfXTheme.TEXT_MUTED);
+        strategyAssignmentInfo.setFont(OneOfXTheme.font(Font.PLAIN, 11));
+        strategyAssignmentInfo.setAlignmentX(Component.LEFT_ALIGNMENT);
+        assignmentCenter.add(Box.createVerticalStrut(8));
+        assignmentCenter.add(strategyAssignmentInfo);
+        assignment.add(assignmentCenter, BorderLayout.CENTER);
+        top.add(assignment);
+        content.add(top);
+        content.add(Box.createVerticalStrut(16));
+
+        RoundedPanel rules = cardPanel(new BorderLayout(0, 14));
+        rules.setMaximumSize(new Dimension(Integer.MAX_VALUE, 490));
+        JPanel ruleHeader = new JPanel(new BorderLayout(0, 10));
+        ruleHeader.setOpaque(false);
+        ruleHeader.add(titleBlock("Regelbaum",
+                "Gruppen können mit UND/ODER verschachtelt werden; Doppelklick bearbeitet."),
+                BorderLayout.NORTH);
+        JPanel ruleActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        ruleActions.setOpaque(false);
+        JButton group = new JButton("Gruppe +");
+        styleSecondaryButton(group);
+        group.addActionListener(event -> addStrategyGroup());
+        ruleActions.add(group);
+        JButton condition = new JButton("Bedingung +");
+        styleSecondaryButton(condition);
+        condition.addActionListener(event -> addStrategyCondition());
+        ruleActions.add(condition);
+        JButton edit = new JButton("Bearbeiten");
+        styleSecondaryButton(edit);
+        edit.addActionListener(event -> editStrategyNode());
+        ruleActions.add(edit);
+        JButton remove = new JButton("Entfernen");
+        styleSecondaryButton(remove);
+        remove.setForeground(OneOfXTheme.ERROR);
+        remove.addActionListener(event -> deleteStrategyNode());
+        ruleActions.add(remove);
+        JButton test = new JButton("Mit Marktdaten testen");
+        stylePrimaryButton(test);
+        test.addActionListener(event -> testStrategy(test));
+        ruleActions.add(test);
+        ruleHeader.add(ruleActions, BorderLayout.SOUTH);
+        rules.add(ruleHeader, BorderLayout.NORTH);
+        strategyRulesTable.setAutoCreateRowSorter(false);
+        strategyRulesTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent event) {
+                if (event.getClickCount() == 2) editStrategyNode();
+            }
+        });
+        JScrollPane ruleScroll = new JScrollPane(strategyRulesTable);
+        ruleScroll.setBorder(BorderFactory.createLineBorder(OneOfXTheme.BORDER));
+        rules.add(ruleScroll, BorderLayout.CENTER);
+        content.add(rules);
+        content.add(Box.createVerticalGlue());
+        return scroll(content);
+    }
+
+    private JScrollPane createBacktestPage() {
+        JPanel content=pageContent();
+        content.add(pageHeading("Backtesting",
+                "Strategien mit historischen Fusion-Kerzen testen – lokal und ohne Orders."));
+        content.add(Box.createVerticalStrut(22));
+
+        RoundedPanel setup=cardPanel(new BorderLayout(0,16));
+        setup.setMaximumSize(new Dimension(Integer.MAX_VALUE,430));
+        JPanel header=new JPanel(new BorderLayout(12,0));header.setOpaque(false);
+        header.add(titleBlock("Neuer Backtest",
+                "Zeitraum in UTC · Ausführung am nächsten Open · Kosten aus der Bot-Konfiguration"),BorderLayout.WEST);
+        JButton run=new JButton("Backtest starten");stylePrimaryButton(run);
+        run.addActionListener(event->runBacktest(run));header.add(run,BorderLayout.EAST);setup.add(header,BorderLayout.NORTH);
+        JPanel columns=new JPanel(new GridLayout(1,2,20,0));columns.setOpaque(false);
+        JPanel left=modernForm();
+        addFormRow(left,0,"Strategie",backtestStrategyBox,null);
+        addFormRow(left,1,"Handelspaar",backtestCurrencyBox,null);
+        addFormRow(left,2,"Basis-Timeframe",backtestTimeframe,null);
+        JPanel right=modernForm();
+        addFormRow(right,0,"Startdatum",backtestStart,"JJJJ-MM-TT");
+        addFormRow(right,1,"Enddatum",backtestEnd,"JJJJ-MM-TT");
+        addFormRow(right,2,"Startkapital",backtestCapital,"EUR");
+        addFormRow(right,3,"Spread",backtestSpread,"%");
+        addFormRow(right,4,"Teilfüllung je Kerze",backtestPartialFill,"%");
+        addFormRow(right,5,"Volumenbeteiligung",backtestVolumeParticipation,"%");
+        columns.add(left);columns.add(right);setup.add(columns,BorderLayout.CENTER);
+        content.add(setup);content.add(Box.createVerticalStrut(16));
+
+        RoundedPanel optimization=cardPanel(new BorderLayout(0,16));
+        optimization.setMaximumSize(new Dimension(Integer.MAX_VALUE,360));
+        JPanel optimizationHeader=new JPanel(new BorderLayout(12,0));
+        optimizationHeader.setOpaque(false);
+        optimizationHeader.add(titleBlock("Varianten und Walk-forward",
+                "Rang nur aus In-Sample-Daten · Werte mit Semikolon trennen · maximal 60 Varianten"),
+                BorderLayout.WEST);
+        JButton optimize=new JButton("Varianten vergleichen");stylePrimaryButton(optimize);
+        optimize.addActionListener(event->runBacktestOptimization(optimize));
+        optimizationHeader.add(optimize,BorderLayout.EAST);
+        optimization.add(optimizationHeader,BorderLayout.NORTH);
+        JPanel optimizationColumns=new JPanel(new GridLayout(1,2,20,0));
+        optimizationColumns.setOpaque(false);
+        JPanel strategySelection=new JPanel(new BorderLayout(0,8));strategySelection.setOpaque(false);
+        JLabel strategyLabel=new JLabel("Strategien (Mehrfachauswahl)");
+        strategyLabel.setForeground(OneOfXTheme.TEXT_MUTED);
+        strategySelection.add(strategyLabel,BorderLayout.NORTH);
+        backtestOptimizationStrategies.setSelectionMode(
+                ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        JScrollPane strategyScroll=new JScrollPane(backtestOptimizationStrategies);
+        strategyScroll.setPreferredSize(new Dimension(0,180));
+        strategyScroll.setBorder(BorderFactory.createLineBorder(OneOfXTheme.BORDER));
+        strategySelection.add(strategyScroll,BorderLayout.CENTER);
+        JPanel variantFields=modernForm();
+        addFormRow(variantFields,0,"Grid-Abstände",backtestOptimizationGrid,"leer = aktuell");
+        addFormRow(variantFields,1,"Stop-Loss",backtestOptimizationStop,"% · leer = aktuell");
+        addFormRow(variantFields,2,"Take Profit",backtestOptimizationTakeProfit,"% · leer = aktuell");
+        addFormRow(variantFields,3,"In-Sample",backtestInSample,"%");
+        addFormRow(variantFields,4,"Walk-forward-Fenster",backtestWalkForwardFolds,null);
+        optimizationColumns.add(strategySelection);optimizationColumns.add(variantFields);
+        optimization.add(optimizationColumns,BorderLayout.CENTER);
+        content.add(optimization);content.add(Box.createVerticalStrut(16));
+
+        content.add(tableCard("Variantenvergleich",
+                "IS bestimmt den Rang; OOS bleibt bei der Auswahl unangetastet",
+                backtestOptimizationTable,330));content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Walk-forward-Auswertung",
+                "Expanding Window: bis zum jeweiligen Testfenster werden nur frühere Daten verwendet",
+                backtestWalkForwardTable,260));content.add(Box.createVerticalStrut(16));
+
+        RoundedPanel history=cardPanel(new BorderLayout(16,0));
+        history.setMaximumSize(new Dimension(Integer.MAX_VALUE,92));
+        history.add(titleBlock("Gespeicherte Läufe","Die letzten 100 Backtests dieses Bots"),BorderLayout.WEST);
+        backtestHistory.setPreferredSize(new Dimension(390,40));history.add(backtestHistory,BorderLayout.EAST);
+        content.add(history);content.add(Box.createVerticalStrut(16));
+
+        JPanel metrics=new JPanel(new GridLayout(2,4,12,12));metrics.setOpaque(false);
+        metrics.setAlignmentX(Component.LEFT_ALIGNMENT);metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE,218));
+        metrics.add(previewSummary("ENDKAPITAL",backtestFinalCapital));
+        metrics.add(previewSummary("NETTOERGEBNIS",backtestProfit));
+        metrics.add(previewSummary("RENDITE",backtestReturn));
+        metrics.add(previewSummary("MAX. DRAWDOWN",backtestDrawdown));
+        metrics.add(previewSummary("TRADES",backtestTradeCount));
+        metrics.add(previewSummary("TREFFERQUOTE",backtestWinRate));
+        metrics.add(previewSummary("PROFIT FACTOR",backtestProfitFactor));
+        JLabel method=new JLabel("Next-open / konservativ");
+        metrics.add(previewSummary("AUSFÜHRUNGSMODELL",method));
+        content.add(metrics);content.add(Box.createVerticalStrut(16));
+        RoundedPanel curve=cardPanel(new BorderLayout(0,12));
+        curve.setMaximumSize(new Dimension(Integer.MAX_VALUE,230));
+        curve.setPreferredSize(new Dimension(0,230));
+        curve.add(titleBlock("Equity-Kurve","Kontowert nach jeder simulierten Basis-Kerze"),BorderLayout.NORTH);
+        curve.add(backtestEquityCurve,BorderLayout.CENTER);content.add(curve);content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Order- und Teilfüllungsprotokoll",
+                "Grid-Platzierungen, Teilfüllungen, Vollfüllungen und Stornierungen",
+                backtestOrdersTable,330));content.add(Box.createVerticalStrut(16));
+        content.add(tableCard("Simulierte Trades",
+                "Gebühren und Slippage sind bereits im PnL enthalten",backtestTradesTable,390));
+        content.add(Box.createVerticalGlue());return scroll(content);
+    }
+
+    private JScrollPane createTradingTerminalPage(){
+        JPanel content=pageContent();
+        content.add(pageHeading("Trading-Terminal",
+                "Kerzen, Grid, Orders und Positionen in einer gemeinsamen lokalen Ansicht."));
+        content.add(Box.createVerticalStrut(18));
+        RoundedPanel controls=cardPanel(new BorderLayout(16,0));
+        controls.setMaximumSize(new Dimension(Integer.MAX_VALUE,96));
+        controls.add(titleBlock("Marktansicht",
+                "Grün: Käufe · Rot: Verkäufe · Blau: Positionen · Grau: Grid"),BorderLayout.WEST);
+        JPanel actions=new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0));actions.setOpaque(false);
+        actions.add(new JLabel("Paar"));terminalCurrencyBox.setPreferredSize(new Dimension(125,40));
+        actions.add(terminalCurrencyBox);actions.add(new JLabel("Timeframe"));
+        terminalTimeframe.setPreferredSize(new Dimension(85,40));actions.add(terminalTimeframe);
+        actions.add(new JLabel("Kerzen"));terminalCandleCount.setPreferredSize(new Dimension(85,40));
+        actions.add(terminalCandleCount);
+        JButton reset=new JButton("Ansicht zurücksetzen");styleSecondaryButton(reset);
+        reset.addActionListener(event->tradingChart.resetView());actions.add(reset);
+        stylePrimaryButton(terminalRefreshButton);actions.add(terminalRefreshButton);
+        controls.add(actions,BorderLayout.EAST);content.add(controls);
+        content.add(Box.createVerticalStrut(14));
+
+        JPanel metrics=new JPanel(new GridLayout(1,4,12,0));metrics.setOpaque(false);
+        metrics.setAlignmentX(Component.LEFT_ALIGNMENT);
+        metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE,106));
+        metrics.add(previewSummary("LETZTER PREIS",terminalLastPrice));
+        metrics.add(previewSummary("KERZEN",terminalCandles));
+        metrics.add(previewSummary("OVERLAYS",terminalOverlays));
+        metrics.add(previewSummary("AKTUALISIERT",terminalUpdated));
+        content.add(metrics);content.add(Box.createVerticalStrut(14));
+
+        RoundedPanel chart=cardPanel(new BorderLayout(0,10));
+        chart.setMaximumSize(new Dimension(Integer.MAX_VALUE,690));
+        chart.setPreferredSize(new Dimension(0,690));
+        chart.add(titleBlock("Kurschart",
+                "Mausrad zum Zoomen, ziehen zum Verschieben, Fadenkreuz für OHLCV"),
+                BorderLayout.NORTH);
+        tradingChart.setPreferredSize(new Dimension(980,610));chart.add(tradingChart,BorderLayout.CENTER);
+        content.add(chart);content.add(Box.createVerticalStrut(14));
+
+        RoundedPanel orderEntry=cardPanel(new BorderLayout(18,12));
+        orderEntry.setMaximumSize(new Dimension(Integer.MAX_VALUE,255));
+        orderEntry.add(titleBlock("Manuelle Order",
+                "Verkäufe schließen immer eine vollständig ausgewählte Position"),BorderLayout.NORTH);
+        JPanel orderForm=new JPanel(new GridLayout(1,5,12,0));orderForm.setOpaque(false);
+        orderForm.add(compactField("Seite",terminalOrderSide));
+        orderForm.add(compactField("Typ",terminalOrderType));
+        orderForm.add(compactField("Position",terminalPositionBox));
+        orderForm.add(compactField("Menge",terminalOrderQuantity));
+        orderForm.add(compactField("Limitpreis",terminalOrderPrice));
+        orderEntry.add(orderForm,BorderLayout.CENTER);
+        JPanel orderActions=new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0));orderActions.setOpaque(false);
+        stylePrimaryButton(terminalSubmitOrder);styleSecondaryButton(terminalReplaceOrder);
+        styleSecondaryButton(terminalCancelOrder);
+        orderActions.add(terminalCancelOrder);orderActions.add(terminalReplaceOrder);
+        orderActions.add(terminalSubmitOrder);orderEntry.add(orderActions,BorderLayout.SOUTH);
+        content.add(orderEntry);content.add(Box.createVerticalStrut(14));
+        content.add(tableCard("Offene Orders verwalten",
+                "Live-Änderungen werden kontrolliert storniert und anschließend neu angelegt",
+                terminalOrdersTable,280));
+        content.add(Box.createVerticalGlue());return scroll(content);
+    }
+
+    private void refreshTradingTerminal(boolean userInitiated){
+        if(terminalLoading)return;
+        if(!flushAutoSave()||!flushBotAutoSave())return;
+        try{
+            configureSessionFromFields();
+            if(!FusionClientProvider.isConfigured()){
+                if(userInitiated)showPage(PAGE_ACCESS,"API-Zugang");
+                throw new IllegalStateException(
+                        "Für den Trading-Chart zuerst einen Fusion API-Key eingeben.");
+            }
+            BotProfile bot=selectedBot();String currency=(String)terminalCurrencyBox.getSelectedItem();
+            if(bot==null||currency==null)throw new IllegalStateException(
+                    "Bot und Handelspaar müssen ausgewählt sein.");
+            commitSpinner(terminalCandleCount);
+            String timeframe=terminalTimeframe.getSelectedItem().toString();
+            int count=((Number)terminalCandleCount.getValue()).intValue();
+            terminalLoading=true;terminalRefreshButton.setEnabled(false);
+            terminalRefreshButton.setText("Wird geladen …");
+            setMessage("Terminal-Marktdaten werden geladen …",false);
+            new SwingWorker<TradingTerminalSnapshot,Void>(){
+                @Override protected TradingTerminalSnapshot doInBackground()throws Exception{
+                    return tradingTerminalService.load(bot.id(),currency,timeframe,count,
+                            FusionClientProvider.getClient());
+                }
+                @Override protected void done(){
+                    terminalLoading=false;terminalRefreshButton.setEnabled(true);
+                    terminalRefreshButton.setText("Marktdaten laden");
+                    try{
+                        TradingTerminalSnapshot snapshot=get();tradingChart.setSnapshot(snapshot);
+                        terminalSnapshot=snapshot;
+                        terminalOrderPrice.setValue(snapshot.lastPrice());
+                        long grids=snapshot.priceLines().stream()
+                                .filter(line->line.type()==TradingTerminalSnapshot.LineType.GRID).count();
+                        long orders=snapshot.priceLines().stream().filter(line->line.type()
+                                ==TradingTerminalSnapshot.LineType.BUY_ORDER||line.type()
+                                ==TradingTerminalSnapshot.LineType.SELL_ORDER).count();
+                        long positions=snapshot.priceLines().stream()
+                                .filter(line->line.type()==TradingTerminalSnapshot.LineType.POSITION).count();
+                        terminalLastPrice.setText(decimal(snapshot.lastPrice()));
+                        terminalCandles.setText(Integer.toString(snapshot.candles().size()));
+                        terminalOverlays.setText(grids+" Grid · "+orders+" Orders · "
+                                +positions+" Positionen");
+                        terminalUpdated.setText(dateTime(snapshot.loadedAt()));
+                        setMessage("Trading-Terminal für "+snapshot.currency()+" aktualisiert.",false);
+                    }catch(Exception ex){showBackgroundError("Trading-Terminal konnte nicht geladen werden",ex);}
+                }
+            }.execute();
+        }catch(RuntimeException ex){showError("Trading-Terminal konnte nicht geladen werden",ex);}
+    }
+
+    private void refreshTerminalOrderControls(){
+        OrderSide side=(OrderSide)terminalOrderSide.getSelectedItem();
+        OrderType type=(OrderType)terminalOrderType.getSelectedItem();
+        boolean sell=side==OrderSide.SELL;
+        terminalOrderType.setEnabled(type!=null);
+        terminalSubmitOrder.setEnabled(type!=null);
+        terminalReplaceOrder.setEnabled(type!=null);
+        terminalPositionBox.setEnabled(sell);
+        terminalOrderQuantity.setEnabled(!sell);
+        terminalOrderPrice.setEnabled(type==OrderType.LIMIT);
+        if(!sell)terminalPositionBox.setSelectedItem(null);
+    }
+
+    private void refreshTerminalOrderViews(List<OperationsRepository.OpenOrderRow> orders,
+            List<OperationsRepository.PositionRow> positions){
+        String selectedOrder=selectedTerminalOrder()==null?null:selectedTerminalOrder().orderId();
+        terminalOrderRefreshing=true;
+        terminalOrderRows=List.copyOf(orders);
+        replaceRows(terminalOrdersModel,orders.stream().map(row->new Object[]{
+                row.origin(),row.orderSide(),row.currency(),row.orderId(),row.orderType(),
+                row.price()>0?decimal(row.price()):"–",decimal(row.quantity()),row.statusText()
+        }).toList());
+        if(selectedOrder!=null)for(int i=0;i<terminalOrderRows.size();i++)
+            if(selectedOrder.equals(terminalOrderRows.get(i).orderId())){
+                int view=terminalOrdersTable.convertRowIndexToView(i);
+                if(view>=0)terminalOrdersTable.setRowSelectionInterval(view,view);break;
+            }
+        terminalOrderRefreshing=false;
+        String selectedPosition=terminalPositionBox.getSelectedItem() instanceof PositionChoice choice
+                ?choice.id():null;
+        terminalPositionBox.removeAllItems();
+        BotProfile bot=selectedBot();String currency=(String)terminalCurrencyBox.getSelectedItem();
+        if(bot!=null&&currency!=null)for(OperationsRepository.PositionRow row:positions){
+            boolean paper=row.statusText()!=null&&row.statusText().startsWith("PAPER");
+            if(row.currency().equalsIgnoreCase(currency)
+                    &&paper==(bot.mode()==BotProfile.Mode.PAPER))
+                terminalPositionBox.addItem(new PositionChoice(row.orderId(),row.quantity()));
+        }
+        if(selectedPosition!=null)for(int i=0;i<terminalPositionBox.getItemCount();i++)
+            if(selectedPosition.equals(terminalPositionBox.getItemAt(i).id())){
+                terminalPositionBox.setSelectedIndex(i);break;
+            }
+        refreshTerminalOrderControls();
+    }
+
+    private void loadSelectedTerminalOrder(){
+        OperationsRepository.OpenOrderRow row=selectedTerminalOrder();if(row==null)return;
+        terminalCurrencyBox.setSelectedItem(row.currency());
+        terminalOrderSide.setSelectedItem(row.orderSide());
+        try{
+            OrderType type=OrderType.valueOf(row.orderType());
+            if(comboContains(terminalOrderType,type))terminalOrderType.setSelectedItem(type);
+        }catch(RuntimeException ignored){ }
+        terminalOrderQuantity.setValue(row.quantity());
+        if(row.price()>0)terminalOrderPrice.setValue(row.price());
+        refreshTerminalOrderControls();
+    }
+
+    private OperationsRepository.OpenOrderRow selectedTerminalOrder(){
+        int view=terminalOrdersTable.getSelectedRow();if(view<0)return null;
+        int model=terminalOrdersTable.convertRowIndexToModel(view);
+        return model>=0&&model<terminalOrderRows.size()?terminalOrderRows.get(model):null;
+    }
+
+    private ManualOrderService.Request readManualOrderRequest(
+            OperationsRepository.OpenOrderRow replacement){
+        String currency=(String)terminalCurrencyBox.getSelectedItem();
+        OrderSide side=(OrderSide)terminalOrderSide.getSelectedItem();
+        OrderType type=(OrderType)terminalOrderType.getSelectedItem();
+        double market=terminalSnapshot!=null&&currency!=null
+                &&terminalSnapshot.currency().equalsIgnoreCase(currency)
+                ?terminalSnapshot.lastPrice():0;
+        String position=terminalPositionBox.getSelectedItem() instanceof PositionChoice choice
+                ?choice.id():null;
+        if(replacement!=null&&side==OrderSide.SELL)position=replacement.referenceId();
+        return new ManualOrderService.Request(currency,side,type,number(terminalOrderQuantity),
+                number(terminalOrderPrice),market,position);
+    }
+
+    private void submitManualOrder(boolean replace){
+        if(!flushAutoSave()||!flushBotAutoSave())return;
+        try{
+            BotProfile bot=selectedBot();if(bot==null)throw new IllegalStateException("Kein Bot ausgewählt.");
+            OperationsRepository.OpenOrderRow old=replace?selectedTerminalOrder():null;
+            if(replace&&old==null)throw new IllegalArgumentException("Zuerst eine offene Order auswählen.");
+            ManualOrderService.PreparedOrder prepared=replace
+                    ?manualOrderService.prepareReplacement(bot,old,readManualOrderRequest(old))
+                    :manualOrderService.prepare(bot,readManualOrderRequest(null));
+            String action=replace?"ersetzen":"aufgeben";
+            String warning=bot.mode()==BotProfile.Mode.LIVE
+                    ?"LIVE-ORDER: Dies löst eine echte Börsentransaktion aus.\n\n":"Paper-Order\n\n";
+            int answer=JOptionPane.showConfirmDialog(this,warning
+                    +prepared.request().side()+" "+prepared.request().type()+"\n"
+                    +prepared.request().currency()+" · "+prepared.quantityText()+"\n"
+                    +"Referenzwert: "+prepared.priceText()+" · ca. "+money(prepared.notional())+"\n\n"
+                    +(replace?"Die bestehende Order wird zuerst bestätigt storniert.\n":"")
+                    +"Order wirklich "+action+"?","Order bestätigen",
+                    JOptionPane.YES_NO_OPTION,bot.mode()==BotProfile.Mode.LIVE
+                            ?JOptionPane.WARNING_MESSAGE:JOptionPane.QUESTION_MESSAGE);
+            if(answer!=JOptionPane.YES_OPTION)return;
+            configureSessionFromFields();
+            if(bot.mode()==BotProfile.Mode.LIVE&&!FusionClientProvider.isConfigured()){
+                showPage(PAGE_ACCESS,"API-Zugang");
+                throw new IllegalStateException("Für Live-Orders zuerst den Fusion API-Key eingeben.");
+            }
+            setManualOrderBusy(true,"Order wird übermittelt …");
+            new SwingWorker<ManualOrderService.Submission,Void>(){
+                @Override protected ManualOrderService.Submission doInBackground()throws Exception{
+                    FusionApiClient client=bot.mode()==BotProfile.Mode.LIVE
+                            ?FusionClientProvider.getClient():null;
+                    return replace?manualOrderService.replace(bot,old,prepared,client)
+                            :manualOrderService.submit(bot,prepared,client);
+                }
+                @Override protected void done(){
+                    setManualOrderBusy(false,null);
+                    try{ManualOrderService.Submission result=get();
+                        operationsRepository.recordEvent(bot.id(),"INFO","MANUELLE ORDER",
+                                prepared.request().currency(),(replace?"Order ersetzt: ":"Order angelegt: ")
+                                        +result.side()+" "+result.type()+" "+value(result.orderId()));
+                        setMessage("Manuelle "+result.mode()+"-Order: "+result.status(),false);
+                        refreshOperationalViews();refreshDashboard();refreshTradingTerminal(false);
+                    }catch(Exception ex){showBackgroundError("Manuelle Order fehlgeschlagen",ex);}
+                }
+            }.execute();
+        }catch(Exception ex){showError("Orderprüfung fehlgeschlagen",ex);}
+    }
+
+    private void cancelSelectedOrder(){
+        OperationsRepository.OpenOrderRow row=selectedTerminalOrder();
+        if(row==null){showError("Storno nicht möglich",new IllegalArgumentException(
+                "Zuerst eine offene Order auswählen."));return;}
+        BotProfile bot=selectedBot();
+        String warning=row.origin()==OperationsRepository.OrderOrigin.LIVE
+                ?"LIVE-ORDER wirklich bei Fusion stornieren?":"Paper-Order wirklich stornieren?";
+        if(JOptionPane.showConfirmDialog(this,warning+"\n\n"+row.currency()+" · "+row.orderId(),
+                "Storno bestätigen",JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)
+                !=JOptionPane.YES_OPTION)return;
+        try{
+            configureSessionFromFields();
+            if(row.origin()==OperationsRepository.OrderOrigin.LIVE
+                    &&!FusionClientProvider.isConfigured()){
+                showPage(PAGE_ACCESS,"API-Zugang");
+                throw new IllegalStateException("Für Live-Stornos zuerst den Fusion API-Key eingeben.");
+            }
+            setManualOrderBusy(true,"Storno wird geprüft …");
+            new SwingWorker<ManualOrderService.CancelResult,Void>(){
+                @Override protected ManualOrderService.CancelResult doInBackground()throws Exception{
+                    return manualOrderService.cancel(bot,row,
+                            row.origin()==OperationsRepository.OrderOrigin.LIVE
+                                    ?FusionClientProvider.getClient():null);
+                }
+                @Override protected void done(){setManualOrderBusy(false,null);try{
+                    ManualOrderService.CancelResult result=get();
+                    operationsRepository.recordEvent(bot.id(),result.clean()?"INFO":"WARN",
+                            "ORDER-STORNO",row.currency(),result.message()+" "+row.orderId());
+                    setMessage(result.message(),!result.clean());refreshOperationalViews();
+                    refreshDashboard();refreshTradingTerminal(false);
+                }catch(Exception ex){showBackgroundError("Order konnte nicht storniert werden",ex);}}
+            }.execute();
+        }catch(Exception ex){setManualOrderBusy(false,null);showError("Storno nicht möglich",ex);}
+    }
+
+    private void setManualOrderBusy(boolean busy,String text){
+        terminalSubmitOrder.setEnabled(!busy);terminalReplaceOrder.setEnabled(!busy);
+        terminalCancelOrder.setEnabled(!busy);botBox.setEnabled(!busy);
+        terminalCurrencyBox.setEnabled(!busy);terminalOrderSide.setEnabled(!busy);
+        terminalOrderType.setEnabled(!busy);terminalPositionBox.setEnabled(!busy);
+        terminalOrderQuantity.setEnabled(!busy);terminalOrderPrice.setEnabled(!busy);
+        if(text!=null)setMessage(text,false);
+        if(!busy)refreshTerminalOrderControls();
+    }
+
     private RoundedPanel createBaseConfigPanel() {
         RoundedPanel panel = cardPanel(new BorderLayout(0, 16));
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 570));
@@ -638,6 +1322,9 @@ public final class OneOfXFrame extends JFrame {
         addFormRow(dca, 3, "Order-Multiplikator", baseDcaMultiplier, "×");
         columns.add(dca);
         panel.add(columns, BorderLayout.CENTER);
+        baseOrderTypeInfo.setForeground(OneOfXTheme.TEXT_MUTED);
+        baseOrderTypeInfo.setFont(OneOfXTheme.font(Font.PLAIN, 11));
+        panel.add(baseOrderTypeInfo, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -682,6 +1369,11 @@ public final class OneOfXFrame extends JFrame {
         content.add(tableCard("Positionsübersicht",
                 "Realisierte Werte werden erst nach bestätigter Ausführung gebucht",
                 positionsTable, 430));
+        content.add(Box.createVerticalStrut(16));
+        portfolioPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        portfolioPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE,620));
+        portfolioPanel.setPreferredSize(new Dimension(0,620));
+        content.add(portfolioPanel);
         content.add(Box.createVerticalGlue());
         return scroll(content);
     }
@@ -740,34 +1432,53 @@ public final class OneOfXFrame extends JFrame {
         content.add(Box.createVerticalStrut(22));
 
         RoundedPanel selection = cardPanel(new BorderLayout(16, 0));
-        selection.setMaximumSize(new Dimension(Integer.MAX_VALUE, 96));
+        selection.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
         JPanel selectText = titleBlock("Handelspaar",
                 "Geprüfte Paare verwalten · Änderungen speichern automatisch");
         selection.add(selectText, BorderLayout.WEST);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        JPanel actions = new JPanel();
         actions.setOpaque(false);
+        actions.setLayout(new BoxLayout(actions, BoxLayout.Y_AXIS));
+        JPanel selectors = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        selectors.setOpaque(false);
         currencyBox.setPreferredSize(new Dimension(190, 40));
         OneOfXTheme.round(currencyBox);
-        actions.add(currencyBox);
+        selectors.add(currencyBox);
 
         pairPoolBox.setPreferredSize(new Dimension(180, 40));
         pairPoolBox.setToolTipText("Config Pool für dieses Handelspaar");
         OneOfXTheme.round(pairPoolBox);
-        actions.add(pairPoolBox);
+        selectors.add(pairPoolBox);
+        actions.add(selectors);
+        actions.add(Box.createVerticalStrut(6));
+        JPanel pairActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        pairActions.setOpaque(false);
+
+        JButton refreshRulesButton = new JButton("Regeln aktualisieren");
+        styleSecondaryButton(refreshRulesButton);
+        refreshRulesButton.setToolTipText(
+                "Trading-Regeln und erlaubte Ordertypen erneut von Fusion laden");
+        refreshRulesButton.addActionListener(event -> refreshSelectedPairRules(refreshRulesButton));
+        pairActions.add(refreshRulesButton);
 
         JButton addButton = new JButton("Paar hinzufügen");
         styleSecondaryButton(addButton);
         addButton.setForeground(OneOfXTheme.PRIMARY);
         addButton.addActionListener(event -> addCurrency(addButton));
-        actions.add(addButton);
+        pairActions.add(addButton);
 
         JButton removeButton = new JButton("Entfernen");
         styleSecondaryButton(removeButton);
         removeButton.setForeground(OneOfXTheme.ERROR);
         removeButton.addActionListener(event -> removeCurrency());
-        actions.add(removeButton);
+        pairActions.add(removeButton);
+        actions.add(pairActions);
         selection.add(actions, BorderLayout.EAST);
+        pairSupportedOrderTypes.setForeground(OneOfXTheme.TEXT_MUTED);
+        pairSupportedOrderTypes.setFont(OneOfXTheme.font(Font.PLAIN, 11));
+        pairSupportedOrderTypes.setBorder(OneOfXTheme.padding(8, 0, 0, 0));
+        selection.add(pairSupportedOrderTypes, BorderLayout.SOUTH);
         content.add(selection);
         content.add(Box.createVerticalStrut(16));
 
@@ -963,6 +1674,590 @@ public final class OneOfXFrame extends JFrame {
         navigation.forEach((key, button) -> button.setActive(key.equals(page)));
     }
 
+    private void reloadStrategies(Long selectedId) {
+        if (loadedBot == null) return;
+        loadingStrategy = true;
+        try {
+            long wanted = selectedId != null ? selectedId
+                    : loadedStrategy == null ? -1 : loadedStrategy.id();
+            strategyBox.removeAllItems();
+            backtestStrategyBox.removeAllItems();
+            backtestOptimizationStrategyModel.clear();
+            StrategyDefinition selected = null;
+            for (StrategyDefinition strategy : strategyRepository.loadAll(loadedBot.id())) {
+                strategyBox.addItem(strategy);
+                backtestStrategyBox.addItem(strategy);
+                backtestOptimizationStrategyModel.addElement(strategy);
+                if (strategy.id() == wanted) selected = strategy;
+            }
+            if (selected == null && strategyBox.getItemCount() > 0) selected = strategyBox.getItemAt(0);
+            if (selected != null) {
+                strategyBox.setSelectedItem(selected);backtestStrategyBox.setSelectedItem(selected);
+                for(int i=0;i<backtestOptimizationStrategyModel.size();i++)
+                    if(backtestOptimizationStrategyModel.get(i).id()==selected.id())
+                        backtestOptimizationStrategies.setSelectedIndex(i);
+            }
+            loadedStrategy = selected;
+            populateStrategy(selected);
+            reloadAssignmentTargets();
+        } catch (SQLException ex) {
+            showError("Strategien konnten nicht geladen werden", ex);
+        } finally {
+            loadingStrategy = false;
+        }
+        refreshStrategyAssignmentInfo();
+        reloadBacktestHistory(null);
+    }
+
+    private void populateStrategy(StrategyDefinition strategy) throws SQLException {
+        boolean present = strategy != null;
+        strategyName.setEnabled(present);
+        strategyConfirmations.setEnabled(present);
+        strategyEnabled.setEnabled(present);
+        strategyAssignment.setEnabled(present);
+        if (present) {
+            strategyName.setText(strategy.name());
+            strategyConfirmations.setValue(strategy.minimumConfirmations());
+            strategyEnabled.setSelected(strategy.enabled());
+        } else {
+            strategyName.setText("");
+            strategyConfirmations.setValue(1);
+            strategyEnabled.setSelected(false);
+        }
+        strategySaveDirty = false;
+        reloadStrategyNodes();
+    }
+
+    private void switchStrategy() {
+        if (loadingStrategy) return;
+        if (!flushStrategyAutoSave()) {
+            loadingStrategy = true;
+            strategyBox.setSelectedItem(loadedStrategy);
+            loadingStrategy = false;
+            return;
+        }
+        StrategyDefinition selected = (StrategyDefinition) strategyBox.getSelectedItem();
+        loadingStrategy = true;
+        try {
+            loadedStrategy = selected;
+            populateStrategy(selected);
+        } catch (SQLException ex) {
+            showError("Strategie konnte nicht geladen werden", ex);
+        } finally {
+            loadingStrategy = false;
+        }
+    }
+
+    private void createStrategy() {
+        if (loadedBot == null || !flushStrategyAutoSave()) return;
+        String name = JOptionPane.showInputDialog(this, "Name der neuen Strategie:",
+                "Strategie anlegen", JOptionPane.PLAIN_MESSAGE);
+        if (name == null) return;
+        try {
+            StrategyDefinition created = strategyRepository.create(loadedBot.id(), name.trim());
+            strategyRepository.addGroup(created.id(), null, Action.BUY, Logic.AND);
+            reloadStrategies(created.id());
+            setMessage("Strategie „" + created.name() + "“ angelegt.", false);
+        } catch (SQLException | RuntimeException ex) {
+            showError("Strategie konnte nicht angelegt werden", ex);
+        }
+    }
+
+    private void duplicateStrategy() {
+        if (loadedStrategy == null || !flushStrategyAutoSave()) return;
+        String name = JOptionPane.showInputDialog(this, "Name der Kopie:",
+                loadedStrategy.name() + " – Kopie");
+        if (name == null) return;
+        try {
+            StrategyDefinition copy = strategyRepository.duplicate(loadedStrategy.id(), name.trim());
+            reloadStrategies(copy.id());
+            setMessage("Strategie dupliziert.", false);
+        } catch (SQLException | RuntimeException ex) {
+            showError("Strategie konnte nicht dupliziert werden", ex);
+        }
+    }
+
+    private void archiveStrategy() {
+        if (loadedStrategy == null) return;
+        int answer = JOptionPane.showConfirmDialog(this,
+                "Strategie „" + loadedStrategy.name() + "“ samt Regelbaum löschen?",
+                "Strategie löschen", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        try {
+            strategyRepository.archive(loadedBot.id(), loadedStrategy.id());
+            loadedStrategy = null;
+            reloadStrategies(null);
+            setMessage("Strategie gelöscht und Zuweisungen gelöst.", false);
+        } catch (SQLException ex) {
+            showError("Strategie konnte nicht gelöscht werden", ex);
+        }
+    }
+
+    private void reloadStrategyNodes() throws SQLException {
+        if (loadedStrategy == null) {
+            visibleStrategyNodes = List.of();
+            strategyRulesModel.setRowCount(0);
+            return;
+        }
+        List<StrategyNode> nodes = strategyRepository.loadNodes(loadedStrategy.id());
+        Map<Long, List<StrategyNode>> children = new HashMap<>();
+        List<StrategyNode> roots = new ArrayList<>();
+        for (StrategyNode node : nodes) {
+            if (node.parentId() == null) roots.add(node);
+            else children.computeIfAbsent(node.parentId(), key -> new ArrayList<>()).add(node);
+        }
+        java.util.Comparator<StrategyNode> order = java.util.Comparator
+                .comparingInt(StrategyNode::position).thenComparingLong(StrategyNode::id);
+        roots.sort(order);
+        children.values().forEach(list -> list.sort(order));
+        List<StrategyNode> flattened = new ArrayList<>();
+        List<Integer> depths = new ArrayList<>();
+        for (StrategyNode root : roots) flattenStrategy(root, 0, children, flattened, depths);
+        visibleStrategyNodes = List.copyOf(flattened);
+        strategyRulesModel.setRowCount(0);
+        for (int i = 0; i < flattened.size(); i++) {
+            StrategyNode node = flattened.get(i);
+            String indent = "    ".repeat(Math.min(depths.get(i), 8));
+            String tree = indent + (node.type() == NodeType.GROUP ? "▾ Gruppe" : "• Bedingung");
+            String rule = node.type() == NodeType.GROUP ? node.logic() + "-Verknüpfung"
+                    : node.leftIndicator().name();
+            String compare = node.type() == NodeType.GROUP ? "–" : node.comparator().name();
+            String target = node.type() == NodeType.GROUP ? "–"
+                    : node.rightIndicator() == Indicator.VALUE ? decimal(node.compareValue())
+                    : node.rightIndicator().name();
+            strategyRulesModel.addRow(new Object[] {tree, node.action(), rule, compare, target,
+                    node.type() == NodeType.GROUP ? "–" : node.timeframe(),
+                    node.type() == NodeType.GROUP ? "–" : node.period() + " / " + node.secondaryPeriod()});
+        }
+    }
+
+    private static void flattenStrategy(StrategyNode node, int depth,
+            Map<Long, List<StrategyNode>> children, List<StrategyNode> target,
+            List<Integer> depths) {
+        target.add(node);
+        depths.add(depth);
+        for (StrategyNode child : children.getOrDefault(node.id(), List.of()))
+            flattenStrategy(child, depth + 1, children, target, depths);
+    }
+
+    private StrategyNode selectedStrategyNode() {
+        int row = strategyRulesTable.getSelectedRow();
+        if (row < 0 || row >= visibleStrategyNodes.size()) return null;
+        return visibleStrategyNodes.get(strategyRulesTable.convertRowIndexToModel(row));
+    }
+
+    private StrategyNode selectedParent() {
+        StrategyNode selected = selectedStrategyNode();
+        if (selected == null) return null;
+        if (selected.type() == NodeType.GROUP) return selected;
+        if (selected.parentId() == null) return null;
+        return visibleStrategyNodes.stream().filter(node -> node.id() == selected.parentId())
+                .findFirst().orElse(null);
+    }
+
+    private void addStrategyGroup() {
+        if (loadedStrategy == null) return;
+        StrategyNode parent = selectedParent();
+        Action action = parent == null ? chooseAction(Action.BUY) : parent.action();
+        if (action == null) return;
+        Logic logic = (Logic) JOptionPane.showInputDialog(this, "Verknüpfung der Gruppe:",
+                "Gruppe hinzufügen", JOptionPane.PLAIN_MESSAGE, null, Logic.values(), Logic.AND);
+        if (logic == null) return;
+        try {
+            strategyRepository.addGroup(loadedStrategy.id(), parent == null ? null : parent.id(),
+                    action, logic);
+            reloadStrategyNodes();
+        } catch (SQLException ex) {
+            showError("Gruppe konnte nicht gespeichert werden", ex);
+        }
+    }
+
+    private void addStrategyCondition() {
+        if (loadedStrategy == null) return;
+        StrategyNode parent = selectedParent();
+        Action action = parent == null ? chooseAction(Action.BUY) : parent.action();
+        if (action == null) return;
+        StrategyNode draft = editConditionDialog(new StrategyNode(0, loadedStrategy.id(),
+                parent == null ? null : parent.id(), 0, NodeType.CONDITION, action, Logic.AND,
+                Indicator.RSI, Comparator.LESS_THAN, Indicator.VALUE, 30, "1h", 14, 26));
+        if (draft == null) return;
+        try {
+            strategyRepository.addCondition(draft.strategyId(), draft.parentId(), draft.action(),
+                    draft.leftIndicator(), draft.comparator(), draft.rightIndicator(),
+                    draft.compareValue(), draft.timeframe(), draft.period(), draft.secondaryPeriod());
+            reloadStrategyNodes();
+        } catch (SQLException | RuntimeException ex) {
+            showError("Bedingung konnte nicht gespeichert werden", ex);
+        }
+    }
+
+    private void editStrategyNode() {
+        StrategyNode node = selectedStrategyNode();
+        if (node == null) return;
+        try {
+            StrategyNode changed;
+            if (node.type() == NodeType.GROUP) {
+                Logic logic = (Logic) JOptionPane.showInputDialog(this, "Verknüpfung:",
+                        "Gruppe bearbeiten", JOptionPane.PLAIN_MESSAGE, null, Logic.values(), node.logic());
+                if (logic == null) return;
+                Action action = node.parentId() == null ? chooseAction(node.action()) : node.action();
+                if (action == null) return;
+                changed = new StrategyNode(node.id(), node.strategyId(), node.parentId(), node.position(),
+                        node.type(), action, logic, null, null, null, 0, node.timeframe(),
+                        node.period(), node.secondaryPeriod());
+            } else {
+                changed = editConditionDialog(node);
+                if (changed == null) return;
+            }
+            strategyRepository.updateNode(changed);
+            reloadStrategyNodes();
+        } catch (SQLException | RuntimeException ex) {
+            showError("Regel konnte nicht geändert werden", ex);
+        }
+    }
+
+    private StrategyNode editConditionDialog(StrategyNode node) {
+        Indicator[] usableIndicators = java.util.Arrays.stream(Indicator.values())
+                .filter(indicator -> indicator != Indicator.VALUE).toArray(Indicator[]::new);
+        JComboBox<Indicator> left = new JComboBox<>(usableIndicators);
+        JComboBox<Comparator> comparator = new JComboBox<>(Comparator.values());
+        JComboBox<Indicator> right = new JComboBox<>(Indicator.values());
+        JComboBox<String> timeframe = new JComboBox<>(new String[] {"1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"});
+        JSpinner value = decimalSpinner(node.compareValue(), -1_000_000_000, 1_000_000_000, 0.1);
+        JSpinner period = new JSpinner(new SpinnerNumberModel(node.period(), 1, 300, 1));
+        JSpinner secondary = new JSpinner(new SpinnerNumberModel(node.secondaryPeriod(), 1, 300, 1));
+        left.setSelectedItem(node.leftIndicator());
+        comparator.setSelectedItem(node.comparator());
+        right.setSelectedItem(node.rightIndicator());
+        timeframe.setSelectedItem(node.timeframe());
+        JPanel form = modernForm();
+        addFormRow(form, 0, "Linker Wert", left, null);
+        addFormRow(form, 1, "Vergleich", comparator, null);
+        addFormRow(form, 2, "Rechter Wert", right, null);
+        addFormRow(form, 3, "Konstanter Wert", value, null);
+        addFormRow(form, 4, "Timeframe", timeframe, null);
+        addFormRow(form, 5, "Periode", period, null);
+        addFormRow(form, 6, "Zweite Periode", secondary, null);
+        int answer = JOptionPane.showConfirmDialog(this, form, "Bedingung bearbeiten",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (answer != JOptionPane.OK_OPTION) return null;
+        commitSpinner(value);commitSpinner(period);commitSpinner(secondary);
+        return new StrategyNode(node.id(), node.strategyId(), node.parentId(), node.position(),
+                NodeType.CONDITION, node.action(), Logic.AND, (Indicator) left.getSelectedItem(),
+                (Comparator) comparator.getSelectedItem(), (Indicator) right.getSelectedItem(),
+                number(value), timeframe.getSelectedItem().toString(),
+                ((Number) period.getValue()).intValue(), ((Number) secondary.getValue()).intValue());
+    }
+
+    private Action chooseAction(Action initial) {
+        return (Action) JOptionPane.showInputDialog(this,
+                "Signaltyp für diesen Wurzelzweig:", "Signaltyp",
+                JOptionPane.PLAIN_MESSAGE, null, Action.values(), initial);
+    }
+
+    private void deleteStrategyNode() {
+        StrategyNode node = selectedStrategyNode();
+        if (node == null) return;
+        int answer = JOptionPane.showConfirmDialog(this,
+                node.type() == NodeType.GROUP
+                        ? "Gruppe einschließlich aller Unterregeln entfernen?"
+                        : "Bedingung entfernen?",
+                "Regel entfernen", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        try {
+            strategyRepository.deleteNode(node.id());
+            reloadStrategyNodes();
+        } catch (SQLException ex) {
+            showError("Regel konnte nicht entfernt werden", ex);
+        }
+    }
+
+    private void reloadAssignmentTargets() throws SQLException {
+        strategyAssignment.removeAllItems();
+        if (loadedBot == null) return;
+        strategyAssignment.addItem(new AssignmentTarget(AssignmentKind.BOT, loadedBot.id(), null,
+                "Bot-Standard · " + loadedBot.name()));
+        for (ConfigPool pool : baseConfigRepository.loadPools(loadedBot.id()))
+            strategyAssignment.addItem(new AssignmentTarget(AssignmentKind.POOL, pool.id(), null,
+                    "Config Pool · " + pool.name()));
+        for (CurrencySettings pair : repository.loadAll(loadedBot.id()))
+            strategyAssignment.addItem(new AssignmentTarget(AssignmentKind.PAIR, 0, pair.currency(),
+                    "Handelspaar · " + pair.currency()));
+        for (String regime : List.of("BUY_ALLOWED", "BUY_PAUSED", "EXIT"))
+            strategyAssignment.addItem(new AssignmentTarget(AssignmentKind.MARKET, 0, regime,
+                    "Marktphase · " + regime));
+    }
+
+    private void refreshStrategyTargets() {
+        try {
+            reloadAssignmentTargets();
+            refreshStrategyAssignmentInfo();
+        } catch (SQLException ex) {
+            showError("Strategieziele konnten nicht aktualisiert werden", ex);
+        }
+    }
+
+    private void assignStrategy(boolean clear) {
+        if (loadedBot == null || loadedStrategy == null) return;
+        AssignmentTarget target = (AssignmentTarget) strategyAssignment.getSelectedItem();
+        if (target == null) return;
+        Long strategyId = clear ? null : loadedStrategy.id();
+        try {
+            switch (target.kind()) {
+                case BOT -> strategyRepository.assignBot(loadedBot.id(), strategyId);
+                case POOL -> strategyRepository.assignPool(loadedBot.id(), target.id(), strategyId);
+                case PAIR -> strategyRepository.assignPair(loadedBot.id(), target.value(), strategyId);
+                case MARKET -> strategyRepository.assignMarketRegime(loadedBot.id(), target.value(), strategyId);
+            }
+            strategyAssignmentInfo.setText(clear ? "Zuweisung gelöst: " + target
+                    : "Aktiv: " + loadedStrategy.name() + " → " + target);
+            setMessage(clear ? "Strategie-Zuweisung gelöst." : "Strategie zugewiesen.", false);
+        } catch (SQLException ex) {
+            showError("Zuweisung konnte nicht gespeichert werden", ex);
+        }
+    }
+
+    private void refreshStrategyAssignmentInfo() {
+        if (loadingStrategy || loadedBot == null) return;
+        AssignmentTarget target = (AssignmentTarget) strategyAssignment.getSelectedItem();
+        if (target == null) return;
+        try {
+            Long assigned = switch (target.kind()) {
+                case BOT -> strategyRepository.loadBotAssignment(loadedBot.id());
+                case POOL -> strategyRepository.loadPoolAssignment(loadedBot.id(), target.id());
+                case PAIR -> strategyRepository.loadPairAssignment(loadedBot.id(), target.value());
+                case MARKET -> strategyRepository.loadMarketAssignment(loadedBot.id(), target.value());
+            };
+            if (assigned == null) strategyAssignmentInfo.setText("Keine Strategie zugewiesen");
+            else {
+                String name = "Strategie #" + assigned;
+                for (int i=0;i<strategyBox.getItemCount();i++)
+                    if (strategyBox.getItemAt(i).id()==assigned) name=strategyBox.getItemAt(i).name();
+                strategyAssignmentInfo.setText("Aktiv: " + name);
+            }
+        } catch (SQLException ex) {
+            strategyAssignmentInfo.setText("Zuweisung konnte nicht gelesen werden");
+        }
+    }
+
+    private void testStrategy(JButton button) {
+        if (loadedStrategy == null || !flushStrategyAutoSave()) return;
+        try {
+            configureSessionFromFields();
+            if (!FusionClientProvider.isConfigured()) {
+                showPage(PAGE_ACCESS, "API-Zugang");
+                throw new IllegalStateException("Für den Strategietest zuerst einen Fusion API-Key eingeben.");
+            }
+            String currency = selectedCurrency();
+            if (currency == null) throw new IllegalStateException("Dem Bot fehlt ein Handelspaar.");
+            StrategyDefinition strategy = loadedStrategy;
+            button.setEnabled(false);
+            new SwingWorker<StrategyEvaluation, Void>() {
+                @Override protected StrategyEvaluation doInBackground() throws Exception {
+                    return strategyEvaluationService.evaluate(strategy, currency,
+                            FusionClientProvider.getClient());
+                }
+                @Override protected void done() {
+                    button.setEnabled(true);
+                    try {
+                        StrategyEvaluation evaluation = get();
+                        JTextArea details = new JTextArea(String.join("\n", evaluation.explanations()), 18, 76);
+                        details.setEditable(false);
+                        details.setCaretPosition(0);
+                        String result = "Kauf: " + evaluation.buyAllowed() + " · Verkauf: "
+                                + evaluation.sell() + " · Gesperrt: " + evaluation.blocked()
+                                + " · Bestätigungen: " + evaluation.confirmations() + "/"
+                                + evaluation.requiredConfirmations();
+                        JOptionPane.showMessageDialog(OneOfXFrame.this,
+                                new Object[] {result, new JScrollPane(details)},
+                                "Strategieauswertung · " + currency, JOptionPane.INFORMATION_MESSAGE);
+                    } catch (Exception ex) {
+                        showBackgroundError("Strategie konnte nicht ausgewertet werden", ex);
+                    }
+                }
+            }.execute();
+        } catch (RuntimeException ex) {
+            showError("Strategie konnte nicht getestet werden", ex);
+        }
+    }
+
+    private void runBacktest(JButton button) {
+        if (!flushAutoSave() || !flushBotAutoSave() || !flushStrategyAutoSave()) return;
+        try {
+            configureSessionFromFields();
+            if (!FusionClientProvider.isConfigured()) {
+                showPage(PAGE_ACCESS,"API-Zugang");
+                throw new IllegalStateException("Für historische Kerzen zuerst einen Fusion API-Key eingeben.");
+            }
+            StrategyDefinition strategy=(StrategyDefinition)backtestStrategyBox.getSelectedItem();
+            if(strategy==null)throw new IllegalStateException("Eine Strategie muss ausgewählt sein.");
+            BacktestRequest request=buildBacktestRequest(strategy.id());
+            String currency=request.currency();
+            button.setEnabled(false);setMessage("Historische Kerzen werden geladen und simuliert …",false);
+            new SwingWorker<BacktestResult,Void>(){
+                @Override protected BacktestResult doInBackground()throws Exception{return backtestService.run(request,FusionClientProvider.getClient());}
+                @Override protected void done(){button.setEnabled(true);try{BacktestResult result=get();showBacktestResult(result);reloadBacktestHistory(result.runId());recordEvent("INFO","BACKTEST",currency,"Backtest #"+result.runId()+" abgeschlossen: "+String.format(Locale.GERMANY,"%.2f %%",result.returnPercent()));setMessage("Backtest #"+result.runId()+" abgeschlossen.",false);}catch(Exception ex){reloadBacktestHistory(null);showBackgroundError("Backtest fehlgeschlagen",ex);}}
+            }.execute();
+        }catch(SQLException|RuntimeException ex){showError("Backtest konnte nicht gestartet werden",ex);}
+    }
+
+    private BacktestRequest buildBacktestRequest(long strategyId)throws SQLException{
+        BotProfile bot=selectedBot();String currency=(String)backtestCurrencyBox.getSelectedItem();
+        if(bot==null||currency==null)throw new IllegalStateException(
+                "Bot und Handelspaar müssen ausgewählt sein.");
+        for(JSpinner spinner:List.of(backtestCapital,backtestSpread,backtestPartialFill,
+                backtestVolumeParticipation))commitSpinner(spinner);
+        LocalDate startDate=LocalDate.parse(backtestStart.getText().trim());
+        LocalDate endDate=LocalDate.parse(backtestEnd.getText().trim());
+        Instant start=startDate.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant end=endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        CurrencySettings pair=repository.load(bot.id(),currency);
+        BotBaseConfig config=baseConfigRepository.loadEffective(bot.id(),currency);
+        CurrencySettingsRepository.GridPreviewContext context=
+                repository.loadGridPreviewContext(bot.id(),currency);
+        if(context.rules()==null||!context.rules().usable())throw new IllegalStateException(
+                "Für den Backtest fehlen Tick-Größe, Mengenschritt oder Mindestorder.");
+        BacktestExecutionConfig execution=new BacktestExecutionConfig(pair.gridMode(),
+                pair.gridSpacing(),pair.maxBuyAmount(),bot.maxExposure(),
+                bot.maxOpenPositions(),bot.maxOpenOrders(),config.buyOrderType(),
+                config.dcaEnabled(),config.dcaMaxOrders(),config.dcaTriggerPercent(),
+                config.dcaSizeMultiplier(),config.onlySellWithProfit(),number(backtestSpread),
+                number(backtestPartialFill),number(backtestVolumeParticipation));
+        return new BacktestRequest(bot.id(),strategyId,currency,
+                backtestTimeframe.getSelectedItem().toString(),start,end,number(backtestCapital),
+                pair.buyAmount(),bot.paperFeePercent(),bot.paperSlippagePercent(),
+                pair.stopLoss(),config.takeProfitPercent(),context.rules().tickSize().doubleValue(),
+                context.rules().sizeIncrement().doubleValue(),context.rules().minOrderAmount(),
+                context.rules().maxOrderAmount(),execution);
+    }
+
+    private void runBacktestOptimization(JButton button){
+        if(!flushAutoSave()||!flushBotAutoSave()||!flushStrategyAutoSave())return;
+        try{
+            configureSessionFromFields();
+            if(!FusionClientProvider.isConfigured()){
+                showPage(PAGE_ACCESS,"API-Zugang");
+                throw new IllegalStateException(
+                        "Für historische Kerzen zuerst einen Fusion API-Key eingeben.");
+            }
+            List<StrategyDefinition> selected=backtestOptimizationStrategies.getSelectedValuesList();
+            if(selected.isEmpty())throw new IllegalStateException(
+                    "Mindestens eine Strategie für den Vergleich auswählen.");
+            commitSpinner(backtestInSample);commitSpinner(backtestWalkForwardFolds);
+            BacktestRequest base=buildBacktestRequest(selected.get(0).id());
+            List<Double> grids=parseVariantValues(backtestOptimizationGrid.getText(),
+                    base.execution().gridSpacing(),"Grid-Abstand");
+            List<Double> stops=parseVariantValues(backtestOptimizationStop.getText(),
+                    base.stopLossPercent(),"Stop-Loss");
+            List<Double> targets=parseVariantValues(backtestOptimizationTakeProfit.getText(),
+                    base.takeProfitPercent(),"Take Profit");
+            BacktestOptimizationRequest request=new BacktestOptimizationRequest(base,
+                    selected.stream().map(StrategyDefinition::id).toList(),grids,stops,targets,
+                    number(backtestInSample),((Number)backtestWalkForwardFolds.getValue()).intValue());
+            button.setEnabled(false);setMessage(
+                    "Varianten werden im In-/Out-of-Sample- und Walk-forward-Verfahren geprüft …",false);
+            new SwingWorker<BacktestOptimizationResult,Void>(){
+                @Override protected BacktestOptimizationResult doInBackground()throws Exception{
+                    return backtestOptimizationService.run(request,FusionClientProvider.getClient());
+                }
+                @Override protected void done(){
+                    button.setEnabled(true);
+                    try{
+                        BacktestOptimizationResult result=get();showBacktestOptimization(result);
+                        recordEvent("INFO","BACKTEST_OPTIMIZATION",base.currency(),
+                                result.variants().size()+" Varianten und "+result.folds().size()
+                                        +" Walk-forward-Fenster abgeschlossen.");
+                        setMessage("Variantenvergleich abgeschlossen.",false);
+                    }catch(Exception ex){showBackgroundError("Variantenvergleich fehlgeschlagen",ex);}
+                }
+            }.execute();
+        }catch(SQLException|RuntimeException ex){
+            showError("Variantenvergleich konnte nicht gestartet werden",ex);
+        }
+    }
+
+    private static List<Double> parseVariantValues(String input,double fallback,String label){
+        String normalized=input==null?"":input.trim();
+        if(normalized.isEmpty())return List.of(fallback);
+        List<Double> result=new ArrayList<>();
+        for(String token:normalized.split("[;\\s]+")){
+            try{result.add(Double.parseDouble(token.replace(',','.')));}
+            catch(NumberFormatException ex){throw new IllegalArgumentException(
+                    label+" enthält keine gültige Zahl: "+token);}
+        }
+        return result;
+    }
+
+    private void showBacktestOptimization(BacktestOptimizationResult result){
+        replaceRows(backtestOptimizationModel,result.variants().stream().map(row->new Object[]{
+                row.rank(),row.variant().strategyName(),decimal(row.variant().gridSpacing()),
+                percent(row.variant().stopLossPercent()),percent(row.variant().takeProfitPercent()),
+                percent(row.inSample().returnPercent()),percent(row.inSample().maxDrawdownPercent()),
+                row.inSample().tradeCount(),percent(row.outOfSample().returnPercent()),
+                percent(row.outOfSample().maxDrawdownPercent()),row.outOfSample().tradeCount(),
+                decimal(row.score())}).toList());
+        replaceRows(backtestWalkForwardModel,result.folds().stream().map(fold->new Object[]{
+                fold.number(),dateTime(fold.trainingEnd().toEpochMilli()),
+                dateTime(fold.testStart().toEpochMilli())+" – "+dateTime(fold.testEnd().toEpochMilli()),
+                fold.selected().label(),percent(fold.testResult().returnPercent()),
+                percent(fold.testResult().maxDrawdownPercent()),fold.testResult().tradeCount()
+        }).toList());
+    }
+
+    private void reloadBacktestHistory(Long selectId) {
+        if(loadedBot==null)return;loadingBacktest=true;
+        try{
+            backtestHistory.removeAllItems();BacktestRunSummary selected=null;
+            for(BacktestRunSummary run:backtestRepository.loadRecent(loadedBot.id(),100)){backtestHistory.addItem(run);if(selectId!=null&&run.id()==selectId)selected=run;}
+            if(selected!=null)backtestHistory.setSelectedItem(selected);else if(backtestHistory.getItemCount()>0)backtestHistory.setSelectedIndex(0);
+        }catch(SQLException ex){setMessage("Backtest-Verlauf konnte nicht geladen werden: "+ex.getMessage(),true);}
+        finally{loadingBacktest=false;}
+        loadSelectedBacktest();
+    }
+
+    private void loadSelectedBacktest() {
+        if(loadingBacktest)return;BacktestRunSummary run=(BacktestRunSummary)backtestHistory.getSelectedItem();
+        if(run==null){clearBacktestResult();return;}
+        try{
+            showBacktestSummary(run);showBacktestTrades(backtestRepository.loadTrades(run.id()));
+            backtestEquityCurve.setPoints(backtestRepository.loadEquity(run.id()));
+            showBacktestOrderEvents(backtestRepository.loadOrderEvents(run.id()));
+            if("FAILED".equals(run.status())&&run.error()!=null)setMessage("Backtest #"+run.id()+" fehlgeschlagen: "+run.error(),true);
+        }catch(SQLException ex){setMessage("Backtest-Ergebnis konnte nicht geladen werden: "+ex.getMessage(),true);}
+    }
+
+    private void showBacktestResult(BacktestResult result) {
+        backtestFinalCapital.setText(money(result.finalCapital()));backtestProfit.setText(money(result.netProfit()));
+        backtestReturn.setText(percent(result.returnPercent()));backtestDrawdown.setText(percent(result.maxDrawdownPercent()));
+        backtestTradeCount.setText(Integer.toString(result.tradeCount()));backtestWinRate.setText(percent(result.winRatePercent()));
+        backtestProfitFactor.setText(Double.isInfinite(result.profitFactor())?"∞":decimal(result.profitFactor()));showBacktestTrades(result.trades());showBacktestOrderEvents(result.orderEvents());backtestEquityCurve.setPoints(result.equity());
+    }
+
+    private void showBacktestSummary(BacktestRunSummary run) {
+        backtestFinalCapital.setText(nullableMoney(run.finalCapital()));backtestProfit.setText(nullableMoney(run.netProfit()));
+        backtestReturn.setText(nullablePercent(run.returnPercent()));backtestDrawdown.setText(nullablePercent(run.maxDrawdownPercent()));
+        backtestTradeCount.setText(Integer.toString(run.tradeCount()));backtestWinRate.setText(nullablePercent(run.winRatePercent()));
+        backtestProfitFactor.setText(run.profitFactor()==null&&"COMPLETED".equals(run.status())?"∞":run.profitFactor()==null?"–":decimal(run.profitFactor()));
+    }
+
+    private void showBacktestTrades(List<com.oneofx.fusion.tradingbot.backtest.BacktestTrade> trades) {
+        replaceRows(backtestTradesModel,trades.stream().map(trade->new Object[]{trade.number(),dateTime(trade.entryTime()),dateTime(trade.exitTime()),decimal(trade.entryPrice()),decimal(trade.exitPrice()),decimal(trade.quantity()),money(trade.fees()),money(trade.pnl()),trade.exitReason(),trade.explanation()}).toList());
+    }
+
+    private void showBacktestOrderEvents(List<BacktestOrderEvent> events) {
+        replaceRows(backtestOrdersModel,events.stream().map(event->new Object[]{event.number(),event.orderReference(),event.gridLevel(),dateTime(event.timestamp()),event.event(),decimal(event.limitPrice()),event.fillPrice()>0?decimal(event.fillPrice()):"–",event.fillQuantity()>0?decimal(event.fillQuantity()):"–",money(event.remainingAmount()),event.reason()}).toList());
+    }
+
+    private void clearBacktestResult() {
+        for(JLabel label:List.of(backtestFinalCapital,backtestProfit,backtestReturn,backtestDrawdown,backtestTradeCount,backtestWinRate,backtestProfitFactor))label.setText("–");
+        backtestTradesModel.setRowCount(0);backtestOrdersModel.setRowCount(0);backtestEquityCurve.setPoints(List.of());
+    }
+
+    private static String nullableMoney(Double value){return value==null?"–":money(value);}
+    private static String nullablePercent(Double value){return value==null?"–":percent(value);}
+    private static String percent(double value){return String.format(Locale.GERMANY,"%.2f %%",value);}
+    private static String dateTime(long epochMillis){return DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(epochMillis));}
+
     private void reloadBots(Long selectAfterReload) {
         loadingBot = true;
         try {
@@ -986,6 +2281,7 @@ public final class OneOfXFrame extends JFrame {
             loadingBot = false;
         }
         reloadCurrencies(null);
+        reloadStrategies(null);
         refreshBotRiskSummary();
     }
 
@@ -1000,7 +2296,7 @@ public final class OneOfXFrame extends JFrame {
             setMessage("Der Bot kann nur bei gestoppter Engine gewechselt werden.", true);
             return;
         }
-        if (!flushAutoSave() || !flushBotAutoSave()) {
+        if (!flushAutoSave() || !flushBotAutoSave() || !flushStrategyAutoSave()) {
             loadingBot = true;
             botBox.setSelectedItem(loadedBot);
             loadingBot = false;
@@ -1014,6 +2310,7 @@ public final class OneOfXFrame extends JFrame {
             reloadBaseConfigs(loadedBot.id(), null);
             loadingBot = false;
             reloadCurrencies(null);
+            reloadStrategies(null);
             refreshDashboard();
             refreshOperationalViews();
             refreshBotRiskSummary();
@@ -1036,6 +2333,7 @@ public final class OneOfXFrame extends JFrame {
         botMaxOrders.setValue(bot.maxOpenOrders());
         botPaperFee.setValue(bot.paperFeePercent());
         botPaperSlippage.setValue(bot.paperSlippagePercent());
+        backtestCapital.setValue(bot.budget());
         botSaveDirty = false;
     }
 
@@ -1084,8 +2382,7 @@ public final class OneOfXFrame extends JFrame {
     }
 
     private void populateBaseConfig(BotBaseConfig config) {
-        baseBuyOrderType.setSelectedItem(config.buyOrderType());
-        baseSellOrderType.setSelectedItem(config.sellOrderType());
+        boolean adjusted = refreshBaseOrderTypeChoices(config);
         baseBuyOrderMinutes.setValue(config.maxBuyOrderMinutes());
         baseSellOrderMinutes.setValue(config.maxSellOrderMinutes());
         baseCooldownMinutes.setValue(config.cooldownMinutes());
@@ -1100,7 +2397,11 @@ public final class OneOfXFrame extends JFrame {
         baseDcaTrigger.setValue(config.dcaTriggerPercent());
         baseDcaMultiplier.setValue(config.dcaSizeMultiplier());
         updateBaseConfigFields();
-        botSaveDirty = false;
+        botSaveDirty = adjusted;
+        if (adjusted) {
+            setMessage("Nicht unterstützte Orderart wurde auf eine gültige Alternative gesetzt und wird gespeichert.", true);
+            botSaveTimer.restart();
+        }
     }
 
     private BotBaseConfig readBaseConfig(long ownerId) {
@@ -1130,6 +2431,7 @@ public final class OneOfXFrame extends JFrame {
             ConfigPool pool = baseConfigRepository.createPool(loadedBot.id(), name, source);
             reloadBaseConfigs(loadedBot.id(), pool.id());
             reloadPairPoolAssignment();
+            refreshStrategyTargets();
             setMessage("Config Pool „" + pool.name() + "“ wurde angelegt.", false);
         } catch (SQLException | IllegalArgumentException ex) {
             showError("Config Pool konnte nicht angelegt werden", ex);
@@ -1149,12 +2451,13 @@ public final class OneOfXFrame extends JFrame {
             baseConfigRepository.archivePool(loadedBot.id(), loadedConfigPool.id());
             reloadBaseConfigs(loadedBot.id(), null);
             reloadPairPoolAssignment();
+            refreshStrategyTargets();
             setMessage("Config Pool wurde gelöscht.", false);
         } catch (SQLException ex) { showError("Config Pool konnte nicht gelöscht werden", ex); }
     }
 
     private void createBot() {
-        if (!flushAutoSave() || !flushBotAutoSave()) return;
+        if (!flushAutoSave() || !flushBotAutoSave() || !flushStrategyAutoSave()) return;
         String name = JOptionPane.showInputDialog(this, "Name des neuen Bots:",
                 "Bot anlegen", JOptionPane.PLAIN_MESSAGE);
         if (name == null || name.isBlank()) return;
@@ -1172,7 +2475,7 @@ public final class OneOfXFrame extends JFrame {
     private void archiveBot() {
         BotProfile bot = selectedBot();
         if (bot == null || engine.getState() != State.STOPPED
-                || !flushAutoSave() || !flushBotAutoSave()) return;
+                || !flushAutoSave() || !flushBotAutoSave() || !flushStrategyAutoSave()) return;
         int answer = JOptionPane.showConfirmDialog(this,
                 "Bot „" + bot.name() + "“ archivieren?\n"
                         + "Orders, Positionen, Historie und Einstellungen bleiben erhalten.",
@@ -1277,6 +2580,57 @@ public final class OneOfXFrame extends JFrame {
         return savePendingBot();
     }
 
+    private void installStrategyAutoSaveListeners() {
+        strategyEnabled.addActionListener(event -> scheduleStrategyAutoSave());
+        strategyConfirmations.addChangeListener(event -> scheduleStrategyAutoSave());
+        DocumentListener listener = new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent event) { scheduleStrategyAutoSave(); }
+            @Override public void removeUpdate(DocumentEvent event) { scheduleStrategyAutoSave(); }
+            @Override public void changedUpdate(DocumentEvent event) { scheduleStrategyAutoSave(); }
+        };
+        strategyName.getDocument().addDocumentListener(listener);
+    }
+
+    private void scheduleStrategyAutoSave() {
+        if (loadingStrategy || loadedStrategy == null) return;
+        strategySaveDirty = true;
+        setMessage("Strategie wird automatisch gespeichert …", false);
+        strategySaveTimer.restart();
+    }
+
+    private boolean savePendingStrategy() {
+        if (!strategySaveDirty || loadedStrategy == null) return true;
+        try {
+            commitSpinner(strategyConfirmations);
+            StrategyDefinition updated = new StrategyDefinition(loadedStrategy.id(),
+                    loadedStrategy.botId(), strategyName.getText(),
+                    ((Number) strategyConfirmations.getValue()).intValue(),
+                    strategyEnabled.isSelected());
+            strategyRepository.saveDefinition(updated);
+            loadedStrategy = updated;
+            strategySaveDirty = false;
+            loadingStrategy = true;
+            int index = strategyBox.getSelectedIndex();
+            if (index >= 0) {
+                strategyBox.removeItemAt(index);
+                strategyBox.insertItemAt(updated, index);
+                strategyBox.setSelectedIndex(index);
+            }
+            loadingStrategy = false;
+            setMessage("Strategie automatisch gespeichert.", false);
+            return true;
+        } catch (SQLException | IllegalArgumentException ex) {
+            loadingStrategy = false;
+            setMessage("Strategie konnte nicht gespeichert werden: " + ex.getMessage(), true);
+            return false;
+        }
+    }
+
+    private boolean flushStrategyAutoSave() {
+        strategySaveTimer.stop();
+        return savePendingStrategy();
+    }
+
     private void refreshBotRiskSummary() {
         BotProfile bot = selectedBot();
         if (bot == null) return;
@@ -1298,11 +2652,16 @@ public final class OneOfXFrame extends JFrame {
         try {
             List<CurrencySettings> settings = repository.loadAll();
             currencyBox.removeAllItems();
+            backtestCurrencyBox.removeAllItems();
+            terminalCurrencyBox.removeAllItems();
             for (CurrencySettings entry : settings) {
                 currencyBox.addItem(entry.currency());
+                backtestCurrencyBox.addItem(entry.currency());
+                terminalCurrencyBox.addItem(entry.currency());
             }
             if (selectAfterReload != null) {
                 currencyBox.setSelectedItem(selectAfterReload);
+                terminalCurrencyBox.setSelectedItem(selectAfterReload);
             }
             boolean available = currencyBox.getItemCount() > 0;
             setSettingsEnabled(available);
@@ -1321,6 +2680,8 @@ public final class OneOfXFrame extends JFrame {
             loadedCurrency = null;
             gridPreviewContext = null;
             gridPreviewModel.setRowCount(0);
+            pairSupportedOrderTypes.setText("Unterstützte Ordertypen: –");
+            refreshTerminalOrderTypes();
             autoSaveDirty = false;
         }
     }
@@ -1362,6 +2723,7 @@ public final class OneOfXFrame extends JFrame {
                 previewPrice.setValue(gridPreviewContext.allTimeHigh());
             }
             loadedCurrency = currency;
+            refreshPairOrderTypeDisplay(currency);
             reloadPairPoolAssignment();
             autoSaveDirty = false;
             setMessage("Einstellungen für " + currency + " geladen.", false);
@@ -1371,6 +2733,86 @@ public final class OneOfXFrame extends JFrame {
             loadingSettings = false;
         }
         refreshGridPreview();
+    }
+
+    private void refreshPairOrderTypeDisplay(String currency) {
+        try {
+            OrderTypeAvailability.Availability availability = orderTypeAvailability.forPair(currency);
+            pairSupportedOrderTypes.setText("Unterstützte Ordertypen: " + availability.display());
+            pairSupportedOrderTypes.setToolTipText(
+                    "Diese Angaben stammen aus dem gespeicherten Bitpanda-Fusion-Paarkatalog.");
+            pairSupportedOrderTypes.setForeground(availability.supported().isEmpty()
+                    ? OneOfXTheme.ERROR : OneOfXTheme.TEXT_MUTED);
+        } catch (SQLException ex) {
+            pairSupportedOrderTypes.setText("Unterstützte Ordertypen konnten nicht geladen werden");
+            pairSupportedOrderTypes.setForeground(OneOfXTheme.ERROR);
+        }
+    }
+
+    private boolean refreshBaseOrderTypeChoices(BotBaseConfig config) {
+        OrderTypeAvailability.Availability availability;
+        boolean failed = false;
+        try {
+            availability = loadedBot == null
+                    ? new OrderTypeAvailability.Availability(Set.of(OrderType.values()), List.of())
+                    : orderTypeAvailability.forConfiguration(loadedBot.id(),
+                            loadedConfigPool == null ? null : loadedConfigPool.id());
+        } catch (SQLException ex) {
+            availability = new OrderTypeAvailability.Availability(Set.of(OrderType.values()), List.of());
+            failed = true;
+        }
+        List<String> buy = OrderTypeAvailability.buyChoices(availability);
+        List<String> sell = OrderTypeAvailability.sellChoices(availability);
+        boolean adjusted = (!buy.isEmpty() && !buy.contains(config.buyOrderType()))
+                || (!sell.isEmpty() && !sell.contains(config.sellOrderType()));
+        baseBuyOrderType.setModel(new DefaultComboBoxModel<>(buy.toArray(String[]::new)));
+        baseSellOrderType.setModel(new DefaultComboBoxModel<>(sell.toArray(String[]::new)));
+        baseBuyOrderType.setEnabled(!buy.isEmpty());
+        baseSellOrderType.setEnabled(!sell.isEmpty());
+        if (buy.contains(config.buyOrderType())) baseBuyOrderType.setSelectedItem(config.buyOrderType());
+        else if (!buy.isEmpty()) baseBuyOrderType.setSelectedIndex(0);
+        if (sell.contains(config.sellOrderType())) baseSellOrderType.setSelectedItem(config.sellOrderType());
+        else if (!sell.isEmpty()) baseSellOrderType.setSelectedIndex(0);
+        if (failed) {
+            baseOrderTypeInfo.setText("Ordertyp-Kompatibilität konnte nicht geladen werden");
+            baseOrderTypeInfo.setForeground(OneOfXTheme.ERROR);
+        } else if (!availability.currencies().isEmpty()) {
+            baseOrderTypeInfo.setText("Für " + String.join(", ", availability.currencies())
+                    + " gemeinsam erlaubt: " + availability.display()
+                    + (adjusted ? " · gespeicherte Auswahl wird angepasst" : ""));
+            baseOrderTypeInfo.setForeground(availability.supported().isEmpty() || adjusted
+                    ? OneOfXTheme.ERROR : OneOfXTheme.TEXT_MUTED);
+        } else {
+            baseOrderTypeInfo.setText("Noch keinem Handelspaar zugeordnet · alle Ordertypen auswählbar");
+            baseOrderTypeInfo.setForeground(OneOfXTheme.TEXT_MUTED);
+        }
+        return !failed && adjusted;
+    }
+
+    private void refreshTerminalOrderTypes() {
+        String currency = (String) terminalCurrencyBox.getSelectedItem();
+        OrderType previous = (OrderType) terminalOrderType.getSelectedItem();
+        List<OrderType> choices = List.of();
+        if (currency != null) try {
+            choices = OrderTypeAvailability.terminalChoices(orderTypeAvailability.forPair(currency));
+        } catch (SQLException ex) {
+            setMessage("Ordertypen für " + currency + " konnten nicht geladen werden.", true);
+        }
+        terminalOrderType.setModel(new DefaultComboBoxModel<>(choices.toArray(OrderType[]::new)));
+        if (previous != null && choices.contains(previous)) terminalOrderType.setSelectedItem(previous);
+        else if (!choices.isEmpty()) terminalOrderType.setSelectedIndex(0);
+        terminalOrderType.setEnabled(!choices.isEmpty());
+        terminalOrderType.setToolTipText(choices.isEmpty()
+                ? "Für dieses Paar ist keine manuell unterstützte Orderart verfügbar."
+                : "Für " + currency + " verfügbar: " + choices.stream()
+                        .map(OrderTypeAvailability::label).collect(java.util.stream.Collectors.joining(", ")));
+    }
+
+    private static <T> boolean comboContains(JComboBox<T> combo, T value) {
+        for (int index=0; index<combo.getItemCount(); index++) {
+            if (java.util.Objects.equals(combo.getItemAt(index), value)) return true;
+        }
+        return false;
     }
 
     private void reloadPairPoolAssignment() throws SQLException {
@@ -1395,11 +2837,16 @@ public final class OneOfXFrame extends JFrame {
         Long poolId = selected instanceof ConfigPool pool ? pool.id() : null;
         try {
             baseConfigRepository.assignPool(loadedBot.id(), loadedCurrency, poolId);
+            reloadBaseConfigs(loadedBot.id(), loadedConfigPool == null ? null : loadedConfigPool.id());
             recordEvent("INFO", "CONFIG_POOL", loadedCurrency,
                     poolId == null ? "Pool-Zuordnung entfernt." : "Config Pool „" + selected + "“ zugeordnet.");
             setMessage(poolId == null ? "Das Paar verwendet die Bot-Baseconfig."
                     : "Config Pool „" + selected + "“ ist für " + loadedCurrency + " aktiv.", false);
-        } catch (SQLException ex) { showError("Config Pool konnte nicht zugeordnet werden", ex); }
+        } catch (SQLException | IllegalArgumentException ex) {
+            try { reloadPairPoolAssignment(); }
+            catch (SQLException reload) { ex.addSuppressed(reload); }
+            showError("Config Pool konnte nicht zugeordnet werden", ex);
+        }
     }
 
     private boolean savePendingSettings() {
@@ -1457,6 +2904,9 @@ public final class OneOfXFrame extends JFrame {
                         recordEvent("INFO", "HANDELSPAAR", settings.currency(),
                                 "Handelspaar geprüft und hinzugefügt.");
                         reloadCurrencies(settings.currency());
+                        if (loadedBot != null) reloadBaseConfigs(loadedBot.id(),
+                                loadedConfigPool == null ? null : loadedConfigPool.id());
+                        refreshStrategyTargets();
                         setMessage(settings.currency()
                                 + " wurde geprüft und deaktiviert hinzugefügt.", false);
                         refreshDashboard();
@@ -1470,6 +2920,52 @@ public final class OneOfXFrame extends JFrame {
             }.execute();
         } catch (IllegalArgumentException | IllegalStateException ex) {
             showError("Handelspaar konnte nicht hinzugefügt werden", ex);
+        }
+    }
+
+    private void refreshSelectedPairRules(JButton button) {
+        String currency = selectedCurrency();
+        if (currency == null || !flushAutoSave()) return;
+        try {
+            configureSessionFromFields();
+            if (!FusionClientProvider.isConfigured()) {
+                showPage(PAGE_ACCESS, "API-Zugang");
+                throw new IllegalStateException(
+                        "Für die Aktualisierung zuerst einen Fusion API-Key eingeben.");
+            }
+            BotProfile bot = selectedBot();
+            if (bot == null) throw new IllegalStateException("Kein Bot ausgewählt.");
+            CurrencySettings settings = repository.load(bot.id(), currency);
+            button.setEnabled(false);
+            setMessage("Trading-Regeln für " + currency + " werden aktualisiert …", false);
+            new SwingWorker<TradingPair, Void>() {
+                @Override protected TradingPair doInBackground() {
+                    return pairValidator.validate(currency, FusionClientProvider.getClient());
+                }
+
+                @Override protected void done() {
+                    button.setEnabled(true);
+                    try {
+                        TradingPair pair = get();
+                        repository.addVerified(bot.id(), settings, pair);
+                        refreshPairOrderTypeDisplay(currency);
+                        refreshTerminalOrderTypes();
+                        reloadBaseConfigs(bot.id(), loadedConfigPool == null
+                                ? null : loadedConfigPool.id());
+                        recordEvent("INFO", "HANDELSPAAR", currency,
+                                "Trading-Regeln und Ordertypen aus Fusion aktualisiert.");
+                        setMessage("Trading-Regeln für " + currency + " wurden aktualisiert.", false);
+                    } catch (Exception ex) {
+                        Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+                        showError("Trading-Regeln konnten nicht aktualisiert werden",
+                                cause instanceof Exception exception
+                                        ? exception : new RuntimeException(cause));
+                    }
+                }
+            }.execute();
+        } catch (SQLException | RuntimeException ex) {
+            button.setEnabled(true);
+            showError("Trading-Regeln konnten nicht aktualisiert werden", ex);
         }
     }
 
@@ -1488,6 +2984,9 @@ public final class OneOfXFrame extends JFrame {
                     result.archived() ? "Handelspaar sicher archiviert."
                             : "Unbenutztes Handelspaar gelöscht.");
             reloadCurrencies(null);
+            if (loadedBot != null) reloadBaseConfigs(loadedBot.id(),
+                    loadedConfigPool == null ? null : loadedConfigPool.id());
+            refreshStrategyTargets();
             refreshDashboard();
             if (result.archived()) {
                 setMessage(currency + " wurde deaktiviert und wegen vorhandener "
@@ -1522,7 +3021,7 @@ public final class OneOfXFrame extends JFrame {
 
     private void startTrading() {
         try {
-            if (!flushAutoSave() || !flushBotAutoSave()) return;
+            if (!flushAutoSave() || !flushBotAutoSave() || !flushStrategyAutoSave()) return;
             configureSessionFromFields();
             if (!FusionClientProvider.isConfigured()) {
                 throw new IllegalStateException(
@@ -1536,6 +3035,7 @@ public final class OneOfXFrame extends JFrame {
                 throw new IllegalStateException(
                         "Bitte zuerst mindestens ein Handelspaar aktivieren.");
             }
+            orderTypeAvailability.validateBot(bot.id(), baseConfigRepository);
             if (bot.mode() == BotProfile.Mode.LIVE) {
                 int answer = JOptionPane.showConfirmDialog(this,
                         "Der Bot „" + bot.name() + "“ wird live gestartet und kann Orders ausführen.\n"
@@ -1625,6 +3125,8 @@ public final class OneOfXFrame extends JFrame {
                     row.statusText(), row.openedAt()
             }).toList());
             positionsViewCount.setText(Integer.toString(positions.size()));
+            refreshTerminalOrderViews(orders,positions);
+            portfolioPanel.refresh();
 
             List<OperationsRepository.WarningRow> warnings =
                     operationsRepository.loadWarnings();
@@ -1880,7 +3382,7 @@ public final class OneOfXFrame extends JFrame {
     }
 
     private void closeApplication() {
-        if (!flushAutoSave() || !flushBotAutoSave()) {
+        if (!flushAutoSave() || !flushBotAutoSave() || !flushStrategyAutoSave()) {
             JOptionPane.showMessageDialog(this,
                     "Die aktuellen Einstellungen sind ungültig und konnten nicht "
                             + "gespeichert werden. Bitte korrigiere die markierten Werte.",
@@ -1899,6 +3401,7 @@ public final class OneOfXFrame extends JFrame {
         }
         autoSaveTimer.stop();
         botSaveTimer.stop();
+        strategySaveTimer.stop();
         dashboardTimer.stop();
         dispose();
     }
@@ -2094,7 +3597,7 @@ public final class OneOfXFrame extends JFrame {
             int width = switch (name) {
                 case "#" -> 55;
                 case "Order-ID", "Versuch-ID", "Exchange-ID" -> 210;
-                case "Fehler", "Hinweis", "Ereignis" -> 360;
+                case "Fehler", "Hinweis", "Ereignis", "Signalerklärung" -> 360;
                 case "Aktualisiert", "Eröffnet", "Zeit" -> 150;
                 case "Status", "Zustand", "Prüfung" -> 150;
                 default -> 115;
@@ -2189,6 +3692,15 @@ public final class OneOfXFrame extends JFrame {
         return form;
     }
 
+    private static JPanel compactField(String labelText,JComponent component) {
+        JPanel field=new JPanel(new BorderLayout(0,6));field.setOpaque(false);
+        JLabel label=fieldLabel(labelText);field.add(label,BorderLayout.NORTH);
+        component.setPreferredSize(new Dimension(
+                Math.max(125,component.getPreferredSize().width),40));
+        OneOfXTheme.round(component);field.add(component,BorderLayout.CENTER);
+        return field;
+    }
+
     private static void addFormRow(JPanel form, int row, String labelText,
             JComponent component, String suffixText) {
         addFormRowWithSuffix(form, row, labelText, component,
@@ -2274,6 +3786,20 @@ public final class OneOfXFrame extends JFrame {
         return ((Number) spinner.getValue()).doubleValue();
     }
 
+    private enum AssignmentKind { BOT, POOL, PAIR, MARKET }
+
+    private record AssignmentTarget(AssignmentKind kind, long id, String value,
+            String label) {
+        @Override public String toString() { return label; }
+    }
+
+    private record PositionChoice(String id,double quantity) {
+        @Override public String toString() {
+            String shortId=id.length()>14?id.substring(0,14)+"…":id;
+            return shortId+" · "+decimal(quantity);
+        }
+    }
+
     private static void commitSpinner(JSpinner spinner) {
         try {
             spinner.commitEdit();
@@ -2283,6 +3809,13 @@ public final class OneOfXFrame extends JFrame {
             field.setValue(spinner.getValue());
             throw new IllegalArgumentException("Ungültige Zahl: " + field.getText(), ex);
         }
+    }
+
+    private static final class EquityCurvePanel extends JPanel {
+        private List<BacktestEquityPoint> points=List.of();
+        private EquityCurvePanel(){setOpaque(false);setPreferredSize(new Dimension(0,145));}
+        private void setPoints(List<BacktestEquityPoint> value){points=value==null?List.of():List.copyOf(value);repaint();}
+        @Override protected void paintComponent(Graphics graphics){super.paintComponent(graphics);Graphics2D g=(Graphics2D)graphics.create();g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);int left=58,right=18,top=16,bottom=25,w=Math.max(1,getWidth()-left-right),h=Math.max(1,getHeight()-top-bottom);g.setColor(OneOfXTheme.BORDER);g.drawLine(left,top,left,top+h);g.drawLine(left,top+h,left+w,top+h);if(points.size()<2){g.setColor(OneOfXTheme.TEXT_MUTED);g.drawString("Noch keine Equity-Daten",left+12,top+h/2);g.dispose();return;}double min=points.stream().mapToDouble(BacktestEquityPoint::equity).min().orElse(0),max=points.stream().mapToDouble(BacktestEquityPoint::equity).max().orElse(1);if(max-min<1e-9){max+=1;min-=1;}g.setColor(OneOfXTheme.TEXT_MUTED);g.setFont(OneOfXTheme.font(Font.PLAIN,10));g.drawString(decimal(max),4,top+5);g.drawString(decimal(min),4,top+h);g.setColor(points.get(points.size()-1).equity()>=points.get(0).equity()?OneOfXTheme.SUCCESS:OneOfXTheme.ERROR);g.setStroke(new BasicStroke(2f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));int previousX=left,previousY=top+h-(int)Math.round((points.get(0).equity()-min)/(max-min)*h);for(int i=1;i<points.size();i++){int x=left+(int)Math.round(i*w/(double)(points.size()-1));int y=top+h-(int)Math.round((points.get(i).equity()-min)/(max-min)*h);g.drawLine(previousX,previousY,x,y);previousX=x;previousY=y;}g.dispose();}
     }
 
     private static final class RoundedPanel extends JPanel {

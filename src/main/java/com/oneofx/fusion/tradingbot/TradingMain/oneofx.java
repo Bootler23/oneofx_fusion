@@ -27,6 +27,8 @@ import com.oneofx.fusion.tradingbot.service.MarketRegimeService;
 import com.oneofx.fusion.tradingbot.desktop.BaseConfigRepository;
 import com.oneofx.fusion.tradingbot.desktop.BotBaseConfig;
 import com.oneofx.fusion.tradingbot.service.MarketRegimeService.Regime;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluation;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluationService;
 import com.oneofx.fusion.tradingbot.domain.TradingRules;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
 import com.oneofx.fusion.tradingbot.Stream.PricePoller;
@@ -39,6 +41,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.Optional;
 
 public class oneofx {
 
@@ -49,6 +52,8 @@ public class oneofx {
     private static final PositionDAO positionDAO = new PositionDAO();
     private static final StrategyStateDAO strategyStateDAO = new StrategyStateDAO();
     private static final BaseConfigRepository baseConfigRepository = new BaseConfigRepository();
+    private static final StrategyEvaluationService strategyEvaluationService =
+            new StrategyEvaluationService();
     private static PricePoller pricePoller;
     private static FileChannel lockChannel;
     private static FileLock instanceLock;
@@ -243,12 +248,18 @@ public class oneofx {
 
                     MarketRegimeService.Snapshot market = MarketRegimeService.getInstance()
                             .getSnapshot(currency, FusionClientProvider.getClient());
+                    long activeBotId = com.oneofx.fusion.tradingbot.bot.BotRuntime.activeBotId();
+                    Optional<StrategyEvaluation> customStrategy = strategyEvaluationService
+                            .evaluateAssigned(activeBotId, currency, market.regime().name(),
+                                    FusionClientProvider.getClient());
+                    boolean sellSignal = customStrategy.map(StrategyEvaluation::sell)
+                            .orElse(market.regime() == Regime.EXIT);
 
                     // Bestehende Positionen werden vor der Kaufentscheidung geprüft.
                     // Ein Notstopp kann so noch im selben Durchlauf die Kaufsperre setzen.
                     getDataRecords.clear();
                     getDataRecords.addAll(positionDAO.getDataRecordsWhereStatusOneOrSeven(currency));
-                    if (market.regime() == Regime.EXIT) {
+                    if (sellSignal) {
                         SellOrderProcess.closePositionsForRegime(
                                 currency, FusionClientProvider.getClient(), getDataRecords,
                                 LivePrice.get(0));
@@ -258,13 +269,16 @@ public class oneofx {
                     }
 
                     boolean cooldownActive = strategyStateDAO.isBuyBlocked(currency);
+                    boolean strategyBuyAllowed = customStrategy
+                            .map(StrategyEvaluation::buyAllowed)
+                            .orElse(market.regime() == Regime.BUY_ALLOWED);
                     boolean baseBuyAllowed = buyEnabledCurrencies.contains(currency)
-                            && market.regime() == Regime.BUY_ALLOWED && !cooldownActive;
+                            && strategyBuyAllowed && !cooldownActive;
                     boolean trailingBuyReady = true;
                     BotBaseConfig executionConfig = baseConfigRepository.loadEffective(currency);
                     if (baseBuyAllowed && executionConfig.trailingStopBuyEnabled()) {
                         trailingBuyReady = baseConfigRepository.evaluateTrailingBuy(
-                                com.oneofx.fusion.tradingbot.bot.BotRuntime.activeBotId(), currency,
+                                activeBotId, currency,
                                 LivePrice.get(0), executionConfig.trailingStopBuyActivationPercent(),
                                 executionConfig.trailingStopBuyReboundPercent());
                     }
@@ -273,7 +287,7 @@ public class oneofx {
                         BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
                         if (executionConfig.trailingStopBuyEnabled()) {
                             baseConfigRepository.resetTrailingBuy(
-                                    com.oneofx.fusion.tradingbot.bot.BotRuntime.activeBotId(),
+                                    activeBotId,
                                     currency, LivePrice.get(0));
                         }
                     } else {

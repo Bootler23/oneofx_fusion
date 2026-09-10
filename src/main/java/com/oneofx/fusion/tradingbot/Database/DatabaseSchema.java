@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -40,7 +39,10 @@ public final class DatabaseSchema {
                 createOperationalTables(con);
                 createBotTables(con);
                 createBaseConfigTables(con);
+                createStrategyDesignerTables(con);
+                createBacktestTables(con);
                 createPaperTradingTables(con);
+                createAdvancedLocalTables(con);
 
                 addColumnIfMissing(con, "historyPosition", "Split", "REAL");
                 addColumnIfMissing(con, "historyPosition", "Balance_atBuy", "REAL");
@@ -52,6 +54,9 @@ public final class DatabaseSchema {
                 // Persistenter Zustand des Trailing Stops je offener Position.
                 addColumnIfMissing(con, "positions", "TSL", "TEXT DEFAULT 'inactive'");
                 addColumnIfMissing(con, "positions", "peakPrice", "REAL");
+                addColumnIfMissing(con, "positions", "orderOrigin",
+                        "TEXT NOT NULL DEFAULT 'BOT'");
+                addColumnIfMissing(con, "positions", "strategy_id", "INTEGER");
 
                 addColumnIfMissing(con, "positions", "bot_id", "INTEGER");
                 addColumnIfMissing(con, "historyPosition", "bot_id", "INTEGER");
@@ -65,7 +70,15 @@ public final class DatabaseSchema {
                         "REAL NOT NULL DEFAULT 0.10");
                 addColumnIfMissing(con, "paperPositions", "updated_at",
                         "TEXT");
+                addColumnIfMissing(con, "paperPositions", "strategy_id", "INTEGER");
+                addColumnIfMissing(con, "paperOrders", "position_id", "TEXT");
+                addColumnIfMissing(con, "tradingRules", "supportedOrderTypes",
+                        "TEXT NOT NULL DEFAULT 'LIMIT,MARKET,STOP_LIMIT,STOP_MARKET'");
                 addColumnIfMissing(con, "botPairSettings", "config_pool_id", "INTEGER");
+                addColumnIfMissing(con, "botPairSettings", "strategy_id", "INTEGER");
+                addColumnIfMissing(con, "configPools", "strategy_id", "INTEGER");
+                addColumnIfMissing(con, "backtestRuns", "execution_config",
+                        "TEXT NOT NULL DEFAULT ''");
 
                 addColumnIfMissing(con, "currency", "maxBuyAmount", "REAL DEFAULT 500.0");
                 addColumnIfMissing(con, "currency", "gridMode",
@@ -141,7 +154,7 @@ public final class DatabaseSchema {
     }
 
     private static Connection open(String jdbcUrl) throws SQLException {
-        Connection con = DriverManager.getConnection(jdbcUrl);
+        Connection con = SQLiteConnectionFactory.open(jdbcUrl);
         try {
             try (Statement statement = con.createStatement()) {
                 statement.execute("PRAGMA busy_timeout = 5000");
@@ -308,7 +321,7 @@ public final class DatabaseSchema {
                     + "order_id TEXT PRIMARY KEY, bot_id INTEGER NOT NULL, currency TEXT NOT NULL, "
                     + "side TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL, "
                     + "limit_price REAL, quantity REAL NOT NULL, amount REAL NOT NULL, "
-                    + "filled_price REAL, fee REAL NOT NULL DEFAULT 0, reason TEXT, "
+                    + "filled_price REAL, fee REAL NOT NULL DEFAULT 0, reason TEXT, position_id TEXT, "
                     + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
                     + "FOREIGN KEY (bot_id) REFERENCES bots(id))");
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS paperPositions ("
@@ -324,6 +337,142 @@ public final class DatabaseSchema {
                     + "ON paperOrders(bot_id, status)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_paper_positions_bot_status "
                     + "ON paperPositions(bot_id, status)");
+        }
+    }
+
+    private static void createAdvancedLocalTables(Connection con) throws SQLException {
+        try (Statement statement = con.createStatement()) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS positionGroups ("
+                    + "group_id TEXT PRIMARY KEY, bot_id INTEGER NOT NULL, currency TEXT NOT NULL, "
+                    + "name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS positionAllocations ("
+                    + "allocation_id TEXT PRIMARY KEY, bot_id INTEGER NOT NULL, source_kind TEXT NOT NULL, "
+                    + "source_position_id TEXT NOT NULL, currency TEXT NOT NULL, quantity REAL NOT NULL, "
+                    + "group_id TEXT, reserved_strategy_id INTEGER, label TEXT, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id), "
+                    + "FOREIGN KEY(group_id) REFERENCES positionGroups(group_id), "
+                    + "FOREIGN KEY(reserved_strategy_id) REFERENCES strategies(id))");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_allocations_bot_currency "
+                    + "ON positionAllocations(bot_id,currency)");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS portfolioTargets ("
+                    + "bot_id INTEGER NOT NULL, asset TEXT NOT NULL, target_percent REAL NOT NULL, "
+                    + "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(bot_id,asset), "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS automationRules ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, name TEXT NOT NULL, "
+                    + "enabled INTEGER NOT NULL DEFAULT 1, metric TEXT NOT NULL, operator TEXT NOT NULL, "
+                    + "threshold REAL NOT NULL, action TEXT NOT NULL, action_value TEXT, "
+                    + "cooldown_minutes INTEGER NOT NULL DEFAULT 0, last_triggered_at TEXT, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS tradingSchedules ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, name TEXT NOT NULL, "
+                    + "enabled INTEGER NOT NULL DEFAULT 1, days_mask TEXT NOT NULL DEFAULT '1234567', "
+                    + "start_time TEXT NOT NULL DEFAULT '00:00', end_time TEXT NOT NULL DEFAULT '23:59', "
+                    + "pause_trading INTEGER NOT NULL DEFAULT 0, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS desktopNotifications ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, severity TEXT NOT NULL, "
+                    + "title TEXT NOT NULL, message TEXT NOT NULL, read_at TEXT, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS marketRegimeHistory ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, currency TEXT NOT NULL, "
+                    + "regime TEXT NOT NULL, confidence REAL NOT NULL DEFAULT 0, explanation TEXT, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS professionalConfigs ("
+                    + "bot_id INTEGER NOT NULL, kind TEXT NOT NULL, currency TEXT NOT NULL DEFAULT '', "
+                    + "enabled INTEGER NOT NULL DEFAULT 0, paper_only INTEGER NOT NULL DEFAULT 1, "
+                    + "parameters_json TEXT NOT NULL DEFAULT '{}', "
+                    + "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "PRIMARY KEY(bot_id,kind,currency), FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS panicEvents ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, mode TEXT NOT NULL, "
+                    + "orders_affected INTEGER NOT NULL, positions_affected INTEGER NOT NULL, "
+                    + "result TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+        }
+    }
+
+    private static void createStrategyDesignerTables(Connection con) throws SQLException {
+        try (Statement statement = con.createStatement()) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS strategies ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, "
+                    + "name TEXT NOT NULL COLLATE NOCASE, minimum_confirmations INTEGER NOT NULL DEFAULT 1, "
+                    + "enabled INTEGER NOT NULL DEFAULT 1, archived INTEGER NOT NULL DEFAULT 0, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    + "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(bot_id,name), "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS strategyNodes ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, strategy_id INTEGER NOT NULL, parent_id INTEGER, "
+                    + "position INTEGER NOT NULL DEFAULT 0, node_type TEXT NOT NULL, action TEXT NOT NULL, "
+                    + "logical_operator TEXT NOT NULL DEFAULT 'AND', left_indicator TEXT, comparator TEXT, "
+                    + "right_indicator TEXT, compare_value REAL NOT NULL DEFAULT 0, timeframe TEXT NOT NULL DEFAULT '1d', "
+                    + "period INTEGER NOT NULL DEFAULT 14, secondary_period INTEGER NOT NULL DEFAULT 26, "
+                    + "FOREIGN KEY(strategy_id) REFERENCES strategies(id) ON DELETE CASCADE, "
+                    + "FOREIGN KEY(parent_id) REFERENCES strategyNodes(id) ON DELETE CASCADE)");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS botStrategyAssignments ("
+                    + "bot_id INTEGER PRIMARY KEY, strategy_id INTEGER NOT NULL, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id), FOREIGN KEY(strategy_id) REFERENCES strategies(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS marketStrategyAssignments ("
+                    + "bot_id INTEGER NOT NULL, regime TEXT NOT NULL, strategy_id INTEGER NOT NULL, "
+                    + "PRIMARY KEY(bot_id,regime), FOREIGN KEY(bot_id) REFERENCES bots(id), "
+                    + "FOREIGN KEY(strategy_id) REFERENCES strategies(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS strategyEvaluationLog ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, strategy_id INTEGER NOT NULL, "
+                    + "currency TEXT NOT NULL, buy_signal INTEGER NOT NULL, sell_signal INTEGER NOT NULL, "
+                    + "blocked INTEGER NOT NULL, confirmations INTEGER NOT NULL, explanation TEXT NOT NULL, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_strategy_nodes_parent "
+                    + "ON strategyNodes(strategy_id,parent_id,position)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_strategy_log_bot "
+                    + "ON strategyEvaluationLog(bot_id,created_at DESC)");
+        }
+    }
+
+    private static void createBacktestTables(Connection con) throws SQLException {
+        try (Statement statement = con.createStatement()) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS backtestRuns ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, "
+                    + "strategy_id INTEGER NOT NULL, strategy_name TEXT NOT NULL, currency TEXT NOT NULL, "
+                    + "base_timeframe TEXT NOT NULL, start_time INTEGER NOT NULL, end_time INTEGER NOT NULL, "
+                    + "initial_capital REAL NOT NULL, order_amount REAL NOT NULL, fee_percent REAL NOT NULL, "
+                    + "slippage_percent REAL NOT NULL, stop_loss_percent REAL NOT NULL, "
+                    + "take_profit_percent REAL NOT NULL, status TEXT NOT NULL DEFAULT 'RUNNING', "
+                    + "execution_config TEXT NOT NULL DEFAULT '', "
+                    + "final_capital REAL, net_profit REAL, return_percent REAL, max_drawdown_percent REAL, "
+                    + "trade_count INTEGER, win_rate_percent REAL, profit_factor REAL, error_message TEXT, "
+                    + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at TEXT, "
+                    + "FOREIGN KEY(bot_id) REFERENCES bots(id), FOREIGN KEY(strategy_id) REFERENCES strategies(id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS backtestTrades ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER NOT NULL, number INTEGER NOT NULL, "
+                    + "entry_time INTEGER NOT NULL, exit_time INTEGER NOT NULL, entry_price REAL NOT NULL, "
+                    + "exit_price REAL NOT NULL, quantity REAL NOT NULL, fees REAL NOT NULL, pnl REAL NOT NULL, "
+                    + "exit_reason TEXT NOT NULL, explanation TEXT NOT NULL, "
+                    + "FOREIGN KEY(run_id) REFERENCES backtestRuns(id) ON DELETE CASCADE)");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS backtestEquity ("
+                    + "run_id INTEGER NOT NULL, timestamp INTEGER NOT NULL, equity REAL NOT NULL, "
+                    + "drawdown_percent REAL NOT NULL, PRIMARY KEY(run_id,timestamp), "
+                    + "FOREIGN KEY(run_id) REFERENCES backtestRuns(id) ON DELETE CASCADE)");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS backtestOrderEvents ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER NOT NULL, number INTEGER NOT NULL, "
+                    + "order_reference TEXT NOT NULL, grid_level INTEGER NOT NULL, timestamp INTEGER NOT NULL, "
+                    + "event TEXT NOT NULL, limit_price REAL NOT NULL, fill_price REAL NOT NULL, "
+                    + "fill_quantity REAL NOT NULL, remaining_amount REAL NOT NULL, reason TEXT NOT NULL, "
+                    + "FOREIGN KEY(run_id) REFERENCES backtestRuns(id) ON DELETE CASCADE)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_backtest_runs_bot "
+                    + "ON backtestRuns(bot_id,created_at DESC)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_backtest_trades_run "
+                    + "ON backtestTrades(run_id,number)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_backtest_order_events_run "
+                    + "ON backtestOrderEvents(run_id,number)");
         }
     }
 

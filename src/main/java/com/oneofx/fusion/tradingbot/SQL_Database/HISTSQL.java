@@ -1,20 +1,20 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
+import com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory;
 import com.oneofx.fusion.tradingbot.Database.dbUrl;
 import com.oneofx.fusion.tradingbot.HelperFunctions.Time;
 
 public class HISTSQL {
 
     public static void get_SellTrade_Records_WhereStatusZero(List<String> records) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement query = con.createStatement();
                 ResultSet rs = query
                         .executeQuery("SELECT SellOrderId, Quantity, currency, BuyPrice FROM historyPosition WHERE Status = 0")) {
@@ -36,7 +36,7 @@ public class HISTSQL {
     }
 
     public static void getDataRecords_WhereStatusOne(String currency, List<String> GetDataRecord) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement query = con.prepareStatement("SELECT BuyOrderId, Split, currency FROM historyPosition WHERE Status = 1 AND Split IS NOT NULL AND currency = ?")) {
 
             query.setString(1, currency);
@@ -59,7 +59,7 @@ public class HISTSQL {
     public static boolean getDate(String date) {
         String query = "  SELECT 1 FROM WPD WHERE \"Date\" = ?"; // LIMIT 1 = Performance-Optimierung
 
-        try (Connection con = DriverManager.getConnection(dbUrl.getWPD());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getWPD());
                 PreparedStatement stmt = con.prepareStatement(query)) {
 
             stmt.setString(1, date);
@@ -75,7 +75,7 @@ public class HISTSQL {
 
     public static double getTaxe() {
         double tax = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement stmt = con.createStatement()) {
 
             String query = "SELECT ROUND(SUM(Tax), 2) AS TotalTax FROM historyPosition";
@@ -93,7 +93,7 @@ public class HISTSQL {
 
     public static double getbuyamount(String sellorderID) {
         double buyamount = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("SELECT BuyAmount FROM historyPosition WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
@@ -111,7 +111,7 @@ public class HISTSQL {
 
     public static double getbuyfee(String sellorderID) {
         double buyfee = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("SELECT BuyFee FROM historyPosition WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
@@ -129,7 +129,7 @@ public class HISTSQL {
 
     public static double getbuyprice(String sellorderID) {
         double buyprice = 0.0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("SELECT BuyPrice FROM historyPosition WHERE SellOrderId = ?")) {
 
             pstmt.setString(1, sellorderID);
@@ -147,7 +147,7 @@ public class HISTSQL {
 
     public static int getcountHist() {
         int count = 0;
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 Statement stmt = con.createStatement()) {
 
             String query = "SELECT COUNT(*) AS TotalCount FROM historyPosition";
@@ -164,7 +164,7 @@ public class HISTSQL {
     }
 
     public static void setsellfee(String sellorderID, double sellfee) {
-        try (Connection con = DriverManager.getConnection(dbUrl.getoneOfX());
+        try (Connection con = SQLiteConnectionFactory.open(dbUrl.getoneOfX());
                 PreparedStatement pstmt = con.prepareStatement("UPDATE historyPosition SET SellFee = ? WHERE SellOrderId = ?")) {
 
             pstmt.setDouble(1, sellfee);
@@ -179,7 +179,7 @@ public class HISTSQL {
     public static double getSumColumnToday(final String Url, String columnName, String tableName) {
 
         String todayString = Time.getCurrentDate();
-        try (Connection con = DriverManager.getConnection(Url);
+        try (Connection con = SQLiteConnectionFactory.open(Url);
                 PreparedStatement statement = con.prepareStatement(
                         "SELECT SUM(" + columnName + ") AS SumColumn FROM " + tableName +
                                 " WHERE SellDate = ?")) {

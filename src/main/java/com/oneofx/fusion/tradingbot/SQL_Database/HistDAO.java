@@ -1,7 +1,6 @@
 package com.oneofx.fusion.tradingbot.SQL_Database;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -23,7 +22,7 @@ public class HistDAO {
             " AND bot_id = (SELECT selected_bot_id FROM runtimeState WHERE id = 1) ";
 
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(dbUrl.getoneOfX());
+        return com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(dbUrl.getoneOfX());
     }
 
     // ===================== INSERT (modular) =====================
@@ -294,7 +293,7 @@ public class HistDAO {
         String todayString = Time.getCurrentDate();
         String sql = "SELECT SUM(" + sanitizeIdentifier(columnName) + ") AS SumColumn FROM "
                 + sanitizeIdentifier(tableName) + " WHERE SellDate = ?" + BOT_SCOPE;
-        try (Connection con = DriverManager.getConnection(url);
+        try (Connection con = com.oneofx.fusion.tradingbot.Database.SQLiteConnectionFactory.open(url);
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, todayString);
             ResultSet rs = ps.executeQuery();

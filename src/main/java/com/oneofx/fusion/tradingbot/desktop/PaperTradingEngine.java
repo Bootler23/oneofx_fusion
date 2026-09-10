@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Optional;
 
 import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.tradingbot.HelperFunctions.TradingRulesFormatter;
@@ -21,6 +22,8 @@ import com.oneofx.fusion.tradingbot.service.GridOrderPlanner;
 import com.oneofx.fusion.tradingbot.service.MarketRegimeService;
 import com.oneofx.fusion.tradingbot.service.MarketRegimeService.Regime;
 import com.oneofx.fusion.tradingbot.service.TradingDecisionPolicy;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluation;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluationService;
 
 /** Lokale Simulation mit echten Fusion-Marktdaten, aber ohne Orderuebermittlung. */
 final class PaperTradingEngine implements TradingExecution {
@@ -35,6 +38,7 @@ final class PaperTradingEngine implements TradingExecution {
     private final BaseConfigRepository baseConfigs = new BaseConfigRepository();
     private final CurrencyDAO currencyDao = new CurrencyDAO();
     private final StrategyStateDAO strategyState = new StrategyStateDAO();
+    private final StrategyEvaluationService strategyEvaluation = new StrategyEvaluationService();
     private volatile boolean running = true;
     private volatile PricePoller poller;
 
@@ -85,6 +89,10 @@ final class PaperTradingEngine implements TradingExecution {
 
         int fills = paper.fillTriggeredBuys(bot.id(), currency, current);
         if (fills > 0) event("INFO", currency, fills + " Paper-Kauforder(s) ausgefuehrt.");
+        int sellFills = paper.fillTriggeredSells(bot.id(), currency, current,
+                currentBot.paperFeePercent());
+        if (sellFills > 0) event("INFO", currency,
+                sellFills + " manuelle Paper-Verkaufsorder(s) ausgefuehrt.");
         int expired = paper.expireOpenBuys(bot.id(), currency,
                 executionConfig.maxBuyOrderMinutes());
         if (expired > 0) event("INFO", currency,
@@ -92,6 +100,10 @@ final class PaperTradingEngine implements TradingExecution {
 
         MarketRegimeService.Snapshot market = MarketRegimeService.getInstance()
                 .getSnapshot(currency, client);
+        Optional<StrategyEvaluation> customStrategy = strategyEvaluation.evaluateAssigned(
+                bot.id(), currency, market.regime().name(), client);
+        boolean sellSignal = customStrategy.map(StrategyEvaluation::sell)
+                .orElse(market.regime() == Regime.EXIT);
         for (PaperPosition position : paper.loadOpenPositions(bot.id(), currency)) {
             TradingDecisionPolicy.ExitDecision decision = TradingDecisionPolicy.evaluateExit(
                     position.entryPrice(), current, position.peakPrice(), position.trailingActive(),
@@ -102,8 +114,8 @@ final class PaperTradingEngine implements TradingExecution {
             String reason = null;
             boolean profitable = current > position.entryPrice();
             if (decision.shouldExit()) reason = decision.reason().name();
-            else if (market.regime() == Regime.EXIT
-                    && (!executionConfig.onlySellWithProfit() || profitable)) reason = "MARKET_REGIME_EXIT";
+            else if (sellSignal && (!executionConfig.onlySellWithProfit() || profitable))
+                reason = customStrategy.isPresent() ? "CUSTOM_STRATEGY_SELL" : "MARKET_REGIME_EXIT";
             else if (isExpired(position.openedAt(), executionConfig.closeAfterMinutes())
                     && (!executionConfig.onlySellWithProfit() || profitable)) reason = "MAX_POSITION_AGE";
             if (reason != null && paper.closePosition(bot.id(), position, current,
@@ -119,7 +131,9 @@ final class PaperTradingEngine implements TradingExecution {
             }
         }
 
-        boolean mayBuy = pair.buyEnabled() && market.regime() == Regime.BUY_ALLOWED
+        boolean strategyBuyAllowed = customStrategy.map(StrategyEvaluation::buyAllowed)
+                .orElse(market.regime() == Regime.BUY_ALLOWED);
+        boolean mayBuy = pair.buyEnabled() && strategyBuyAllowed
                 && !strategyState.isBuyBlocked(currency);
         if (mayBuy && executionConfig.trailingStopBuyEnabled()) {
             mayBuy = baseConfigs.evaluateTrailingBuy(bot.id(), currency, current,
@@ -128,7 +142,7 @@ final class PaperTradingEngine implements TradingExecution {
         }
         if (!mayBuy) {
             int cancelled = paper.cancelOpenBuys(bot.id(), currency,
-                    "STRATEGY_" + market.regime().name());
+                    customStrategy.isPresent() ? "CUSTOM_STRATEGY" : "STRATEGY_" + market.regime().name());
             if (cancelled > 0) event("INFO", currency,
                     cancelled + " Paper-Kauforder(s) storniert.");
             return;
