@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
@@ -202,6 +203,31 @@ public class FusionApiClientTest {
                 () -> client.getCandlestickBars("BTC-EUR", CandlestickInterval.HOURLY, 0, null, null));
         assertThrows(IllegalArgumentException.class,
                 () -> client.getCandlestickBars("BTC-EUR", CandlestickInterval.HOURLY, 1441, null, null));
+    }
+
+    @Test
+    public void candleRangePaginatesBackwardsAndDeduplicatesBoundaryCandle() {
+        List<String> queries = new ArrayList<>();
+        server.createContext("/v1/candles/BTC-EUR", exchange -> {
+            String query = exchange.getRequestURI().getRawQuery();
+            queries.add(query);
+            String body = query.contains("to=1700010800")
+                    ? "[{\"timestamp\":1700007200},{\"timestamp\":1700003600}]"
+                    : "[{\"timestamp\":1700003600},{\"timestamp\":1700000000}]";
+            respond(exchange, 200, body);
+        });
+
+        List<com.oneofx.fusion.client.model.Candlestick> candles =
+                new FusionApiClient("test-key", baseUrl).getCandlestickBarsRange(
+                        "BTCEUR", CandlestickInterval.HOURLY,
+                        1_700_000_000_000L, 1_700_010_800_000L);
+
+        assertEquals(3, candles.size());
+        assertEquals(Long.valueOf(1_700_000_000_000L), candles.get(0).getOpenTime());
+        assertEquals(Long.valueOf(1_700_007_200_000L), candles.get(2).getOpenTime());
+        assertEquals(List.of(
+                "interval=1h&to=1700010800&limit=1440",
+                "interval=1h&to=1700003600&limit=1440"), queries);
     }
 
     @Test

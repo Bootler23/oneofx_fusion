@@ -29,6 +29,8 @@ import com.oneofx.fusion.tradingbot.service.BotRiskService;
 import com.oneofx.fusion.tradingbot.service.GridOrderPlanner;
 import com.oneofx.fusion.tradingbot.desktop.BaseConfigRepository;
 import com.oneofx.fusion.tradingbot.desktop.BotBaseConfig;
+import com.oneofx.fusion.tradingbot.strategy.EntrySpacingPolicy;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluation;
 
 public class BuyOrderPocess {
 
@@ -39,6 +41,11 @@ public class BuyOrderPocess {
     private static final int MAX_PENDING_BUY_ORDERS = 2;
 
     public static void setBuyOrder(String currency, FusionApiClient client, List<Double> LivePrice) {
+        setBuyOrder(currency, client, LivePrice, null);
+    }
+
+    public static void setBuyOrder(String currency, FusionApiClient client, List<Double> LivePrice,
+            StrategyEvaluation strategySignal) {
 
         double ath = currencyDAO.getAllTimeHigh(currency);
         double tickerPrice = LivePrice.get(0);
@@ -72,15 +79,19 @@ public class BuyOrderPocess {
         // LIMIT-Buys ergaenzt, bis insgesamt zwei Pending-Orders vorhanden sind.
         int maximumNewOrders = "MARKET".equals(executionConfig.buyOrderType())
                 ? 1 : MAX_PENDING_BUY_ORDERS - pendingOrders;
+        double spacingReference = strategySignal == null ? 0
+                : positionDAO.getLowestCommittedEntryPrice(currency);
+        if (spacingReference < 0) return;
         List<Double> candidates = GridOrderPlanner.candidates(Math.max(ath, tickerPrice),
                 tickerPrice, gridSettings,
                 price -> TradingRulesFormatter.formatPrice(currency, price),
-                price -> positionDAO.positionExistsAtPrice(currency, price),
+                price -> positionDAO.positionExistsAtPrice(currency, price)
+                        || !spacingAllows(strategySignal, spacingReference, price),
                 maximumNewOrders,
                 CheckOrderStatus.MAX_GRID_LEVELS_BELOW_MARKET);
         for (double gridPrice : candidates) {
             if (!placeLimitBuy(currency, client, tickerPrice, gridPrice,
-                    buyOrderPersistence, executionConfig)) {
+                    buyOrderPersistence, executionConfig, strategySignal)) {
                 // Bei einem unklaren oder abgelehnten Ausgang keine weiteren
                 // Orders senden. So vermeiden wir Doppelorders.
                 return;
@@ -90,7 +101,16 @@ public class BuyOrderPocess {
 
     private static boolean placeLimitBuy(String currency, FusionApiClient client,
             double tickerPrice, double limitLevel, BuyOrderPersistence buyOrderPersistence,
-            BotBaseConfig executionConfig) {
+            BotBaseConfig executionConfig, StrategyEvaluation strategySignal) {
+
+        double candidatePrice = "MARKET".equals(executionConfig.buyOrderType())
+                ? tickerPrice : limitLevel;
+        double spacingReference = strategySignal == null ? 0
+                : positionDAO.getLowestCommittedEntryPrice(currency);
+        if (spacingReference < 0 || !spacingAllows(strategySignal, spacingReference, candidatePrice)) {
+            System.out.println("Kauf durch Strategie-Positionsabstand gesperrt fuer " + currency);
+            return false;
+        }
 
         double buyAmount = BuyAmountFunktion.getsimplebuyamount(currency);
         if (buyAmount <= 0) {
@@ -224,6 +244,13 @@ public class BuyOrderPocess {
             ex.printStackTrace();
         }
         return false;
+    }
+
+    private static boolean spacingAllows(StrategyEvaluation strategySignal,
+            double referenceEntry, double candidatePrice) {
+        return strategySignal == null || referenceEntry == 0
+                || EntrySpacingPolicy.allows(strategySignal.entrySpacingMode(),
+                        strategySignal.entrySpacing(), referenceEntry, candidatePrice);
     }
 
     private static void handleSubmissionFailure(BuyOrderPersistence buyOrderPersistence,

@@ -24,6 +24,7 @@ import com.oneofx.fusion.tradingbot.service.MarketRegimeService.Regime;
 import com.oneofx.fusion.tradingbot.service.TradingDecisionPolicy;
 import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluation;
 import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluationService;
+import com.oneofx.fusion.tradingbot.strategy.EntrySpacingPolicy;
 
 /** Lokale Simulation mit echten Fusion-Marktdaten, aber ohne Orderuebermittlung. */
 final class PaperTradingEngine implements TradingExecution {
@@ -147,19 +148,20 @@ final class PaperTradingEngine implements TradingExecution {
                     cancelled + " Paper-Kauforder(s) storniert.");
             return;
         }
-        replenishGrid(currentBot, pair, executionConfig, current);
+        replenishGrid(currentBot, pair, executionConfig, current, customStrategy.orElse(null));
         if (executionConfig.trailingStopBuyEnabled()) {
             baseConfigs.resetTrailingBuy(bot.id(), currency, current);
         }
     }
 
     private void replenishGrid(BotProfile currentBot, CurrencySettings pair,
-            BotBaseConfig executionConfig, double current)
+            BotBaseConfig executionConfig, double current, StrategyEvaluation strategySignal)
             throws Exception {
         int pending = paper.countOpenBuys(bot.id(), pair.currency());
         if (pending >= MAX_PENDING_PER_PAIR) return;
         double anchor = Math.max(currencyDao.getAllTimeHigh(pair.currency()), current);
         Set<Double> occupied = new HashSet<>(paper.occupiedPrices(bot.id(), pair.currency()));
+        double spacingReference = occupied.stream().mapToDouble(Double::doubleValue).min().orElse(0);
         List<PaperPosition> positions = paper.loadOpenPositions(bot.id(), pair.currency());
         double amount = pair.buyAmount();
         if (!positions.isEmpty()) {
@@ -174,8 +176,13 @@ final class PaperTradingEngine implements TradingExecution {
                         current * (1.0 + currentBot.paperSlippagePercent() / 100.0)))
                 : GridOrderPlanner.candidates(anchor, current, pair.gridSettings(),
                         price -> TradingRulesFormatter.formatPrice(pair.currency(), price),
-                        occupied::contains, MAX_PENDING_PER_PAIR - pending, 2);
+                        price -> occupied.contains(price)
+                                || !spacingAllows(strategySignal, spacingReference, price),
+                        MAX_PENDING_PER_PAIR - pending, 2);
         for (double price : candidates) {
+            double currentReference = occupied.stream().mapToDouble(Double::doubleValue)
+                    .min().orElse(0);
+            if (!spacingAllows(strategySignal, currentReference, price)) continue;
             PaperRisk risk = paper.loadRisk(bot.id());
             double botLimit = Math.min(currentBot.budget(), currentBot.maxExposure());
             if (risk.openPositions() >= currentBot.maxOpenPositions()
@@ -199,6 +206,13 @@ final class PaperTradingEngine implements TradingExecution {
                 break;
             }
         }
+    }
+
+    private static boolean spacingAllows(StrategyEvaluation strategySignal,
+            double referenceEntry, double candidatePrice) {
+        return strategySignal == null || referenceEntry == 0
+                || EntrySpacingPolicy.allows(strategySignal.entrySpacingMode(),
+                        strategySignal.entrySpacing(), referenceEntry, candidatePrice);
     }
 
     private static boolean isExpired(String openedAt, int minutes) {

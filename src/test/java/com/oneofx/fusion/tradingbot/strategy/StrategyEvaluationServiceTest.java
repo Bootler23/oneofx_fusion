@@ -39,6 +39,13 @@ public class StrategyEvaluationServiceTest {
         assertTrue(result.buyAllowed());
         assertEquals(2,result.confirmations());
         assertTrue(result.explanations().stream().anyMatch(line->line.contains("RSI")));
+        assertTrue(result.explanations().stream().anyMatch(line->line.contains("Kaufregel")));
+        assertTrue(result.explanations().stream().anyMatch(
+                line->line.contains("Vorgabe: muss größer sein als")));
+        assertTrue(result.explanations().stream().anyMatch(
+                line->line.contains("Ergebnis der Kaufregeln")));
+        assertTrue(result.explanations().stream().noneMatch(line->line.contains("GREATER_THAN")));
+        assertTrue(result.explanations().stream().noneMatch(line->line.contains("=>")));
     }
 
     @Test public void blockSignalOverridesMatchingBuy() {

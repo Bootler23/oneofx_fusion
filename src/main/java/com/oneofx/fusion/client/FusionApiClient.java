@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /**
  * Synchronous client for the Bitpanda Fusion REST API.
@@ -45,6 +46,7 @@ public final class FusionApiClient {
     private static final int PAGE_SIZE = 100;
     private static final int MAX_PAGES = 100;
     private static final int MAX_CANDLE_LIMIT = 1440;
+    private static final int MAX_CANDLE_PAGES = 100;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -142,6 +144,43 @@ public final class FusionApiClient {
         }
         return get("/v1/candles/" + FusionSymbol.normalizePair(pair), query,
                 new TypeReference<List<Candlestick>>() {});
+    }
+
+    /**
+     * Loads a complete candle range in backwards pages. The Fusion endpoint caps a
+     * single response even when {@code from} and {@code to} cover a longer range,
+     * so one request must never be treated as the complete backtest history.
+     */
+    public List<Candlestick> getCandlestickBarsRange(String pair, CandlestickInterval interval,
+                                                      long startTime, long endTime) {
+        long from = toEpochMilliseconds(startTime);
+        long to = toEpochMilliseconds(endTime);
+        if (to <= from) throw new IllegalArgumentException("Candle end time must be after start time");
+
+        TreeMap<Long, Candlestick> result = new TreeMap<>();
+        long cursorTo = to;
+        for (int pageNumber = 0; pageNumber < MAX_CANDLE_PAGES; pageNumber++) {
+            List<Candlestick> page = getCandlestickBars(pair, interval,
+                    MAX_CANDLE_LIMIT, null, cursorTo);
+            if (page == null || page.isEmpty()) return List.copyOf(result.values());
+
+            long earliest = Long.MAX_VALUE;
+            for (Candlestick candle : page) {
+                if (candle == null || candle.getOpenTime() == null) continue;
+                long openTime = candle.getOpenTime();
+                earliest = Math.min(earliest, openTime);
+                if (openTime >= from && openTime < to) result.put(openTime, candle);
+            }
+            if (earliest == Long.MAX_VALUE || earliest <= from) {
+                return List.copyOf(result.values());
+            }
+            if (earliest >= cursorTo) {
+                throw new FusionApiException("Fusion candle pagination did not move backwards");
+            }
+            cursorTo = earliest;
+        }
+        throw new FusionApiException("Fusion candle pagination exceeded "
+                + MAX_CANDLE_PAGES + " pages");
     }
 
     public Account getAccount() {
@@ -265,6 +304,10 @@ public final class FusionApiClient {
 
     private static long toEpochSeconds(long timestamp) {
         return timestamp > 10_000_000_000L ? timestamp / 1000L : timestamp;
+    }
+
+    private static long toEpochMilliseconds(long timestamp) {
+        return timestamp <= 10_000_000_000L ? timestamp * 1000L : timestamp;
     }
 
     private static String pathSegment(String value) {

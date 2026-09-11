@@ -245,6 +245,21 @@ public class PositionDAO {
         } catch (SQLException ex) { return 0; }
     }
 
+    /** Niedrigster Preis einer offenen Position oder noch offenen Kauforder. */
+    public double getLowestCommittedEntryPrice(String currencyPair) {
+        String sql = "SELECT MIN(COALESCE(NULLIF(BuyPrice,0),NULLIF(OrderPrice,0))) "
+                + "FROM positions WHERE Status IN (0,1,5,7,8) AND currency = ?" + BOT_SCOPE;
+        try (Connection con = getConnection(); PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, currencyPair);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getDouble(1) : 0;
+            }
+        } catch (SQLException ex) {
+            System.err.println("Positionsabstand konnte nicht geprueft werden: " + ex.getMessage());
+            return -1;
+        }
+    }
+
     public List<String> getBuyOrderIdsWhereStatusZero(String currencyPair) {
         List<String> ids = new ArrayList<>();
         try (Connection con = getConnection();

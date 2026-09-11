@@ -19,6 +19,7 @@ import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluation;
 import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluationService;
 import com.oneofx.fusion.tradingbot.strategy.StrategyNode;
 import com.oneofx.fusion.tradingbot.strategy.StrategyRepository;
+import com.oneofx.fusion.tradingbot.strategy.EntrySpacingPolicy;
 import com.oneofx.fusion.tradingbot.grid.GridCalculator;
 
 /** Ereignisbasierter Long-Backtest. Signale abgeschlossener Kerzen werden am nächsten Open ausgeführt. */
@@ -34,6 +35,11 @@ public final class BacktestService {
         long runId=repository.createRun(request,strategy.name());
         try{
             List<StrategyNode> nodes=strategies.loadNodes(strategy.id());
+            boolean hasBuyCondition=nodes.stream().anyMatch(node->
+                    node.type()==StrategyNode.NodeType.CONDITION
+                            &&node.action()==StrategyNode.Action.BUY);
+            if(!hasBuyCondition)throw new IllegalArgumentException(
+                    "Die Strategie enth\u00e4lt keine Kaufregel. F\u00fcge im Strategie-Designer mindestens eine Kaufregel hinzu.");
             if(nodes.isEmpty())throw new IllegalArgumentException("Die Strategie enthält keine Regeln.");
             Map<String,List<Candlestick>> candles=loadCandles(request,nodes,client);
             BacktestResult result=simulate(request,strategy,nodes,candles).withRunId(runId);
@@ -100,7 +106,7 @@ public final class BacktestService {
             else{
                 boolean dca=!positions.isEmpty();boolean dcaReady=dca&&config.dcaEnabled()&&dcaOrders<config.dcaMaxOrders()
                         && close<=positions.stream().mapToDouble(value->value.entryPrice).min().orElse(close)*(1-config.dcaTriggerPercent()/100);
-                if(!dca||dcaReady){int targetOrders=dca?1:config.maxOpenOrders()-orders.size();double amount=request.orderAmount()*(dca?Math.pow(config.dcaSizeMultiplier(),dcaOrders+1):1);int placed=placeOrders(request,config,time+baseDuration,close,anchor,amount,targetOrders,dca,nextOrder,orders,positions,orderEvents,explanation,cash);nextOrder+=placed;if(dca&&placed>0)dcaOrders++;}
+                if(!dca||dcaReady){int targetOrders=dca?1:config.maxOpenOrders()-orders.size();double amount=request.orderAmount()*(dca?Math.pow(config.dcaSizeMultiplier(),dcaOrders+1):1);int placed=placeOrders(request,config,strategy,time+baseDuration,close,anchor,amount,targetOrders,dca,nextOrder,orders,positions,orderEvents,explanation,cash);nextOrder+=placed;if(dca&&placed>0)dcaOrders++;}
             }
             if(positions.isEmpty()&&orders.isEmpty())dcaOrders=0;
 
@@ -124,6 +130,7 @@ public final class BacktestService {
     }
 
     private static int placeOrders(BacktestRequest request,BacktestExecutionConfig config,
+            StrategyDefinition strategy,
             long time,double close,double anchor,double desiredAmount,int target,boolean dca,
             int nextOrder,List<LimitOrder> orders,List<Position> positions,
             List<BacktestOrderEvent> events,String explanation,double cash){
@@ -148,8 +155,11 @@ public final class BacktestService {
                     :quantize(GridCalculator.level(anchor,level,
                             new com.oneofx.fusion.tradingbot.grid.GridSettings(
                                     config.gridMode(),config.gridSpacing())),
-                            request.tickSize(),RoundingMode.FLOOR);
+                             request.tickSize(),RoundingMode.FLOOR);
             if(limit<=0||occupied.contains(limit))continue;
+            double spacingReference=occupied.stream().mapToDouble(Double::doubleValue).min().orElse(0);
+            if(spacingReference>0&&!EntrySpacingPolicy.allows(strategy.entrySpacingMode(),
+                    strategy.entrySpacing(),spacingReference,limit))continue;
             String reference="BT-"+(nextOrder+placed);
             LimitOrder order=new LimitOrder(reference,market?0:level,limit,amount,amount,
                     market,dca,explanation);
@@ -177,7 +187,8 @@ public final class BacktestService {
             int lookback=nodes.stream().filter(n->n.type()==StrategyNode.NodeType.CONDITION&&timeframe.equals(n.timeframe()))
                     .mapToInt(n->Math.max(n.period()*2+5,n.secondaryPeriod()+12)).max().orElse(10);
             long from=request.start().toEpochMilli()-intervalMillis(timeframe)*Math.min(lookback,1000);
-            List<Candlestick> bars=new ArrayList<>(client.getCandlestickBars(request.currency(),interval(timeframe),null,from,request.end().toEpochMilli()));
+            List<Candlestick> bars=new ArrayList<>(client.getCandlestickBarsRange(
+                    request.currency(),interval(timeframe),from,request.end().toEpochMilli()));
             bars.sort(Comparator.comparing(Candlestick::getOpenTime));result.put(timeframe,List.copyOf(bars));
         }
         return result;

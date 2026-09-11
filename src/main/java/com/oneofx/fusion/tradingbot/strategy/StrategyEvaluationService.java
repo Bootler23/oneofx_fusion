@@ -64,7 +64,8 @@ public final class StrategyEvaluationService {
         int confirmations=confirmRoots==0?strategy.minimumConfirmations():matches.getOrDefault(Action.CONFIRM,0);
         StrategyEvaluation result=new StrategyEvaluation(strategy.id(),strategy.name(),
                 matches.getOrDefault(Action.BUY,0)>0,matches.getOrDefault(Action.SELL,0)>0,
-                matches.getOrDefault(Action.BLOCK,0)>0,confirmations,strategy.minimumConfirmations(),List.copyOf(explanations));
+                matches.getOrDefault(Action.BLOCK,0)>0,confirmations,strategy.minimumConfirmations(),
+                strategy.entrySpacingMode(),strategy.entrySpacing(),List.copyOf(explanations));
         return result;
     }
 
@@ -75,13 +76,66 @@ public final class StrategyEvaluationService {
             Values right=node.rightIndicator()==Indicator.VALUE?new Values(node.compareValue(),node.compareValue())
                     :values(node.rightIndicator(),node,candles.get(node.timeframe()));
             boolean match=compare(left,right,node.comparator());
-            explanations.add("  ".repeat(Math.min(depth,8))+action+": "+node.leftIndicator()+" "+node.comparator()+" "+node.rightIndicator()+" => "+match+" ("+number(left.current())+" / "+number(right.current())+")");return match;
+            explanations.add("  ".repeat(Math.min(depth,8))
+                    +conditionExplanation(node,action,left.current(),right.current(),match));
+            return match;
         }
         List<StrategyNode> nested=children.getOrDefault(node.id(),List.of());boolean value=!nested.isEmpty()&&node.logic()==StrategyNode.Logic.AND;
         if(node.logic()==StrategyNode.Logic.AND){for(StrategyNode child:nested)value&=evaluateNode(child,action,children,candles,explanations,depth+1);}
         else {value=false;for(StrategyNode child:nested)value|=evaluateNode(child,action,children,candles,explanations,depth+1);}
-        explanations.add("  ".repeat(Math.min(depth,8))+action+"-Gruppe "+node.logic()+" => "+value);return value;
+        String requirement=node.logic()==StrategyNode.Logic.AND
+                ?"alle Regeln m\u00fcssen erf\u00fcllt sein"
+                :"mindestens eine Regel muss erf\u00fcllt sein";
+        explanations.add("  ".repeat(Math.min(depth,8))
+                +(value?"\u2713 ":"\u2717 ")+"Ergebnis der "+groupLabel(action)+": "
+                +(value?"erf\u00fcllt":"nicht erf\u00fcllt")+" ("+requirement+").");
+        return value;
     }
+
+    private static String conditionExplanation(StrategyNode node,Action action,double left,
+            double right,boolean match){
+        String prefix=(match?"\u2713 ":"\u2717 ")+actionLabel(action)+"regel "
+                +(match?"erf\u00fcllt":"nicht erf\u00fcllt")+": ";
+        if(!Double.isFinite(left)||!Double.isFinite(right))return prefix
+                +indicatorLabel(node.leftIndicator(),node)+" kann noch nicht berechnet werden. "
+                +"Daf\u00fcr werden mehr Marktdaten ben\u00f6tigt.";
+        return prefix+indicatorLabel(node.leftIndicator(),node)+" liegt bei "+number(left)
+                +". Vorgabe: "+comparisonRequirement(node,right)+".";
+    }
+
+    private static String actionLabel(Action action){return switch(action){
+        case BUY->"Kauf";case SELL->"Verkauf";case BLOCK->"Sperr";
+        case CONFIRM->"Best\u00e4tigungs";};}
+
+    private static String groupLabel(Action action){return switch(action){
+        case BUY->"Kaufregeln";case SELL->"Verkaufsregeln";case BLOCK->"Sperrregeln";
+        case CONFIRM->"Best\u00e4tigungsregeln";};}
+
+    private static String comparisonRequirement(StrategyNode node,double right){
+        String target=indicatorLabel(node.rightIndicator(),node)+" ("+number(right)+")";
+        return switch(node.comparator()){
+            case GREATER_THAN->"muss gr\u00f6\u00dfer sein als "+target;
+            case GREATER_OR_EQUAL->"muss gr\u00f6\u00dfer oder gleich "+target+" sein";
+            case LESS_THAN->"muss kleiner sein als "+target;
+            case LESS_OR_EQUAL->"muss kleiner oder gleich "+target+" sein";
+            case CROSS_ABOVE->"muss "+target+" von unten nach oben kreuzen";
+            case CROSS_BELOW->"muss "+target+" von oben nach unten kreuzen";
+        };
+    }
+
+    private static String indicatorLabel(Indicator indicator,StrategyNode node){return switch(indicator){
+        case VALUE->"Grenzwert";case PRICE->"Preis";case VOLUME->"Handelsvolumen";
+        case SMA->"SMA ("+node.period()+")";case EMA->"EMA ("+node.period()+")";
+        case RSI->"RSI ("+node.period()+")";
+        case MACD->"MACD ("+node.period()+"/"+node.secondaryPeriod()+")";
+        case MACD_SIGNAL->"MACD-Signallinie ("+node.period()+"/"+node.secondaryPeriod()+")";
+        case STOCH_RSI->"Stochastischer RSI ("+node.period()+")";
+        case BOLLINGER_UPPER->"oberes Bollinger-Band ("+node.period()+")";
+        case BOLLINGER_LOWER->"unteres Bollinger-Band ("+node.period()+")";
+        case ATR->"ATR ("+node.period()+")";case CCI->"CCI ("+node.period()+")";
+        case BULLISH_ENGULFING->"bullisches Engulfing-Muster";
+        case BEARISH_ENGULFING->"b\u00e4risches Engulfing-Muster";
+        case HAMMER->"Hammer-Kerzenmuster";case SHOOTING_STAR->"Shooting-Star-Kerzenmuster";};}
 
     private static boolean compare(Values l,Values r,StrategyNode.Comparator c){
         if(!Double.isFinite(l.current())||!Double.isFinite(r.current()))return false;
@@ -122,7 +176,11 @@ public final class StrategyEvaluationService {
     private static Values pattern(double[]o,double[]h,double[]l,double[]c,Pattern p){return new Values(matchesPattern(o,h,l,c,o.length-1,p)?1:0,matchesPattern(o,h,l,c,o.length-2,p)?1:0);}
     private static boolean matchesPattern(double[]o,double[]h,double[]l,double[]c,int i,Pattern p){if(i<1||!Double.isFinite(o[i])||!Double.isFinite(c[i]))return false;double body=Math.max(Math.abs(c[i]-o[i]),1e-12),upper=h[i]-Math.max(o[i],c[i]),lower=Math.min(o[i],c[i])-l[i];return switch(p){case BULLISH_ENGULFING->c[i]>o[i]&&c[i-1]<o[i-1]&&o[i]<=c[i-1]&&c[i]>=o[i-1];case BEARISH_ENGULFING->c[i]<o[i]&&c[i-1]>o[i-1]&&o[i]>=c[i-1]&&c[i]<=o[i-1];case HAMMER->lower>=body*2&&upper<=body;case SHOOTING_STAR->upper>=body*2&&lower<=body;};}
     private static CandlestickInterval interval(String value){for(CandlestickInterval i:CandlestickInterval.values())if(i.getIntervalId().equalsIgnoreCase(value))return i;throw new IllegalArgumentException("Nicht unterstützter Timeframe: "+value);}
-    private static String number(double v){return Double.isFinite(v)?String.format(java.util.Locale.ROOT,"%.6f",v):"n/a";}
+    private static String number(double v){
+        if(!Double.isFinite(v))return "nicht verf\u00fcgbar";
+        int decimals=Math.abs(v)>0&&Math.abs(v)<1?6:2;
+        return String.format(java.util.Locale.GERMANY,"%,."+decimals+"f",v);
+    }
     private record Values(double current,double previous){static Values invalid(){return new Values(Double.NaN,Double.NaN);}}
     private enum Pattern{BULLISH_ENGULFING,BEARISH_ENGULFING,HAMMER,SHOOTING_STAR}
     private record Cached(StrategyEvaluation value,Instant at){}

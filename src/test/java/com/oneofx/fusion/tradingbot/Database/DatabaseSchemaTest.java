@@ -81,6 +81,9 @@ public class DatabaseSchemaTest {
             assertTrue(tableExists(statement, "botBaseConfig"));
             assertTrue(tableExists(statement, "configPools"));
             assertTrue(tableExists(statement, "strategies"));
+            assertTrue(columnExists(statement, "strategies", "entry_spacing_mode"));
+            assertTrue(columnExists(statement, "strategies", "entry_spacing"));
+            assertTrue(columnExists(statement, "strategies", "template_key"));
             assertTrue(tableExists(statement, "strategyNodes"));
             assertTrue(tableExists(statement, "botStrategyAssignments"));
             assertTrue(tableExists(statement, "marketStrategyAssignments"));

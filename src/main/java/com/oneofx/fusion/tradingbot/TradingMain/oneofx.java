@@ -284,7 +284,8 @@ public class oneofx {
                     }
                     if (baseBuyAllowed && trailingBuyReady) {
                         // Kauf: bis zu zwei offene Limit-Orders unter dem Markt ergänzen.
-                        BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice);
+                        BuyOrderPocess.setBuyOrder(currency, FusionClientProvider.getClient(), LivePrice,
+                                customStrategy.orElse(null));
                         if (executionConfig.trailingStopBuyEnabled()) {
                             baseConfigRepository.resetTrailingBuy(
                                     activeBotId,

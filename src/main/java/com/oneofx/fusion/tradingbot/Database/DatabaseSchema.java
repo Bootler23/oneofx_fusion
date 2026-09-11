@@ -79,6 +79,11 @@ public final class DatabaseSchema {
                 addColumnIfMissing(con, "configPools", "strategy_id", "INTEGER");
                 addColumnIfMissing(con, "backtestRuns", "execution_config",
                         "TEXT NOT NULL DEFAULT ''");
+                addColumnIfMissing(con, "strategies", "entry_spacing_mode",
+                        "TEXT NOT NULL DEFAULT 'PERCENT'");
+                addColumnIfMissing(con, "strategies", "entry_spacing",
+                        "REAL NOT NULL DEFAULT 1.0");
+                addColumnIfMissing(con, "strategies", "template_key", "TEXT");
 
                 addColumnIfMissing(con, "currency", "maxBuyAmount", "REAL DEFAULT 500.0");
                 addColumnIfMissing(con, "currency", "gridMode",
@@ -406,6 +411,9 @@ public final class DatabaseSchema {
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS strategies ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id INTEGER NOT NULL, "
                     + "name TEXT NOT NULL COLLATE NOCASE, minimum_confirmations INTEGER NOT NULL DEFAULT 1, "
+                    + "entry_spacing_mode TEXT NOT NULL DEFAULT 'PERCENT', "
+                    + "entry_spacing REAL NOT NULL DEFAULT 1.0, "
+                    + "template_key TEXT, "
                     + "enabled INTEGER NOT NULL DEFAULT 1, archived INTEGER NOT NULL DEFAULT 0, "
                     + "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
                     + "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(bot_id,name), "

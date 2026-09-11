@@ -28,6 +28,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oneofx.fusion.client.FusionApiClient;
 import com.oneofx.fusion.tradingbot.grid.GridMode;
 import com.oneofx.fusion.tradingbot.grid.GridSettings;
+import com.oneofx.fusion.tradingbot.strategy.EntrySpacingMode;
+import com.oneofx.fusion.tradingbot.strategy.StrategyEvaluation;
 import com.sun.net.httpserver.HttpServer;
 
 public class BuyOrderPocessTest {
@@ -167,6 +169,19 @@ public class BuyOrderPocessTest {
                 "SELECT COUNT(*) FROM positions WHERE currency = 'BTC-EUR' AND Status = 0"));
     }
 
+    @Test
+    public void strategySpacingPreventsNearbyRepeatedBuy() throws Exception {
+        FusionApiClient client = new FusionApiClient("test-key",
+                "http://127.0.0.1:" + server.getAddress().getPort());
+        StrategyEvaluation signal = new StrategyEvaluation(1, "Abstand", true, false,
+                false, 1, 1, EntrySpacingMode.PERCENT, 3.0, List.of());
+
+        BuyOrderPocess.setBuyOrder("BTC-EUR", client, List.of(100.0), signal);
+
+        assertEquals("Die zweite Grid-Stufe liegt noch innerhalb des Strategie-Abstands",
+                1, submittedOrders.size());
+    }
+
     private static void assertLimitBuyBelow(JsonNode order, double tickerPrice) {
         assertEquals("Buy", order.get("side").asText());
         assertEquals("Limit", order.get("type").asText());
@@ -187,7 +202,7 @@ public class BuyOrderPocessTest {
                     + "VALUES ('BTC-EUR', 100.0, 1, 'GEOMETRIC', 1.0, 10.0, 500.0)");
             statement.executeUpdate("CREATE TABLE positions (currency TEXT, "
                     + "BuyOrderId TEXT PRIMARY KEY, OrderPrice REAL, Status INTEGER, statusCode TEXT, "
-                    + "quantity REAL, BuyAmount REAL)");
+                    + "quantity REAL, BuyAmount REAL, BuyPrice REAL)");
             statement.executeUpdate("CREATE TABLE tradingRules (currency TEXT PRIMARY KEY, "
                     + "tickSize TEXT, stepSize TEXT, minQty TEXT, amountIncrement TEXT, "
                     + "maxOrderSize TEXT, minOrderAmount TEXT, maxOrderAmount TEXT)");

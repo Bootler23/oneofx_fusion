@@ -1,6 +1,7 @@
 package com.oneofx.fusion.tradingbot.strategy;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -63,6 +64,42 @@ public class StrategyRepositoryTest {
 
         strategies.archive(1,copy.id());
         assertEquals(1,strategies.loadAll(1).size());
+    }
+
+    @Test public void createsAndRepairsDefaultBuyGroup() throws Exception {
+        StrategyDefinition complete = strategies.createWithDefaultBuyGroup(1, "Einfach");
+        assertEquals(1, strategies.loadNodes(complete.id()).size());
+        assertEquals(Action.BUY, strategies.loadNodes(complete.id()).get(0).action());
+        assertNull(strategies.loadNodes(complete.id()).get(0).parentId());
+
+        StrategyDefinition empty = strategies.create(1, "Altbestand ohne Regeln");
+        strategies.ensureDefaultBuyGroup(empty.id());
+        strategies.ensureDefaultBuyGroup(empty.id());
+        assertEquals(1, strategies.loadNodes(empty.id()).size());
+        assertNull(strategies.loadNodes(empty.id()).get(0).parentId());
+    }
+
+    @Test public void createsExampleOnlyOnceAndPersistsEntrySpacing() throws Exception {
+        StrategyDefinition example = strategies.ensureExampleStrategy(1).orElseThrow();
+        strategies.ensureExampleStrategy(1);
+
+        assertEquals(1, strategies.loadAll(1).stream()
+                .filter(value -> value.name().equals("Beispiel: RSI + EMA")).count());
+        assertEquals(5, strategies.loadNodes(example.id()).size());
+        assertEquals(2, strategies.loadNodes(example.id()).stream()
+                .filter(node -> node.type() == StrategyNode.NodeType.CONDITION
+                        && node.action() == Action.BUY).count());
+
+        StrategyDefinition changed = new StrategyDefinition(example.id(), example.botId(),
+                "Angepasstes Beispiel", example.minimumConfirmations(), example.enabled(),
+                EntrySpacingMode.ABSOLUTE, 250.0);
+        strategies.saveDefinition(changed);
+        strategies.ensureExampleStrategy(1);
+        assertEquals(1, strategies.loadAll(1).size());
+        StrategyDefinition loaded = strategies.loadAll(1).stream()
+                .filter(value -> value.id() == example.id()).findFirst().orElseThrow();
+        assertEquals(EntrySpacingMode.ABSOLUTE, loaded.entrySpacingMode());
+        assertEquals(250.0, loaded.entrySpacing(), 0.000001);
     }
 
     @Test public void resolvesAssignmentsInDocumentedPriority() throws Exception {
